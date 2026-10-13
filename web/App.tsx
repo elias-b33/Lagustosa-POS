@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LayoutGrid, Utensils, ChefHat, Wine, Printer, ChartNoAxesCombined, Settings, LogOut, Wifi, WifiOff, ShieldCheck, ArrowRight, X, CircleAlert, Check, Bell } from 'lucide-react';
 import type { Bootstrap, Tab } from '../shared/types';
 import { api, ApiError } from './api';
@@ -11,6 +11,7 @@ import { Admin } from './Admin';
 import { Spinner } from './components';
 import { usePaymentAttempts } from './usePaymentAttempt';
 import { DesignSwitcher } from './DesignSwitcher';
+import { createRefreshScheduler, createSnapshotRefresh } from './refresh';
 
 const navigation = [
   { id: 'pos', label: 'Kassa', icon: Utensils }, { id: 'tables', label: 'Bord', icon: LayoutGrid },
@@ -30,34 +31,29 @@ export function App() {
   const [recoveryRefund, setRecoveryRefund] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const [clock, setClock] = useState(() => new Date());
-  const refreshSequence = useRef(0);
-  const lastApplied = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refresh = useCallback(async () => {
-    const sequence = ++refreshSequence.current;
-    try {
-      const result = await api<Bootstrap>('/bootstrap');
-      if (sequence > lastApplied.current) { lastApplied.current = sequence; setData(result); }
+  const [refresh] = useState(() => createSnapshotRefresh(() => api<Bootstrap>('/bootstrap'), result => {
+    if (result.ok) {
+      setData(result.value);
       setOffline(false);
-    } catch (issue) {
-      if (issue instanceof ApiError && issue.status === 401) setData(null);
+    } else {
+      if (result.error instanceof ApiError && result.error.status === 401) setData(null);
       else setOffline(true);
     }
-    finally { setLoading(false); }
-  }, []);
+    setLoading(false);
+  }));
   useEffect(() => { void refresh(); }, [refresh]);
   const identity = data ? `${data.actor.staff.id}:${data.actor.device.id}` : null;
   const { attempts: savedAttempts, storageError } = usePaymentAttempts(data?.actor, data?.testRoundId);
   useEffect(() => {
     if (!identity) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduler = createRefreshScheduler(refresh);
     const events = new EventSource('/api/v1/events');
-    const changed = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => void refresh(), 80); };
-    events.addEventListener('change', changed);
-    events.onopen = () => { setOffline(false); void refresh(); };
+    events.addEventListener('change', scheduler.schedule);
+    events.onopen = scheduler.schedule;
     events.onerror = () => setOffline(true);
-    const fallback = setInterval(() => void refresh(), 30000);
-    return () => { events.close(); clearInterval(fallback); if (timer) clearTimeout(timer); };
+    const fallback = setInterval(scheduler.schedule, 30000);
+    return () => { events.close(); clearInterval(fallback); scheduler.stop(); };
   }, [identity, refresh]);
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 30000);

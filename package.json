@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:safe-env": "node scripts/smoke-safe-test.mjs",
+    "measure:availability": "node scripts/measure-availability.mjs",
     "start:safe-test": "node scripts/safe-test.mjs start",
     "check": "tsc --noEmit",
     "certs": "node scripts/create-certs.mjs",

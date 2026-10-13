@@ -4,6 +4,25 @@ Restaurangens egen lokala webbapp för huvudkassa, bordsservering, kök och bar.
 
 **Den här versionen är en träningskassa.** Betalningar, kontrollenhet och skrivare är simulatorer. Gränssnitt, kvitton och rapporter är märkta `TEST — inga riktiga betalningar`. Produktionsläge är spärrat i servern.
 
+### Status inför verklig försäljning — kontrollerad 13 oktober 2026
+
+Denna implementation är **inte verifierad och tillverkardeklarerad för skarp kassaregisterdrift**. En fungerande betalningsknapp, gröna programtester eller en ansluten kortterminal ersätter inte kraven för kassaregistret.
+
+Skatteverkets normala modell är ett tillverkardeklarerat kassaregister tillsammans med en certifierad kontrollenhet eller ett certifierat kontrollsystem. Tillverkaren ansvarar för att föreskrifterna uppfylls och för dokumenterade tester; Skatteverket gör inte en egen produktprovning. Den version och kontrollenhetskombination som används måste omfattas av underlaget. Se [kraven på certifierat kassaregister](https://www4.skatteverket.se/rattsligvagledning/edition/2026.7/339826.html) och [informationen för tillverkare](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/fortillverkareochleverantorer.4.6efe6285127ab4f1d2580006050.html).
+
+| Område | Status i projektet | Återstår före verklig kassaförsäljning |
+|---|---|---|
+| Kontrollenhet/kontrollsystem | Simulator | Välja certifierad lösning, implementera och verifiera kopplingen |
+| Kassaregistrets föreskriftskrav | Träningsjournal, kvitton och rapporter finns | Full kravgenomgång, testprotokoll, versionsidentifiering och tillverkardeklaration |
+| Journal-XML | Träningsimplementation | Verifiera exportens struktur och innehåll mot gällande schema och föreskrifter |
+| Installation | Lokala testomgångar | Anmäla kassaregister och kontrollenhet/kontrollsystem för företaget |
+| Betalning och utskrift | Simulator/förhandsvisning | Leverantörens integration, fysisk utrustning och verifierade fel-/återställningsflöden |
+| Tillgänglighet | Tester, databaslås och mätverktyg | Installation, mätning under öppettider, återställningsövning och reservrutiner |
+
+Från **1 januari 2027** ska kassaregister uppfylla SKVFS 2021:17; journalminnen ska kunna exportera registreringar i XML. Att appen kan generera en XML-fil är inte bevis på att hela kravet uppfylls. [Skatteverkets aktuella information](https://www.skatteverket.se/foretag/drivaforetag/kassaregister). Installationen ska anmälas innan användning: [så anmäler du kassaregister](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/saharanmalerdukassaregister.4.69ef368911e1304a62580008748.html).
+
+Behåll ordinarie kassaregister för kundförsäljning medan denna app provas med testnotor. Ingen deklaration eller myndighetsanmälan har skickats från projektet.
+
 ## Säker provkörning
 
 Dubbelklicka på **Start-Testmiljo.cmd** för att öppna **http://127.0.0.1:4273/**. Den här starten använder en separat databas under `%LOCALAPPDATA%\LagustosaPOS\safe-test\sessions\`, en separat inloggningscookie och tvingade simulatorer. Startverktyget verifierar rätt server innan webbläsaren öppnas. Utvecklingsdata bevaras.
@@ -90,6 +109,8 @@ npm run test:e2e
 
 Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, sparade betalningsförsök, skrivarroutning, åtta anslutna SSE-klienter med rätt order/station, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer, alla tre utseenden, handterminalens notaflöde, enhetsstatus, skrivarbyte och förlorade svar före och efter registrering av betalning/retur. Browser-tester använder en separat tillfällig databas på port 4183.
 
+Regressionssviterna omfattar även kontinuerlig ordertrafik, gamla inloggningssvar, 15 sekunders timeout inklusive svarskroppen, beloppsgränser efter pris-/rabattändringar samt hård processavslutning och omstart. En okänd betalning behåller samma identifierare; timeout medför ingen automatisk ny debitering. Dessa prov säger inget om bankernas eller den fysiska utrustningens tillgänglighet.
+
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
 
 För att köra den byggda versionen på datorn:
@@ -156,6 +177,8 @@ npm run restore -- "E:\Backups\lagustosa-training-EXEMPEL.sqlite"
 
 Återställning avvisas medan servern körs. Den tidigare databasen säkerhetskopieras före ersättningen. Prova återställning till en separat testinstallation innan rutinen används i restaurangen.
 
+Serverstart och återställning håller ett gemensamt processlås i `training-owner.sqlite` under hela användningen. Operativsystemet släpper låset vid processkrasch. Låsfilen är inte en försäljningsdatabas och ska inte återställas, raderas eller bytas medan någon process använder datamappen. Uppgraderingar kräver att gamla serverprocesser stoppas först; parallell start av äldre PID-baserade versioner och den nya versionen stöds inte.
+
 ## Windows-paket och automatisk start
 
 ```powershell
@@ -171,6 +194,28 @@ powershell -NoProfile -File scripts/install-autostart.ps1
 ```
 
 Schemalagd aktivitet: `Lagustosa-Kassa-Training`. Laptopen ska ha nätverkskabel och inställningar som låter servern fortsätta köras när locket stängs.
+
+## Tillgänglighetskrav under öppettider
+
+Målet är **minst 99 % under restaurangens öppettider**, utvärderat över en rullande 30-dagarsperiod. Det är ett krav, inte en uppmätt egenskap eller garanti för denna version. Tillgänglig tid ska omfatta att personalen kan registrera en order, se den på rätt station och slutföra betalning med den valda utrustningen. Planerade avbrott under öppettid räknas också som avbrott. Utanför öppettiderna räknas tiden inte in. De faktiska öppettiderna och avvikande dagar behöver registreras för att beräkna hela periodens nämnare.
+
+`Tillgänglighet = 100 × (schemalagd öppettid − avbrott under öppettid) / schemalagd öppettid`.
+
+99 % tillåter en timmes avbrott per 100 öppettimmar. Ett fel som blockerar betalningar räknas som avbrott även om startsidan fortfarande laddar. Saknad mätning är okänd tid och får inte användas som bevis på fungerande drift. En lokal testkörning kan inte verifiera detta mål för kommande restaurangdrift.
+
+`GET /api/v1/health` identifierar den levande processen. `GET /api/v1/ready` läser också databasen och svarar 503 om läsningen misslyckas. Den senare kontrollen intygar **inte** skrivbar disk, journalens fullständiga integritet, personalinloggning, skrivare, kontrollenhet eller bankförbindelse.
+
+Ett läsande mätverktyg kontrollerar databaskontrollen och appens HTML-sida. Kör det från en **annan dator i restaurangens nätverk**, under ett bestämt intervall inom öppettiderna. Exemplet mäter en timme och sparar en ny loggfil:
+
+```powershell
+npm run measure:availability -- --url https://SERVERNS-NAMN:4173 --seconds 3600 --output artifacts/availability-skift-1.jsonl
+```
+
+Använd serverns verkliga adress och en betrodd certifikatkedja; verktyget kringgår inte TLS-fel. I det paketerade systemet kan samma kommando köras med `runtime\node.exe scripts\measure-availability.mjs` följt av argumenten ovan. Befintliga loggfiler skrivs inte över. Inga inloggningsuppgifter, order eller betalningar skickas. Kontrollen sker normalt var femte sekund med tre sekunders tidsgräns. Kortare avbrott mellan stickproven kan missas.
+
+Loggen har varje observation och en slutrapport över **endast det angivna mätfönstret**. Långa luckor i observationerna räknas som obekräftad tid, inte som lyckade prover. Avbruten körning utan slutrapport kan inte visa hela fönstrets tillgänglighet. HTML-kontrollen verifierar inte JavaScript/CSS, rendering eller faktisk användarinteraktion i webbläsaren. Ett godkänt mätfönster avser webb/API-provet och ersätter inte mätning av hela order- och betalningskedjan eller alla öppettider.
+
+Inför drift behövs fast serverinstallation utanför OneDrive, strömreserv för server/nätverk, kontrollerad automatisk omstart, oberoende övervakning med larm och provad återställning till reservdator. Nuvarande Windows-autostart är valfri, sker vid inloggning och försöker starta om högst tre gånger med en minuts mellanrum. Den upptäcker inte en hängande process och är ingen garanti för 99 %. Inga autostart-, ström- eller nätverksinställningar ändras av mätverktyget. Databasen ska ha en aktiv server; flera samtidiga servrar är inte en reservlösning.
 
 ## Teknisk grund och nästa integrationer
 

@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
+import { acquireDatabaseLock } from './database-lock.mjs';
 
 export function configuration(env = process.env) {
   if ((env.APP_MODE ?? 'training') !== 'training') throw new Error('Verktygen stöder endast träningsdatabasen.');
@@ -40,18 +41,11 @@ export async function restoreDatabase(source, config = configuration()) {
   if (!source) throw new Error('Ange säkerhetskopians sökväg: npm run restore -- <fil.sqlite>');
   const sourcePath = path.resolve(source);
   if (sourcePath === config.database) throw new Error('Säkerhetskopian får inte vara den aktiva databasen.');
-  const lockPath = path.join(config.dataDir, 'training.lock');
-  if (existsSync(lockPath)) {
-    const { pid } = JSON.parse(readFileSync(lockPath, 'utf8'));
-    let running = false;
-    try { process.kill(pid, 0); running = true; } catch (error) { if (error.code !== 'ESRCH') throw error; }
-    if (running) throw new Error('Stoppa kassaservern innan databasen återställs.');
-  }
-  verifyDatabase(sourcePath);
-  mkdirSync(config.dataDir, { recursive: true });
+  const releaseDatabaseLock = acquireDatabaseLock(config.dataDir, 'restore');
   const staging = path.join(config.dataDir, `restore-${randomUUID()}.sqlite`);
   let safetyBackup = null;
   try {
+    verifyDatabase(sourcePath);
     const sourceDb = new Database(sourcePath, { readonly: true, fileMustExist: true });
     try { await sourceDb.backup(staging); } finally { sourceDb.close(); }
     verifyDatabase(staging);
@@ -62,5 +56,8 @@ export async function restoreDatabase(source, config = configuration()) {
     }
     renameSync(staging, config.database);
     return { database: config.database, safetyBackup };
-  } finally { if (existsSync(staging)) unlinkSync(staging); }
+  } finally {
+    try { if (existsSync(staging)) unlinkSync(staging); }
+    finally { releaseDatabaseLock(); }
+  }
 }

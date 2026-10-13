@@ -230,7 +230,6 @@ export class KassaService {
         const course = input.course ?? item.course;
         const line: OrderLine = { id: randomUUID(), itemId: item.id, name: item.name, quantity: input.quantity ?? 1, guest, baseUnitOre, unitPriceOre: baseUnitOre + modifiers.reduce((sum, modifier) => sum + modifier.priceOre, 0), vatBps: taxRate(this.settings().taxRules, item.taxClass, tab.serviceMode, this.date()), course, station: item.station, modifiers: structuredClone(modifiers), notes: input.notes ?? '', status: input.hold ?? course === 'main' ? 'held' : 'draft', createdAt: this.timestamp() };
         tab.lines.push(line);
-        demand(tab.lines.length <= 1000 && calculateTab(tab).grossOre <= 100000000, 'Notan är för stor.');
       } else if (input.action === 'remove') {
         const line = tab.lines.find(candidate => candidate.id === input.lineId);
         demand(line && line.status !== 'void', 'Raden finns inte.');
@@ -285,6 +284,13 @@ export class KassaService {
       } else if (input.action === 'void') {
         demand(tab.lines.every(line => line.status === 'void') || tab.lines.length === 0, 'Makulera orderraderna innan notan avslutas.');
         tab.status = 'void';
+      }
+      if (['add', 'price', 'discount'].includes(input.action)) {
+        // Validate every amount-changing command before persisting it. Check the
+        // discount numerator before rounding so extreme input cannot poison a tab.
+        const originalOre = tab.lines.filter(line => line.status !== 'void').reduce((sum, line) => sum + line.unitPriceOre * line.quantity, 0);
+        demand(tab.lines.length <= 1000 && Number.isSafeInteger(originalOre) && Number.isSafeInteger(originalOre * tab.discountBps), 'Notan är för stor.');
+        demand(originalOre - roundRatio(originalOre * tab.discountBps, 10000) <= 100000000, 'Notan är för stor.');
       }
       tab.version++;
       tab.updatedAt = this.timestamp();

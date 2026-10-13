@@ -1,22 +1,14 @@
 import 'dotenv/config';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createApp, assertTrainingMode } from './app';
 import { demand } from './errors';
+import { acquireDatabaseLock } from '../scripts/database-lock.mjs';
 
 assertTrainingMode(process.env);
 const dataDir = path.resolve(process.env.DATA_DIR || './data');
-mkdirSync(dataDir, { recursive: true });
-const lockFile = path.join(dataDir, 'training.lock');
-if (existsSync(lockFile)) {
-  let running = false;
-  try { const lock = JSON.parse(readFileSync(lockFile, 'utf8')); process.kill(lock.pid, 0); running = true; } catch {}
-  if (running) throw new Error('Kassan kör redan med denna databas.');
-  unlinkSync(lockFile);
-}
-writeFileSync(lockFile, JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }), { flag: 'wx' });
-const removeLock = () => { try { const lock = JSON.parse(readFileSync(lockFile, 'utf8')); if (lock.pid === process.pid) unlinkSync(lockFile); } catch {} };
-process.on('exit', removeLock);
+const releaseDatabaseLock = acquireDatabaseLock(dataDir);
+process.on('exit', releaseDatabaseLock);
 const certPath = process.env.TLS_CERT || '';
 const keyPath = process.env.TLS_KEY || '';
 if (Boolean(certPath) !== Boolean(keyPath)) throw new Error('Både TLS_CERT och TLS_KEY måste anges.');
@@ -39,7 +31,7 @@ automaticBackup.unref();
 const shutdown = async () => {
   clearInterval(automaticBackup);
   await app.close();
-  removeLock();
+  releaseDatabaseLock();
   process.exit(0);
 };
 process.on('SIGINT', shutdown);

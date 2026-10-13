@@ -62,6 +62,17 @@ export async function createApp(options: AppOptions) {
   const paramId = (request: FastifyRequest): string => z.object({ id: z.string().min(1).max(100) }).parse(request.params).id;
 
   app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: 'simulator', fiscal: 'simulator', print: 'preview' } }));
+  // Liveness above identifies the process. Readiness also exercises the database;
+  // it does not attest to bank connectivity, physical printers or a completed sale.
+  app.get('/api/v1/ready', async (_request, reply) => {
+    try {
+      store.db.prepare('SELECT id FROM entities LIMIT 1').get();
+      return { ok: true, mode: 'training', checks: { databaseRead: 'ok' } };
+    } catch (error) {
+      app.log.error(error, 'Database readiness check failed');
+      return reply.code(503).send({ ok: false, mode: 'training', checks: { databaseRead: 'unavailable' } });
+    }
+  });
   app.get('/api/v1/auth/staff', async () => service.publicStaff().filter(staff => staff.active));
   app.post('/api/v1/auth/login', async (request, reply) => {
     const input = schema.loginSchema.parse(request.body);
