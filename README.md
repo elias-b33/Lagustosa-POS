@@ -27,6 +27,14 @@ Använd profilen **Ansvarig**, PIN **1234** och enhetskoden **LAGUSTOSA-TEST**. 
 
 Testkoderna visas även under **Enhet och testprofiler** på inloggningssidan. Dessa är avsedda för träning. Meny, bord, personal och enheter kan ändras i **Inställningar**. Menyn och bordsplaceringen är exempeldata.
 
+## Välj utseende
+
+Välj **Utseende → Professionell / Klassisk** i sidhuvudet eller på inloggningssidan. Bytet sker direkt utan att ändra notor, betalningar eller vald arbetsvy. Valet sparas i webbläsaren och synkroniseras mellan öppna flikar på samma adress. Nya installationer öppnar den professionella designen.
+
+Det klassiska utseendets `web/styles.css` och `web/tokens.css` är bevarade. Den professionella designen ligger separat i `web/styles-professional.css` och aktiveras endast när den väljs. Git-taggen `ui-classic-v1` bevarar också appens version före UI-ombyggnaden, inklusive betalningsåterhämtningen.
+
+Den professionella designens lokala logotyp kommer från [Lagustosas egen webbplats](https://www.lagustosa.se/). Färgerna bygger på restaurangens salviafärgade interiör, mörka ramar och vinröda detaljer. Meny, aktuell nota och stationernas status har tydliga hierarkier för restaurangservice. Logotyp och typsnitt kräver ingen Internetanslutning när appen körs.
+
 ## Det som går att prova
 
 - Bord och disknotor, försäljning på plats eller avhämtning, gäster, tillval och köksanteckningar.

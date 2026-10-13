@@ -7,11 +7,14 @@ export interface WorkspaceProps {
   run: <T>(operation: () => Promise<T>, success?: string) => Promise<T | undefined>;
   refresh: () => Promise<void>;
 }
+let openDialogs = 0;
+let originalBodyOverflow = '';
 export function Modal({ title, subtitle, children, onClose, wide = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
   useEffect(() => {
+    if (openDialogs++ === 0) { originalBodyOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; }
     const previous = document.activeElement as HTMLElement | null;
     const first = dialog.current?.querySelector<HTMLElement>('input:enabled, select:enabled, textarea:enabled, button:enabled');
     first?.focus();
@@ -26,7 +29,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false }: { ti
       }
     };
     document.addEventListener('keydown', handleKey);
-    return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
+    return () => { document.removeEventListener('keydown', handleKey); if (--openDialogs === 0) document.body.style.overflow = originalBodyOverflow; previous?.focus(); };
   }, []);
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={dialog}><div className="modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="Stäng"><X size={21} /></button></div>{children}</div></div>;
 }

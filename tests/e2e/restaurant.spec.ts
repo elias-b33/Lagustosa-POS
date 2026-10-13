@@ -35,6 +35,21 @@ async function sentTab(page: Page): Promise<Tab> {
   return tab;
 }
 
+test('inloggningen har synlig startknapp på en mindre datorskärm och mobil', async ({ page }) => {
+  await mkdir('artifacts', { recursive: true });
+  await page.goto('/');
+  await expect(page.getByLabel('Personal', { exact: true })).toBeVisible();
+  for (const design of ['professional', 'classic'] as const) {
+    await page.getByLabel('Utseende', { exact: true }).selectOption(design);
+    for (const [name, width, height] of [['compact', 1280, 720], ['phone', 390, 844], ['small-phone', 320, 812]] as const) {
+      await page.setViewportSize({ width, height });
+      await expect(page.getByRole('button', { name: 'Börja servicen', exact: true })).toBeInViewport();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${design} login ${name}`).toBe(true);
+      await page.screenshot({ path: `artifacts/lagustosa-${design}-login-${name}.png` });
+    }
+  }
+});
+
 test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavslut', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -61,9 +76,19 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await expect(page.getByText('1 × Husets röda · glas', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Kassa', exact: true }).click();
   await page.getByRole('button', { name: 'Fram huvudrätt', exact: true }).click();
+  await mkdir('artifacts', { recursive: true });
+  const selectedTab = await page.getByLabel('Öppna notor', { exact: true }).inputValue();
+  for (const design of ['classic', 'professional'] as const) {
+    await page.getByLabel('Utseende', { exact: true }).selectOption(design);
+    await expect(page.getByLabel('Öppna notor', { exact: true })).toHaveValue(selectedTab);
+    await expect(page.locator('.order-line')).toHaveCount(3);
+    await page.screenshot({ path: `artifacts/lagustosa-${design}-order.png` });
+  }
   await page.getByRole('button', { name: 'Ta betalt', exact: true }).click();
   const payment = page.getByRole('dialog', { name: 'Ta betalt' });
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
   await payment.getByRole('button', { name: 'Dela lika', exact: true }).click();
+  await page.screenshot({ path: 'artifacts/lagustosa-professional-payment.png' });
   await payment.getByText('Välj testscenario', { exact: true }).click();
   await payment.getByLabel('Betalningens resultat').selectOption('declined');
   await payment.getByRole('button', { name: /^Simulera betalning/ }).click();
@@ -86,6 +111,7 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await payment.getByRole('button', { name: 'Visa testkvitto', exact: true }).click();
   await expect(payment.locator('.receipt-paper')).toContainText('189,50');
   await payment.getByRole('button', { name: 'Klart', exact: true }).click();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
   await page.getByRole('button', { name: 'Dagsöversikt', exact: true }).click();
   await page.getByRole('button', { name: 'Avsluta dagen', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Bekräfta dagsavslut', exact: true }).click();
@@ -110,6 +136,9 @@ test('två servitörer kan lägga beställningar på samma bord utan förlust', 
   try {
     const a = await first.newPage(); const b = await second.newPage();
     await Promise.all([login(a, 'waiter', '3456', 'SERVERING-1'), login(b, 'waiter', '3456', 'SERVERING-2')]);
+    await a.getByLabel('Utseende', { exact: true }).selectOption('classic');
+    await expect(a.locator('html')).toHaveAttribute('data-design', 'classic');
+    await expect(b.locator('html')).toHaveAttribute('data-design', 'professional');
     await Promise.all([a.getByRole('button', { name: /^Bord 02 / }).click(), b.getByRole('button', { name: /^Bord 02 / }).click()]);
     await Promise.all([
       a.locator('.product-card').filter({ has: a.getByText('Vitlöksbröd', { exact: true }) }).click(),
@@ -124,19 +153,35 @@ test('två servitörer kan lägga beställningar på samma bord utan förlust', 
   } finally { await first.close(); await second.close(); }
 });
 
-test('gränssnittet fungerar på skrivbord, platta och mobil utan vågrät överrullning', async ({ page }) => {
+test('båda utseendena fungerar på skrivbord, platta och mobil och valet sparas', async ({ page }) => {
   await login(page);
   await mkdir('artifacts', { recursive: true });
-  for (const [name, width, height] of [['desktop', 1440, 1000], ['tablet', 1024, 768], ['phone', 390, 844]] as const) {
-    await page.setViewportSize({ width, height });
-    await expect(page.getByRole('heading', { name: 'Restaurangen', exact: true })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({ path: `artifacts/lagustosa-${name}.png`, fullPage: true });
+  for (const design of ['professional', 'classic'] as const) {
+    await page.getByLabel('Utseende', { exact: true }).selectOption(design);
+    await page.reload();
+    await expect(page.getByLabel('Utseende', { exact: true })).toHaveValue(design);
+    for (const [name, width, height] of [['desktop', 1440, 1000], ['tablet', 1024, 768], ['portrait', 768, 1024], ['phone', 390, 844], ['small-phone', 320, 812]] as const) {
+      await page.setViewportSize({ width, height });
+      await expect(page.getByRole('heading', { name: 'Restaurangen', exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${design} ${name}`).toBe(true);
+      await page.screenshot({ path: `artifacts/lagustosa-${design}-${name}.png`, fullPage: true });
+    }
+    for (const [name, width, height] of [['desktop', 1440, 1000], ['phone', 390, 844]] as const) {
+      await page.setViewportSize({ width, height });
+      for (const [id, label] of [['pos', 'Kassa'], ['kitchen', 'Kök'], ['bar', 'Bar'], ['prints', 'Utskrifter'], ['reports', 'Dagsöversikt'], ['admin', 'Inställningar']] as const) {
+        await page.getByRole('navigation', { name: 'Huvudmeny' }).getByRole('button', { name: label, exact: true }).click();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${design} ${name} ${id}`).toBe(true);
+        await page.screenshot({ path: `artifacts/lagustosa-${design}-${id}-${name}.png`, fullPage: true });
+      }
+    }
+    await page.getByRole('navigation', { name: 'Huvudmeny' }).getByRole('button', { name: 'Bord', exact: true }).click();
   }
 });
 
 test('återupptar samma osända betalning efter omladdning och tillåter inte ändrat belopp', async ({ page }) => {
-  await login(page); const tab = await sentTab(page);
+  await login(page);
+  await page.getByLabel('Utseende', { exact: true }).selectOption('classic');
+  const tab = await sentTab(page);
   const keys: string[] = [];
   await page.route(`**/api/v1/tabs/${tab.id}/payments`, async route => {
     keys.push(route.request().postDataJSON().key);

@@ -1,0 +1,8 @@
+.design-standalone { position: absolute; right: 24px; top: 16px; z-index: 15; }
+.login-form { min-width: 0; }
+@media (max-width: 760px) {
+  .design-switcher > span, .topbar .design-switcher > svg { display: none; }
+  html[data-design="classic"] .topbar { height: auto; min-height: 66px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; }
+  .design-standalone { right: 18px; top: 12px; }
+}
+@media print { .design-standalone, .design-switcher { display: none !important; } }
