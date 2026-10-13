@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard, Smartphone, Banknote, CircleCheck, CircleAlert, ReceiptText, Split, Users, RefreshCw } from 'lucide-react';
 import type { Payment, PaymentMethod, Receipt, Simulation, Tab } from '../shared/types';
 import { calculateTab, distribute, money, parseMoney } from '../shared/money';
+import { receiptMethodNames, receiptRows, receiptVat, vatRateLabel } from '../shared/receipts';
 import { api, newKey } from './api';
 import { Action, Field, Modal, type WorkspaceProps } from './components';
 import { usePaymentAttempts } from './usePaymentAttempt';
@@ -9,7 +10,26 @@ import { submitPaymentAttempt } from './submitPaymentAttempt';
 import type { PaymentAttempt } from './payment-attempts';
 
 export function ReceiptPaper({ receipt }: { receipt: Receipt }) {
-  return <div className="receipt-paper"><div className="receipt-brand">la gustosa</div><p>{receipt.company.address}<br />{receipt.company.city}<br />Org.nr {receipt.company.organizationNumber}</p><strong>TEST — inga riktiga betalningar</strong><p>{receipt.kind === 'refund' ? 'Testretur' : 'Övningskvitto'} #{receipt.number} · {receipt.tab.label}<br />{new Date(receipt.createdAt).toLocaleString('sv-SE')}<br />Kassör: {receipt.cashier}</p><div className="receipt-rule" />{receipt.payment.allocations.map(allocation => <div className="receipt-line" key={allocation.lineId}><span>Del av {receipt.tab.lines.find(line => line.id === allocation.lineId)?.name}</span><strong>{money(allocation.grossOre)}</strong></div>)}<div className="receipt-rule" /><div className="receipt-line"><strong>{receipt.kind === 'refund' ? 'Återbetalt' : 'Summa'}</strong><strong>{money(receipt.payment.amountOre)}</strong></div><div className="receipt-line"><span>Varav moms</span><span>{money(receipt.payment.allocations.reduce((sum, allocation) => sum + allocation.vatOre, 0))}</span></div><div className="receipt-line"><span>Dricks</span><span>{money(receipt.payment.tipOre)}</span></div>{receipt.payment.tenderedOre !== null && <><div className="receipt-line"><span>Mottaget</span><span>{money(receipt.payment.tenderedOre)}</span></div><div className="receipt-line"><span>Tillbaka</span><span>{money(receipt.payment.changeOre)}</span></div></>}<p>{receipt.payment.method === 'card' ? 'Kort' : receipt.payment.method === 'swish' ? 'Swish' : 'Kontanter'} · Simulerat<br />{receipt.registerId}<br />Ej giltigt som kundkvitto</p><div className="receipt-thanks">Grazie mille.</div></div>;
+  const { payment } = receipt;
+  return <div className="receipt-paper">
+    <div className="receipt-brand">la gustosa</div>
+    <p>{receipt.company.name}<br />{receipt.company.address}<br />{receipt.company.city}<br />Org.nr {receipt.company.organizationNumber}</p>
+    <strong className="receipt-type-marker">ÖVNING</strong>
+    <p>TEST — inga riktiga betalningar<br />{receipt.kind === 'refund' ? 'Retur · övningskvitto' : 'Övningskvitto'} #{receipt.number} · {receipt.tab.label}<br />{new Date(receipt.createdAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' })}<br />Kassör: {receipt.cashier}<br />Kassa: {receipt.registerId}</p>
+    <div className="receipt-rule" />
+    {receiptRows(receipt).map(row => <div key={row.lineId}><div className="receipt-line"><span>{row.label}</span><strong>{money(row.grossOre)}</strong></div><div className="receipt-item-details">{row.details.map((detail, index) => <div key={index}>{detail}</div>)}</div></div>)}
+    <div className="receipt-rule" />
+    <div className="receipt-line"><strong>{receipt.kind === 'refund' ? 'Återbetalt' : 'Summa'}</strong><strong>{money(payment.amountOre)}</strong></div>
+    <div className="receipt-line"><span>{receipt.kind === 'refund' ? 'Återförd moms' : 'Varav moms'}</span><span>{money(payment.allocations.reduce((sum, allocation) => sum + allocation.vatOre, 0))}</span></div>
+    {receiptVat(receipt).map(row => <div key={row.vatBps}><div className="receipt-line"><span>Moms {vatRateLabel(row.vatBps)}</span><span>{money(row.vatOre)}</span></div><div className="receipt-line receipt-vat-base"><span>Underlag exkl. moms</span><span>{money(row.netOre)}</span></div></div>)}
+    <div className="receipt-line"><span>Dricks</span><span>{money(payment.tipOre)}</span></div>
+    <div className="receipt-line"><strong>{receiptMethodNames[payment.method]}</strong><strong>{money(payment.amountOre + payment.tipOre)}</strong></div>
+    {payment.tenderedOre !== null && <><div className="receipt-line"><span>Mottaget</span><span>{money(payment.tenderedOre)}</span></div><div className="receipt-line"><span>Tillbaka</span><span>{money(payment.changeOre)}</span></div></>}
+    {receipt.originalReceiptId && <p className="receipt-reference">Originalkvittots id:<br />{receipt.originalReceiptId}</p>}
+    {payment.reason && <p>Orsak: {payment.reason}</p>}
+    <p className="receipt-reference">Kontroll: simulator · ingen certifierad enhet{receipt.controlCode && <><br />Simulerad kontrollkod:<br />{receipt.controlCode}</>}<br />Förhandsvisning · ej giltigt som kundkvitto</p>
+    <div className="receipt-thanks">Grazie mille.</div>
+  </div>;
 }
 
 export function PaymentModal({ tabId, onClose, ...props }: WorkspaceProps & { tabId: string; onClose: () => void }) {

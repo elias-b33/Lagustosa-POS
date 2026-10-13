@@ -25,6 +25,7 @@ export class Store {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = FULL');
     this.db.pragma('foreign_keys = ON');
+    this.db.pragma('recursive_triggers = ON');
     this.db.pragma('busy_timeout = 5000');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS entities (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL CHECK(json_valid(body)), PRIMARY KEY(kind,id));
@@ -39,6 +40,30 @@ export class Store {
       CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT,'Journalen är oföränderlig'); END;
       CREATE TRIGGER IF NOT EXISTS receipt_no_delete BEFORE DELETE ON entities WHEN OLD.kind = 'receipt' BEGIN SELECT RAISE(ABORT,'Kvitton får inte raderas'); END;
       CREATE TRIGGER IF NOT EXISTS receipt_financial_immutable BEFORE UPDATE ON entities WHEN OLD.kind = 'receipt' AND (json_extract(NEW.body,'$.payment') != json_extract(OLD.body,'$.payment') OR json_extract(NEW.body,'$.tab') != json_extract(OLD.body,'$.tab') OR json_extract(NEW.body,'$.number') != json_extract(OLD.body,'$.number')) BEGIN SELECT RAISE(ABORT,'Kvittots belopp är oföränderliga'); END;
+      CREATE TRIGGER IF NOT EXISTS receipt_content_immutable_v2 BEFORE UPDATE ON entities
+        WHEN OLD.kind = 'receipt' AND (
+          NEW.kind IS NOT OLD.kind OR NEW.id IS NOT OLD.id OR
+          json_remove(NEW.body,'$.fiscalStatus','$.controlCode') IS NOT json_remove(OLD.body,'$.fiscalStatus','$.controlCode'))
+        BEGIN SELECT RAISE(ABORT,'Kvittots innehåll är oföränderligt'); END;
+      CREATE TRIGGER IF NOT EXISTS receipt_confirmed_immutable BEFORE UPDATE ON entities
+        WHEN OLD.kind = 'receipt' AND json_extract(OLD.body,'$.fiscalStatus') = 'confirmed' AND (
+          json_extract(NEW.body,'$.fiscalStatus') IS NOT json_extract(OLD.body,'$.fiscalStatus') OR
+          json_extract(NEW.body,'$.controlCode') IS NOT json_extract(OLD.body,'$.controlCode'))
+        BEGIN SELECT RAISE(ABORT,'Kvittots bekräftade kontrolluppgifter är oföränderliga'); END;
+      CREATE TRIGGER IF NOT EXISTS closed_day_no_update BEFORE UPDATE ON entities
+        WHEN OLD.kind = 'day' AND json_extract(OLD.body,'$.status') = 'closed' AND
+          (NEW.kind IS NOT OLD.kind OR NEW.id IS NOT OLD.id OR NEW.body IS NOT OLD.body)
+        BEGIN SELECT RAISE(ABORT,'Ett sparat dagsavslut är oföränderligt'); END;
+      CREATE TRIGGER IF NOT EXISTS closed_day_no_delete BEFORE DELETE ON entities
+        WHEN OLD.kind = 'day' AND json_extract(OLD.body,'$.status') = 'closed'
+        BEGIN SELECT RAISE(ABORT,'Ett sparat dagsavslut får inte raderas'); END;
+      CREATE TRIGGER IF NOT EXISTS approved_payment_no_update BEFORE UPDATE ON entities
+        WHEN OLD.kind = 'payment' AND json_extract(OLD.body,'$.status') = 'approved' AND
+          (NEW.kind IS NOT OLD.kind OR NEW.id IS NOT OLD.id OR NEW.body IS NOT OLD.body)
+        BEGIN SELECT RAISE(ABORT,'En godkänd betalning är oföränderlig; registrera en retur'); END;
+      CREATE TRIGGER IF NOT EXISTS approved_payment_no_delete BEFORE DELETE ON entities
+        WHEN OLD.kind = 'payment' AND json_extract(OLD.body,'$.status') = 'approved'
+        BEGIN SELECT RAISE(ABORT,'En godkänd betalning får inte raderas'); END;
       PRAGMA user_version = 1;
     `);
   }

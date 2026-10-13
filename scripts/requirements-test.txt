@@ -1,0 +1,2 @@
+# XMLSchema validation of the unmodified Skatteverket schemas in both CI OSes.
+lxml==6.1.1

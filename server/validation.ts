@@ -1,6 +1,7 @@
 import { z } from 'zod';
 export { paymentSchema, refundSchema } from '../shared/payment-inputs';
 export type { PaymentInput, RefundInput } from '../shared/payment-inputs';
+export { cashMovementSchema } from '../shared/cash-inputs';
 
 const ore = z.number().int().min(0).max(100000000);
 const id = z.string().min(1).max(100);

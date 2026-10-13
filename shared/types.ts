@@ -25,6 +25,7 @@ export interface DiningTable { id: string; name: string; seats: number; area: st
 export interface TaxRule { id: string; taxClass: TaxClass; mode: ServiceMode; from: string; until: string | null; rateBps: number }
 export interface OrderLine {
   id: string; itemId: string; name: string; quantity: number; guest: number;
+  category?: string;
   baseUnitOre: number; unitPriceOre: number; vatBps: number; course: Course;
   station: Station; modifiers: ModifierOption[]; notes: string; status: LineStatus;
   createdAt: string; overrideReason?: string;
@@ -69,10 +70,23 @@ export interface BusinessDay {
   report: DayReport | null;
 }
 export interface MethodTotals { method: PaymentMethod; salesOre: number; refundsOre: number; tipsOre: number; netOre: number }
+export interface CashMovement {
+  id: string; dayId: string; direction: 'in' | 'out'; amountOre: number; reason: string; createdAt: string;
+  staffId: string; deviceId: string; previousCashOre: number; expectedCashOre: number;
+}
+export interface TrainingReportDetails {
+  kind: 'X' | 'Z'; generatedAt: string; sequence: number | null; company: Company; registerId: string;
+  trainingReceipts: number; refundReceipts: number; drawerOpenings: number; receiptCopies: number; receiptCopiesOre: number;
+  discountsOre: number; reductionsCount: number; reductionsOre: number; openTabAmountOre: number;
+  categories: { name: string; salesOre: number }[];
+  cumulativeSalesOre: number; cumulativeRefundsOre: number; cumulativeNetOre: number;
+  cashDepositsOre: number; cashWithdrawalsOre: number;
+}
 export interface DayReport {
   dayId: string; salesOre: number; refundsOre: number; netOre: number; tipsOre: number; vatOre: number;
   receipts: number; methods: MethodTotals[]; vat: { vatBps: number; grossOre: number; vatOre: number }[];
   expectedCashOre: number; differenceOre: number | null; unresolved: number; openTabs: number;
+  training?: TrainingReportDetails;
 }
 export interface Company { name: string; organizationNumber: string; address: string; city: string; phone: string }
 export interface Settings { company: Company; registerId: string; taxRules: TaxRule[] }

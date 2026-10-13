@@ -8,6 +8,7 @@ import { ReceiptPaper } from './Payments';
 import { usePaymentAttempts } from './usePaymentAttempt';
 import { submitPaymentAttempt } from './submitPaymentAttempt';
 import type { PaymentAttempt } from './payment-attempts';
+import { CashMovementModal } from './CashMovement';
 
 export function StationView({ station, ...props }: WorkspaceProps & { station: Station }) {
   const { data, busy, run } = props;
@@ -44,17 +45,48 @@ export function StationView({ station, ...props }: WorkspaceProps & { station: S
   })}</div> : <Empty title={showHistory ? 'Ingen bonghistorik ännu' : 'Lugnt i stationen'} text={showHistory ? 'Serverade och helt makulerade beställningar visas här.' : 'Nya beställningar visas här så fort de skickas från serveringen.'} />}</section>;
 }
 
+function TrainingReportSummary({ report }: { report: DayReport }) {
+  const details = report.training;
+  if (!details) return <p className="muted">Äldre sparad övningsrapport. Detaljerade räknare saknas för denna historiska rapport.</p>;
+  return <>
+    <p className="muted">Övning · {details.kind}-rapport{details.sequence === null ? '' : ` #${details.sequence}`} · {details.company.name} · {details.company.organizationNumber} · {details.registerId}<br />
+      {details.kind === 'Z' ? 'Låst vid dagsavslut' : 'Avstämning'} {new Date(details.generatedAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' })} · Alla belopp gäller träning.</p>
+    <div className="report-grid">
+      <article className="card"><h3>Övningsregistreringar</h3>
+        <div className="report-line"><span>Övningskvitton inkl. testreturer</span><strong>{details.trainingReceipts}</strong><small>{money(report.netOre)}</small></div>
+        <div className="report-line"><span>Varav testreturer</span><strong>{details.refundReceipts}</strong><small>{money(report.refundsOre)}</small></div>
+        <div className="report-line"><span>Kvittokopior</span><strong>{details.receiptCopies}</strong><small>{money(details.receiptCopiesOre)}</small></div>
+        <div className="report-line"><span>Simulerade lådöppningar</span><strong>{details.drawerOpenings}</strong></div>
+        <div className="report-line"><span>Kontantinsättningar</span><strong>{money(details.cashDepositsOre ?? 0)}</strong></div>
+        <div className="report-line"><span>Kontantuttag</span><strong>{money(details.cashWithdrawalsOre ?? 0)}</strong></div>
+        <div className="report-line"><span>Rabatt på betalda rader</span><strong>{money(details.discountsOre)}</strong></div>
+        <div className="report-line"><span>Pris- och radrättelser</span><strong>{details.reductionsCount}</strong><small>{money(details.reductionsOre)}</small></div>
+        <div className="report-line"><span>Oavslutade notor</span><strong>{report.openTabs}</strong><small>Kvar {money(details.openTabAmountOre)}</small></div>
+      </article>
+      <article className="card"><h3>Övningsmoms per skattesats</h3>
+        {report.vat.map(total => <div className="report-line" key={total.vatBps}><span>{total.vatBps / 100} %</span><strong>{money(total.vatOre)}</strong><small>Netto inkl. moms {money(total.grossOre)}</small></div>)}
+        <h3>Huvudgrupper</h3>{details.categories.map(category => <div className="report-line" key={category.name}><span>{category.name}</span><strong>{money(category.salesOre)}</strong></div>)}
+        <h3>Ackumulerade övningsbelopp</h3>
+        <div className="report-line"><span>Försäljning</span><strong>{money(details.cumulativeSalesOre)}</strong></div>
+        <div className="report-line"><span>Returer</span><strong>{money(details.cumulativeRefundsOre)}</strong></div>
+        <div className="report-line"><span>Netto</span><strong>{money(details.cumulativeNetOre)}</strong></div>
+      </article>
+    </div>
+  </>;
+}
+
 export function ReportsView(props: WorkspaceProps) {
   const { data, busy, run } = props;
   const [selectedDay, setSelectedDay] = useState('');
   const day = data.days.find(day => day.id === selectedDay) ?? data.currentDay ?? data.days.at(-1);
   const [reportOverride, setReportOverride] = useState<DayReport | null>(null);
-  const report = day?.status === 'closed' ? day.report : reportOverride?.dayId === day?.id ? reportOverride : data.report;
+  const report = day?.status === 'closed' ? day.report : data.report?.dayId === day?.id ? data.report : reportOverride?.dayId === day?.id ? reportOverride : null;
   const [dayModal, setDayModal] = useState<'open' | 'close' | null>(null);
   const [cashAmount, setCashAmount] = useState('1500');
   const [receiptId, setReceiptId] = useState<string | null>(null);
   const [refundId, setRefundId] = useState<string | null>(null);
   const [drawer, setDrawer] = useState(false);
+  const [cashMovement, setCashMovement] = useState(false);
   const [reason, setReason] = useState('');
   const main = data.actor.device.kind === 'main';
   const uncertain = data.payments.filter(payment => ['pending', 'unknown'].includes(payment.status));
@@ -66,10 +98,13 @@ export function ReportsView(props: WorkspaceProps) {
     {uncertain.map(payment => <div className="notice warning" key={payment.id}><CircleAlert size={20} /><div><strong>Osäker {payment.kind === 'refund' ? 'retur' : 'betalning'} · {money(payment.amountOre)}</strong><span>Beloppet är reserverat tills samma betalning har kontrollerats.</span></div><Action secondary disabled={busy} onClick={() => void run(() => api(`/payments/${payment.id}/check`, {}))}>Kontrollera status</Action></div>)}
     {fiscalUncertain.map(receipt => <div className="notice warning" key={receipt.id}><CircleAlert size={20} /><div><strong>Osäker kontrollkod · kvitto {receipt.number}</strong><span>Fråga efter befintlig registrering innan dagsavslut.</span></div><Action secondary disabled={busy} onClick={() => void run(() => api(`/receipts/${receipt.id}/verify`, {}))}>Kontrollera registrering</Action></div>)}
     {report && day ? <><div className="report-metrics"><div><span>Försäljning</span><strong>{money(report.salesOre)}</strong><small>{report.receipts} testkvitton</small></div><div><span>Netto efter returer</span><strong>{money(report.netOre)}</strong><small>Returer {money(report.refundsOre)}</small></div><div><span>Dricks</span><strong>{money(report.tipsOre)}</strong><small>Redovisas separat</small></div><div><span>Moms</span><strong>{money(report.vatOre)}</strong><small>Datumstyrda momssatser</small></div></div><div className="report-grid"><article className="card"><h3>Betalsätt</h3>{report.methods.map(method => <div className="report-line" key={method.method}><span>{method.method === 'card' ? 'Kort' : method.method === 'swish' ? 'Swish' : 'Kontanter'}</span><strong>{money(method.netOre)}</strong><small>Dricks {money(method.tipsOre)}</small></div>)}</article><article className="card"><h3>Kontantavstämning</h3><div className="report-line"><span>Växelkassa</span><strong>{money(day.floatOre)}</strong></div><div className="report-line"><span>Förväntad kontantkassa</span><strong>{money(report.expectedCashOre)}</strong></div>{day.countedCashOre !== null && <><div className="report-line"><span>Räknad kassa</span><strong>{money(day.countedCashOre)}</strong></div><div className="report-line"><span>Differens</span><strong>{money(report.differenceOre ?? 0)}</strong></div></>}{main && <button className="text-button" onClick={() => { setReason(''); setDrawer(true); }}><Banknote size={17} />Simulera kassalådsöppning</button>}</article></div><div className="report-exports"><a className="button secondary" href={`/api/v1/business-days/${day.id}/report.csv`}><Download size={17} />Hämta CSV</a><a className="button secondary" href="/api/v1/journal.xml"><Download size={17} />Hämta journal XML</a><span>{report.openTabs} öppna notor · {report.unresolved} osäkra registreringar</span></div></> : <Empty title="Redo för en ny verksamhetsdag" text="Öppna dagen och ange växelkassan innan första beställningen." />}
+    {report && <TrainingReportSummary report={report} />}
+    {main && <button className="button secondary" disabled={busy} onClick={() => setCashMovement(true)}><Banknote size={17} />Insättning eller uttag</button>}
     <div className="section-heading secondary-heading"><h3>Kvitton & returer</h3><span className="muted">Historiken sparas även efter dagsavslut</span></div>{receipts.length ? <div className="list-card">{receipts.map(receipt => <div className="list-row" key={receipt.id}><span className="list-icon"><ReceiptText size={19} /></span><button className="receipt-link" onClick={() => setReceiptId(receipt.id)}><strong>#{receipt.number} · {receipt.tab.label}</strong><span>{receipt.kind === 'refund' ? 'Retur' : 'Försäljning'} · {new Date(receipt.createdAt).toLocaleTimeString('sv-SE')} · {receipt.payment.method}</span></button><strong>{receipt.kind === 'refund' ? '−' : ''}{money(receipt.payment.amountOre)}</strong>{receipt.kind === 'sale' && <button className="text-button" disabled={busy || !data.currentDay} onClick={() => setRefundId(receipt.paymentId)}><Undo2 size={16} />Retur</button>}</div>)}</div> : <p className="muted">Testkvitton visas här när den första betalningen registreras.</p>}
     <div className="backup-card"><span className="list-icon"><FolderClock size={22} /></span><div><strong>Säkerhetskopiering</strong><span>{data.backup.lastAt ? `Senaste kopian ${new Date(data.backup.lastAt).toLocaleString('sv-SE')}` : 'Ingen säkerhetskopia skapad ännu.'}{data.backup.external ? ' · Separat disk' : ' · Lokal testkopia; ange separat disk vid installation'}</span>{data.backup.error && <span className="form-error">{data.backup.error}</span>}</div>{main && <Action secondary disabled={busy} onClick={() => void run(() => api('/backups', {}), 'Säkerhetskopian är sparad.')}><ShieldCheck size={17} />Skapa kopia</Action>}</div>
     {dayModal && <Modal title={dayModal === 'open' ? 'Öppna verksamhetsdagen' : 'Avsluta verksamhetsdagen'} subtitle={dayModal === 'close' ? 'Kontrollera betalningar, returer och kontantkassa.' : 'Dagen avslutas uttryckligen, även om servicen fortsätter efter midnatt.'} onClose={() => setDayModal(null)}><form onSubmit={event => { event.preventDefault(); void (async () => { const result = await run(() => api<BusinessDay>(dayModal === 'open' ? '/business-days' : `/business-days/${data.currentDay!.id}/close`, { key: newKey(), ...(dayModal === 'open' ? { floatOre: parseMoney(cashAmount) } : { countedCashOre: parseMoney(cashAmount) }) })); if (result) { setDayModal(null); setSelectedDay(result.id); setReportOverride(null); } })(); }}><Field label={dayModal === 'open' ? 'Växelkassa i kronor' : 'Räknad kontantkassa i kronor'}><input value={cashAmount} inputMode="decimal" onChange={event => setCashAmount(event.target.value)} /></Field>{dayModal === 'close' && <p className="muted">Förväntat: {money(data.report?.expectedCashOre ?? 0)}<br />Öppna notor: {data.report?.openTabs ?? 0}<br />Osäkra registreringar: {data.report?.unresolved ?? 0}</p>}<Action type="submit" disabled={busy || parseMoney(cashAmount) === null}>{dayModal === 'open' ? 'Öppna dagen' : 'Bekräfta dagsavslut'}<Check size={17} /></Action></form></Modal>}
     {selectedReceipt && <Modal title={`Testkvitto #${selectedReceipt.number}`} onClose={() => setReceiptId(null)}><ReceiptPaper receipt={selectedReceipt} /></Modal>}
+    {cashMovement && <CashMovementModal {...props} onClose={() => setCashMovement(false)} />}
     {refundPayment && <RefundModal payment={refundPayment} data={data} busy={busy} run={run} refresh={props.refresh} onClose={() => setRefundId(null)} />}
     {drawer && <Modal title="Simulera kassalådsöppning" subtitle="Öppningen och orsaken journalförs." onClose={() => setDrawer(false)}><Field label="Orsak"><input value={reason} onChange={event => setReason(event.target.value)} /></Field><Action disabled={busy || reason.length < 3} onClick={async () => { if (await run(() => api('/drawer/open', { reason }), 'Kassalådsöppningen är simulerad.')) setDrawer(false); }}>Öppna i simulator</Action></Modal>}
   </section>;

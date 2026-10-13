@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import type { Actor, Allocation, Bootstrap, BusinessDay, DayReport, Device, DeviceConnection, DiningTable, MenuItem, OrderLine, Payment, PaymentStatus, PrintJob, PrinterProfile, Receipt, Settings, Staff, Station, Tab, Ticket } from '../shared/types';
+import type { Actor, Allocation, Bootstrap, BusinessDay, CashMovement, DayReport, Device, DeviceConnection, DiningTable, MenuItem, OrderLine, Payment, PaymentStatus, PrintJob, PrinterProfile, Receipt, Settings, Staff, Station, Tab, Ticket } from '../shared/types';
+import { cashMovementSchema, type CashMovementInput } from '../shared/cash-inputs';
 import { calculateTab, distribute, paidOre, roundRatio, taxRate } from '../shared/money';
 import { Store, digest, hashPin, verifyPin } from './db';
 import { AppError, demand } from './errors';
@@ -12,6 +13,7 @@ import type { PaymentInput, RefundInput, TabCommand } from './validation';
 import { closingText, receiptText, ticketText } from './printing';
 import { printerDestination } from '../shared/printers';
 import { orderedMenu, seedRestaurantMenu } from './menu-catalog';
+import { trainingReportDetails } from './reporting';
 
 interface ServiceOptions {
   now?: () => Date; notify?: () => void; backupDir?: string;
@@ -40,6 +42,7 @@ export class KassaService {
   private deviceClients = new Map<string, { clients: Set<string>; lastSeenAt: string }>();
 
   constructor(readonly store: Store, options: ServiceOptions = {}) {
+    demand(store.verifyJournal(), 'Journalens kontrollsummor stämmer inte. Bevara databasen och utred felet innan kassan startas igen.', 500, 'JOURNAL_INTEGRITY');
     this.now = options.now ?? (() => new Date());
     this.notify = options.notify ?? (() => {});
     this.backupDir = options.backupDir ?? path.resolve('data/backups');
@@ -228,7 +231,7 @@ export class KassaService {
         const modifiers = options.filter(option => chosenIds.includes(option.id));
         const baseUnitOre = tab.serviceMode === 'takeaway' ? item.takeawayPriceOre ?? item.priceOre : item.priceOre;
         const course = input.course ?? item.course;
-        const line: OrderLine = { id: randomUUID(), itemId: item.id, name: item.name, quantity: input.quantity ?? 1, guest, baseUnitOre, unitPriceOre: baseUnitOre + modifiers.reduce((sum, modifier) => sum + modifier.priceOre, 0), vatBps: taxRate(this.settings().taxRules, item.taxClass, tab.serviceMode, this.date()), course, station: item.station, modifiers: structuredClone(modifiers), notes: input.notes ?? '', status: input.hold ?? course === 'main' ? 'held' : 'draft', createdAt: this.timestamp() };
+        const line: OrderLine = { id: randomUUID(), itemId: item.id, name: item.name, category: item.category, quantity: input.quantity ?? 1, guest, baseUnitOre, unitPriceOre: baseUnitOre + modifiers.reduce((sum, modifier) => sum + modifier.priceOre, 0), vatBps: taxRate(this.settings().taxRules, item.taxClass, tab.serviceMode, this.date()), course, station: item.station, modifiers: structuredClone(modifiers), notes: input.notes ?? '', status: input.hold ?? course === 'main' ? 'held' : 'draft', createdAt: this.timestamp() };
         tab.lines.push(line);
       } else if (input.action === 'remove') {
         const line = tab.lines.find(candidate => candidate.id === input.lineId);
@@ -377,10 +380,23 @@ export class KassaService {
     demand(amount <= maximum && amount >= 0, 'Beloppet överstiger den obetalda delen av notan.');
     demand(amount > 0 || totals.grossOre === 0 && reserved.length === 0, 'Den valda delen är redan betald eller reserverad.', 409, 'NO_BALANCE');
     demand(candidates.length > 0, 'Det finns inga artiklar att betala.');
+    if (amount === totals.grossOre - reserved.reduce((sum, payment) => sum + payment.amountOre, 0)) {
+      // The final selected guest/item payment also accounts for free rows
+      // outside that selection; otherwise a paid tab could omit them entirely.
+      for (const line of totals.lines) {
+        if (line.grossOre === 0 && !candidates.some(candidate => candidate.line.lineId === line.lineId) && !reserved.some(payment => payment.allocations.some(allocation => allocation.lineId === line.lineId))) {
+          candidates.push({ line, usedGross: 0, usedVat: 0 });
+          weights.push(0);
+        }
+      }
+    }
     const portions = distribute(amount, weights);
     return candidates.flatMap(({ line, usedGross, usedVat }, index) => {
       const grossOre = portions[index];
-      if (grossOre === 0 && totals.grossOre !== 0) return [];
+      // Free items still belong on one receipt. A pending/unknown payment
+      // reserves them too; a declined/cancelled attempt does not consume them.
+      const alreadyAllocated = reserved.some(payment => payment.allocations.some(allocation => allocation.lineId === line.lineId));
+      if (grossOre === 0 && (line.grossOre !== 0 || alreadyAllocated)) return [];
       return [{ lineId: line.lineId, grossOre, vatOre: allocateRemainingVat(line.grossOre, line.vatOre, usedGross, usedVat, grossOre), vatBps: line.vatBps }];
     });
   }
@@ -552,11 +568,18 @@ export class KassaService {
       this.notify(); return job;
     }
     if (action === 'reprint') {
-      demand(['printed', 'failed'].includes(job.status), 'Kontrollera först om den osäkra utskriften kom ut.');
       demand(reason.trim().length >= 3, 'Ange orsak till återutskriften.');
       const copy = this.store.atomic(() => {
-        const copy = this.queuePrint(job.kind, job.sourceId, `KOPIA · ${reason}\n${job.text}`, job.id, job.printerId);
-        this.log(actor, 'print.reprint', copy.id, { originalId: job.id, reason });
+        const current = this.store.get<PrintJob>('print', id)!;
+        demand(['printed', 'failed'].includes(current.status), 'Kontrollera först om den osäkra utskriften kom ut.');
+        const copyDay = current.kind === 'guest' ? this.requireDay() : null;
+        if (current.kind === 'guest') {
+          const copyExists = this.store.all<PrintJob>('print').some(candidate => candidate.kind === 'guest' && candidate.sourceId === current.sourceId && candidate.reprintOf !== null);
+          demand(!current.reprintOf && !copyExists, 'Högst en märkt kopia får skapas per gästkvitto. En kopia kan inte kopieras.', 409, 'RECEIPT_COPY_LIMIT');
+        }
+        const copy = this.queuePrint(current.kind, current.sourceId, `KOPIA\nOrsak: ${reason}\n${current.text}`, current.id, current.printerId);
+        const receipt = current.kind === 'guest' ? this.store.get<Receipt>('receipt', current.sourceId) : undefined;
+        this.log(actor, 'print.reprint', copy.id, { originalId: current.id, sourceId: current.sourceId, kind: current.kind, dayId: copyDay?.id ?? null, receiptId: receipt?.id ?? null, amountOre: receipt?.payment.amountOre ?? null, reason });
         return copy;
       });
       this.notify();
@@ -591,8 +614,9 @@ export class KassaService {
     this.require(actor, authorizedRoles, true);
     demand(reason.trim().length >= 3, 'Ange orsak till kassalådsöppningen.');
     const job = this.store.atomic(() => {
+      const day = this.requireDay();
       const job = this.queuePrint('drawer', actor.device.id, `TEST · SIMULERAD KASSALÅDSÖPPNING\n${reason}`);
-      this.log(actor, 'drawer.open', job.id, { reason });
+      this.log(actor, 'drawer.open', job.id, { reason, dayId: day.id });
       return job;
     });
     this.notify();
@@ -608,11 +632,27 @@ export class KassaService {
       return day;
     });
   }
+  moveCash(actor: Actor, input: CashMovementInput): CashMovement {
+    this.require(actor, authorizedRoles, true);
+    const validated = cashMovementSchema.parse(input);
+    return this.command(validated.key, validated, 'cash.move', actor, () => {
+      const day = this.requireDay();
+      demand(day.id === validated.dayId, 'Verksamhetsdagen har ändrats. Kontrollera kassahändelserna innan en ny ändring registreras.', 409, 'DAY_MISMATCH');
+      const previousCashOre = this.report(day.id).expectedCashOre;
+      demand(validated.direction !== 'out' || validated.amountOre <= previousCashOre, 'Uttaget överstiger den förväntade kontantkassan.', 409, 'CASH_INSUFFICIENT');
+      const expectedCashOre = previousCashOre + (validated.direction === 'in' ? 1 : -1) * validated.amountOre;
+      demand(Number.isSafeInteger(expectedCashOre), 'Kontantkassans belopp är för stort.', 409, 'CASH_AMOUNT');
+      const movement: CashMovement = { id: randomUUID(), dayId: day.id, direction: validated.direction, amountOre: validated.amountOre, reason: validated.reason, createdAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id, previousCashOre, expectedCashOre };
+      this.log(actor, 'cash.move', movement.id, movement);
+      return movement;
+    });
+  }
   report(dayId: string): DayReport {
     const day = this.store.get<BusinessDay>('day', dayId);
     demand(day, 'Verksamhetsdagen finns inte.', 404);
     if (day.status === 'closed' && day.report) return day.report;
-    const allPayments = this.store.all<Payment>('payment').filter(payment => payment.dayId === dayId);
+    const ledgerPayments = this.store.all<Payment>('payment');
+    const allPayments = ledgerPayments.filter(payment => payment.dayId === dayId);
     const payments = allPayments.filter(payment => payment.status === 'approved');
     const receipts = this.store.all<Receipt>('receipt').filter(receipt => receipt.dayId === dayId);
     const sales = payments.filter(payment => payment.kind === 'sale');
@@ -634,8 +674,19 @@ export class KassaService {
     const salesOre = sales.reduce((sum, payment) => sum + payment.amountOre, 0);
     const refundsOre = refunds.reduce((sum, payment) => sum + payment.amountOre, 0);
     const cash = methods.find(method => method.method === 'cash')!;
-    const expectedCashOre = day.floatOre + cash.netOre + cash.tipsOre;
-    return { dayId, salesOre, refundsOre, netOre: salesOre - refundsOre, tipsOre: sales.reduce((sum, payment) => sum + payment.tipOre, 0), vatOre: [...vatMap.values()].reduce((sum, total) => sum + total.vatOre, 0), receipts: sales.length, methods, vat: [...vatMap.values()].sort((left, right) => left.vatBps - right.vatBps), expectedCashOre, differenceOre: day.countedCashOre === null ? null : day.countedCashOre - expectedCashOre, unresolved: allPayments.filter(payment => ['pending', 'unknown'].includes(payment.status)).length + receipts.filter(receipt => receipt.fiscalStatus !== 'confirmed').length, openTabs: this.store.all<Tab>('tab').filter(tab => tab.dayId === dayId && tab.status === 'open').length };
+    const tabs = this.store.all<Tab>('tab');
+    const training = trainingReportDetails({ day, settings: this.settings(), generatedAt: this.timestamp(), payments: ledgerPayments, receipts: this.store.all<Receipt>('receipt'), tabs, journal: this.store.journal(), printJobs: this.store.all<PrintJob>('print') });
+    const expectedCashOre = day.floatOre + cash.netOre + cash.tipsOre + training.cashDepositsOre - training.cashWithdrawalsOre;
+    return { dayId, salesOre, refundsOre, netOre: salesOre - refundsOre, tipsOre: sales.reduce((sum, payment) => sum + payment.tipOre, 0), vatOre: [...vatMap.values()].reduce((sum, total) => sum + total.vatOre, 0), receipts: sales.length, methods, vat: [...vatMap.values()].sort((left, right) => left.vatBps - right.vatBps), expectedCashOre, differenceOre: day.countedCashOre === null ? null : day.countedCashOre - expectedCashOre, unresolved: allPayments.filter(payment => ['pending', 'unknown'].includes(payment.status)).length + receipts.filter(receipt => receipt.fiscalStatus !== 'confirmed').length, openTabs: tabs.filter(tab => tab.dayId === dayId && tab.status === 'open').length, training };
+  }
+  takeReport(actor: Actor, dayId: string): DayReport {
+    this.require(actor, authorizedRoles);
+    return this.store.atomic(() => {
+      const report = this.report(dayId);
+      const day = this.store.get<BusinessDay>('day', dayId)!;
+      this.log(actor, day.status === 'open' ? 'report.x' : 'report.z_read', dayId, { day, report });
+      return report;
+    });
   }
   closeDay(actor: Actor, dayId: string, input: { key: string; countedCashOre: number }): BusinessDay {
     this.require(actor, authorizedRoles, true);
@@ -648,7 +699,7 @@ export class KassaService {
       day.countedCashOre = input.countedCashOre;
       day.closedAt = this.timestamp();
       day.closedBy = actor.staff.id;
-      day.report = { ...report, differenceOre: input.countedCashOre - report.expectedCashOre };
+      day.report = { ...report, differenceOre: input.countedCashOre - report.expectedCashOre, training: { ...report.training!, kind: 'Z', generatedAt: day.closedAt, sequence: day.number } };
       day.status = 'closed';
       this.store.put('day', day);
       this.queuePrint('closing', day.id, closingText(day, day.report));
@@ -721,9 +772,16 @@ export class KassaService {
   }
   saveSettings(actor: Actor, settings: Settings): Settings {
     this.require(actor, ['admin']);
+    const previous = this.settings();
+    demand(!this.currentDay() || JSON.stringify(previous.company) === JSON.stringify(settings.company) && previous.registerId === settings.registerId,
+      'Avsluta verksamhetsdagen innan företagets uppgifter eller kassabeteckning ändras.', 409, 'DAY_IDENTITY_LOCKED');
+    const validDate = (date: string): boolean => {
+      const parsed = new Date(`${date}T12:00:00Z`);
+      return /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(parsed.getTime()) && parsed.toISOString().startsWith(date);
+    };
     for (const rule of settings.taxRules) {
-      demand(new Date(`${rule.from}T12:00:00Z`).toISOString().startsWith(rule.from), 'Momsregelns startdatum är ogiltigt.');
-      demand(!rule.until || rule.until >= rule.from && new Date(`${rule.until}T12:00:00Z`).toISOString().startsWith(rule.until), 'Momsregelns slutdatum är ogiltigt.');
+      demand(validDate(rule.from), 'Momsregelns startdatum är ogiltigt.');
+      demand(!rule.until || rule.until >= rule.from && validDate(rule.until), 'Momsregelns slutdatum är ogiltigt.');
     }
     demand(new Set(settings.taxRules.map(rule => rule.id)).size === settings.taxRules.length, 'Momsreglernas identifierare måste vara unika.');
     for (const taxClass of ['food', 'alcohol', 'standard'] as const) for (const mode of ['dine_in', 'takeaway'] as const) {
@@ -731,7 +789,7 @@ export class KassaService {
       const dates = settings.taxRules.filter(rule => rule.taxClass === taxClass && rule.mode === mode).map(rule => rule.from);
       demand(new Set(dates).size === dates.length, 'Två momsregler för samma försäljningssätt får inte börja samma datum.');
     }
-    this.store.atomic(() => { this.store.put('settings', { id: 'settings', ...settings }); this.log(actor, 'settings.save', 'settings', { settings }); });
+    this.store.atomic(() => { this.store.put('settings', { id: 'settings', ...settings }); this.log(actor, 'settings.save', 'settings', { previous, settings }); });
     this.notify();
     return settings;
   }

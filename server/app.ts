@@ -10,7 +10,7 @@ import { AppError, demand } from './errors';
 import { KassaService } from './service';
 import type { Actor, BusinessDay } from '../shared/types';
 import * as schema from './validation';
-import { exportCsv, exportXml } from './export';
+import { exportCsv, exportXml, exportJournalJson, validJournalDate } from './export';
 
 export interface AppOptions {
   database: string; backupDir?: string; webDir?: string;
@@ -26,6 +26,7 @@ export function assertTrainingMode(env: NodeJS.ProcessEnv): void {
 }
 
 export async function createApp(options: AppOptions) {
+  assertTrainingMode(process.env);
   const sessionCookieName = options.sessionCookieName ?? 'lagustosa_session';
   demand(/^[a-zA-Z0-9_]{1,100}$/.test(sessionCookieName), 'Ogiltigt namn för inloggningssessionen.', 500);
   demand(!options.safeTest || sessionCookieName !== 'lagustosa_session', 'Testmiljön behöver en separat inloggningssession.', 500);
@@ -34,7 +35,9 @@ export async function createApp(options: AppOptions) {
   const store = new Store(options.database);
   const events = new EventEmitter();
   events.setMaxListeners(100);
-  const service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change') });
+  let service: KassaService;
+  try { service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change') }); }
+  catch (error) { store.close(); throw error; }
   await app.register(cookie);
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) return reply.code(400).send({ code: 'VALIDATION', message: 'Kontrollera de ifyllda uppgifterna.', details: error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message })) });
@@ -128,28 +131,38 @@ export async function createApp(options: AppOptions) {
     return service.print(actor(request), paramId(request), input.action, input.outcome, input.reason, input.printerId);
   });
   app.post('/api/v1/drawer/open', async request => service.drawer(actor(request), z.object({ reason: z.string().trim().min(3).max(500) }).strict().parse(request.body).reason));
+  app.post('/api/v1/cash-movements', async request => service.moveCash(actor(request), schema.cashMovementSchema.parse(request.body)));
   app.post('/api/v1/business-days', async request => service.openDay(actor(request), schema.openDaySchema.parse(request.body)));
   app.post('/api/v1/business-days/:id/close', async request => {
     const day = service.closeDay(actor(request), paramId(request), schema.closeDaySchema.parse(request.body));
     try { await service.backup('system'); } catch (error) { app.log.error(error); }
     return day;
   });
-  app.get('/api/v1/business-days/:id/report', async request => { service.require(actor(request), ['admin', 'cashier']); return service.report(paramId(request)); });
+  app.get('/api/v1/business-days/:id/report', async request => service.takeReport(actor(request), paramId(request)));
   app.get('/api/v1/business-days/:id/report.csv', async (request, reply) => {
     service.require(actor(request), ['admin', 'cashier']);
     const day = store.get<BusinessDay>('day', paramId(request));
     demand(day, 'Verksamhetsdagen finns inte.', 404);
     reply.type('text/csv; charset=utf-8').header('Content-Disposition', `attachment; filename="lagustosa-${day.date}-test.csv"`);
-    return exportCsv(day, service.report(day.id));
+    return exportCsv(day, service.takeReport(actor(request), day.id));
   });
   app.get('/api/v1/journal.xml', async (request, reply) => {
     const identity = actor(request);
     service.require(identity, ['admin', 'cashier']);
-    const query = z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(request.query);
+    const query = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional() }).strict().parse(request.query);
     const xml = exportXml(store, identity.staff.name, service.timestamp(), query.from, query.to);
     reply.type('application/xml; charset=utf-8').header('Content-Disposition', 'attachment; filename="lagustosa-journal-test.xml"');
     service.log(identity, 'journal.export', 'journal', query);
     return xml;
+  });
+  app.get('/api/v1/journal.json', async (request, reply) => {
+    const identity = actor(request);
+    service.require(identity, ['admin']);
+    const query = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional() }).strict().parse(request.query);
+    const json = exportJournalJson(store, identity.staff.name, service.timestamp(), query.from, query.to);
+    reply.type('application/json; charset=utf-8').header('Content-Disposition', 'attachment; filename="lagustosa-journal-test.json"');
+    service.log(identity, 'journal.export_json', 'journal', query);
+    return json;
   });
   app.get('/api/v1/journal', async request => { service.require(actor(request), ['admin']); return { intact: store.verifyJournal(), entries: store.journal() }; });
   app.put('/api/v1/settings', async request => service.saveSettings(actor(request), schema.settingsSchema.parse(request.body)));

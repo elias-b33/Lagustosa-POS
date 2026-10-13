@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { Bootstrap, Tab } from '../../shared/types';
+import type { AuditEntry, Bootstrap, Tab } from '../../shared/types';
 
 test.describe.configure({ mode: 'serial' });
 async function login(page: Page, staff = 'admin', pin = '1234', code = 'LAGUSTOSA-TEST') {
@@ -163,6 +163,25 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await payment.getByRole('button', { name: 'Kontrollera', exact: true }).click();
   await payment.getByRole('button', { name: 'Visa testkvitto', exact: true }).click();
   await expect(payment.locator('.receipt-paper')).toContainText('194,50');
+  await expect(payment.locator('.receipt-paper')).toContainText('Moms 12 %');
+  await expect(payment.locator('.receipt-paper')).toContainText('Moms 25 %');
+  await expect(payment.locator('.receipt-paper')).toContainText('Delbelopp av');
+  // Exercise the rendered typography contract across every loaded design and
+  // the browser's print stylesheet. The production printer still needs its
+  // own adapter/font validation; this checks the training preview only.
+  for (const design of ['classic', 'professional', 'cotto'] as const) {
+    await page.evaluate(value => { document.documentElement.dataset.design = value; }, design);
+    for (const media of ['screen', 'print'] as const) {
+      await page.emulateMedia({ media });
+      const ratio = await payment.locator('.receipt-paper').evaluate(paper => {
+        const markerSize = parseFloat(getComputedStyle(paper.querySelector('.receipt-type-marker')!).fontSize);
+        const amountSize = Math.max(...Array.from(paper.querySelectorAll('.receipt-line strong, .receipt-line > span')).map(node => parseFloat(getComputedStyle(node).fontSize)));
+        return markerSize / amountSize;
+      });
+      expect(ratio, `ÖVNING must be at least twice the amount size in ${design}/${media}`).toBeGreaterThanOrEqual(2);
+    }
+  }
+  await page.emulateMedia({ media: 'screen' });
   await payment.getByRole('button', { name: 'Klart', exact: true }).click();
   await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
   await page.getByRole('button', { name: 'Dagsöversikt', exact: true }).click();
@@ -399,4 +418,97 @@ test('handterminalens notaknapp bevarar menyposition och använder samma skicka/
   const data: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
   expect(data.tabs.find(candidate => candidate.id === tab.id)?.lines).toHaveLength(2);
   expect(data.tickets.find(ticket => ticket.tabId === tab.id && ticket.station === 'bar')?.items[0].name).toBe('Cola');
+});
+
+test('huvudkassan registrerar insättning och uttag med orsak och stämmer av dagen utan differens', async ({ browser }) => {
+  // Use a separate safe-test day so unfinished orders in other workflow tests
+  // cannot hide or prevent this complete cash reconciliation.
+  const root = await mkdtemp(path.join(tmpdir(), 'lagustosa-cash-browser-'));
+  const reservation = createServer();
+  await new Promise<void>(resolve => { reservation.listen(0, '127.0.0.1', resolve); });
+  const address = reservation.address();
+  if (!address || typeof address === 'string') throw new Error('Test port missing');
+  const port = address.port;
+  await new Promise<void>(resolve => { reservation.close(() => resolve()); });
+  const cli = (action: string) => spawnSync(process.execPath, ['scripts/safe-test.mjs', action, '--root', root, '--port', String(port), '--no-browser'], { encoding: 'utf8', windowsHide: true, timeout: 35000 });
+  const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
+  try {
+    const started = cli('start'); expect(started.status, started.stdout + started.stderr).toBe(0);
+    const page = await context.newPage(); await login(page);
+    await page.getByRole('navigation', { name: 'Huvudmeny' }).getByRole('button', { name: 'Dagsöversikt', exact: true }).click();
+    await page.getByRole('button', { name: 'Öppna dagen', exact: true }).click();
+    const open = page.getByRole('dialog', { name: 'Öppna verksamhetsdagen' });
+    await open.getByLabel('Växelkassa i kronor').fill('1500');
+    await open.getByRole('button', { name: 'Öppna dagen', exact: true }).click();
+    await expect(open).toHaveCount(0);
+    const cashBalance = page.locator('.report-line').filter({ has: page.getByText('Förväntad kontantkassa', { exact: true }) });
+    await expect(cashBalance).toContainText('1 500 kr');
+    const cashKeys: string[] = [];
+    await page.route('**/api/v1/cash-movements', async route => {
+      cashKeys.push(route.request().postDataJSON().key);
+      if (cashKeys.length === 1) {
+        // Commit the deposit, then lose only its response. A reload must
+        // recover that registration rather than adding the amount again.
+        const response = await route.fetch(); expect(response.ok()).toBe(true);
+        await route.abort('failed');
+      } else await route.continue();
+    });
+    for (const entry of [
+      { direction: 'in', amount: '200', reason: 'Extra växel från kassaskåpet', expected: '1 700 kr' },
+      { direction: 'out', amount: '50', reason: 'Kontanter åter till kassaskåpet', expected: '1 650 kr' },
+    ]) {
+      await page.getByRole('button', { name: 'Insättning eller uttag', exact: true }).click();
+      const movement = page.getByRole('dialog', { name: 'Registrera kontanthändelse' });
+      await movement.getByLabel('Händelse', { exact: true }).selectOption(entry.direction);
+      await movement.getByLabel('Belopp i kronor', { exact: true }).fill(entry.amount);
+      const submit = movement.getByRole('button', { name: 'Registrera kontanthändelse', exact: true });
+      await expect(submit).toBeDisabled();
+      await movement.getByLabel('Orsak', { exact: true }).fill(entry.reason);
+      await submit.click();
+      if (entry.direction === 'in') {
+        await expect(movement.getByText('En kontanthändelse väntar på bekräftelse.', { exact: false })).toBeVisible();
+        await expect(movement.getByRole('button', { name: 'Kontrollera samma kontanthändelse', exact: true })).toBeEnabled();
+        await page.reload();
+        await page.getByRole('navigation', { name: 'Huvudmeny' }).getByRole('button', { name: 'Dagsöversikt', exact: true }).click();
+        await page.getByRole('button', { name: 'Insättning eller uttag', exact: true }).click();
+        await expect(movement.getByLabel('Händelse', { exact: true })).toBeDisabled();
+        await expect(movement.getByLabel('Händelse', { exact: true })).toHaveValue('in');
+        await expect(movement.getByLabel('Belopp i kronor', { exact: true })).toBeDisabled();
+        await expect(movement.getByLabel('Belopp i kronor', { exact: true })).toHaveValue('200');
+        await expect(movement.getByLabel('Orsak', { exact: true })).toBeDisabled();
+        await expect(movement.getByLabel('Orsak', { exact: true })).toHaveValue(entry.reason);
+        await movement.getByRole('button', { name: 'Kontrollera samma kontanthändelse', exact: true }).click();
+      }
+      await expect(movement).toHaveCount(0);
+      await expect(cashBalance).toContainText(entry.expected);
+      if (entry.direction === 'in') {
+        expect(cashKeys).toHaveLength(2);
+        expect(cashKeys[1]).toBe(cashKeys[0]);
+      }
+    }
+    expect(cashKeys).toHaveLength(3);
+    expect(cashKeys[2]).not.toBe(cashKeys[0]);
+    await expect(page.locator('.report-line').filter({ has: page.getByText('Kontantinsättningar', { exact: true }) })).toContainText('200 kr');
+    await expect(page.locator('.report-line').filter({ has: page.getByText('Kontantuttag', { exact: true }) })).toContainText('50 kr');
+    await page.getByRole('button', { name: 'Avsluta dagen', exact: true }).click();
+    const close = page.getByRole('dialog', { name: 'Avsluta verksamhetsdagen' });
+    await close.getByLabel('Räknad kontantkassa i kronor').fill('1650');
+    await close.getByRole('button', { name: 'Bekräfta dagsavslut', exact: true }).click();
+    await expect(close).toHaveCount(0);
+    await expect(page.locator('.report-line').filter({ has: page.getByText('Differens', { exact: true }) })).toContainText('0 kr');
+    await expect(page.getByRole('button', { name: 'Öppna dagen', exact: true })).toBeVisible();
+    const closed: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+    expect(closed.currentDay).toBeNull();
+    expect(closed.days.at(-1)?.report).toMatchObject({ expectedCashOre: 165000, differenceOre: 0, salesOre: 0 });
+    const journal: { intact: boolean; entries: AuditEntry[] } = await (await page.request.get('/api/v1/journal')).json();
+    expect(journal.intact).toBe(true);
+    const movements = journal.entries.filter(entry => entry.action === 'cash.move');
+    expect(movements).toHaveLength(2);
+    expect(movements[0].details).toMatchObject({ direction: 'in', amountOre: 20000, reason: 'Extra växel från kassaskåpet' });
+    expect(movements[1].details).toMatchObject({ direction: 'out', amountOre: 5000, reason: 'Kontanter åter till kassaskåpet' });
+  } finally {
+    await context.close();
+    const stopped = cli('stop'); expect(stopped.status, stopped.stdout + stopped.stderr).toBe(0);
+    await rm(root, { recursive: true, force: true });
+  }
 });

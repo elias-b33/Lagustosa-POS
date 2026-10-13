@@ -13,8 +13,8 @@ Skatteverkets normala modell är ett tillverkardeklarerat kassaregister tillsamm
 | Område | Status i projektet | Återstår före verklig kassaförsäljning |
 |---|---|---|
 | Kontrollenhet/kontrollsystem | Simulator | Välja certifierad lösning, implementera och verifiera kopplingen |
-| Kassaregistrets föreskriftskrav | Träningsjournal, kvitton och rapporter finns | Full kravgenomgång, testprotokoll, versionsidentifiering och tillverkardeklaration |
-| Journal-XML | Träningsimplementation | Verifiera exportens struktur och innehåll mot gällande schema och föreskrifter |
+| Kassaregistrets föreskriftskrav | Förstärkt träningsjournal, kvitton och rapporter | Fullständig kravtäckning per registreringsenhet, testprotokoll för verklig integration, versionsidentifiering och tillverkardeklaration |
+| Journal-XML | Träningsimplementation med automatiska tester mot officiellt XSD | Fullständig semantisk täckning, samtliga gränsfall och verklig kontrollösning; schemavalidering är inte ett efterlevnadsintyg |
 | Installation | Lokala testomgångar | Anmäla kassaregister och kontrollenhet/kontrollsystem för företaget |
 | Betalning och utskrift | Simulator/förhandsvisning | Leverantörens integration, fysisk utrustning och verifierade fel-/återställningsflöden |
 | Tillgänglighet | Tester, databaslås och mätverktyg | Installation, mätning under öppettider, återställningsövning och reservrutiner |
@@ -22,6 +22,48 @@ Skatteverkets normala modell är ett tillverkardeklarerat kassaregister tillsamm
 Från **1 januari 2027** ska kassaregister uppfylla SKVFS 2021:17; journalminnen ska kunna exportera registreringar i XML. Att appen kan generera en XML-fil är inte bevis på att hela kravet uppfylls. [Skatteverkets aktuella information](https://www.skatteverket.se/foretag/drivaforetag/kassaregister). Installationen ska anmälas innan användning: [så anmäler du kassaregister](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/saharanmalerdukassaregister.4.69ef368911e1304a62580008748.html).
 
 Behåll ordinarie kassaregister för kundförsäljning medan denna app provas med testnotor. Ingen deklaration eller myndighetsanmälan har skickats från projektet.
+
+### Kravgranskning och återstående hinder
+
+Granskningen avser en svensk restaurang med normal kassaregisterskyldighet. Något undantagsbeslut har inte visats för projektet. Betalning med Swish omfattas också av kassaregisterreglerna; en kortterminal eller en betalningsbekräftelse ersätter inte ett kassaregister. [Skatteverkets översikt](https://www.skatteverket.se/foretag/drivaforetag/kassaregister).
+
+Följande förbättringar ingår i träningsprogrammet. De är avgränsade programkontroller, inte en tillverkardeklaration:
+
+- Kvittot visar antal vid full betalning av en rad, moms per skattesats och tydlig märkning för övning, retur och delbelopp. Gratisrader tas med en gång. En delbetalning får inte framställas som en ny försäljning av hela antalet artiklar.
+- En gästkvittokopia kan bara skapas en gång per original, även när flera enheter försöker samtidigt. Kopiering av kopian avvisas. Kökets och barens bongar har separat återutskriftslogik. Den fysiska kvittotypografin och överföringen av kopior till kontrollösningen återstår.
+- Dagsavslut sparar sin rapport, identitet, tid, nummer och träningsräknare. Efterföljande dagar och menyändringar ska inte ändra gamla rapporter. Nya orderrader sparar sin kategori; gamla rader som saknar kategorin märks som historiskt ofullständiga.
+- Kontantinsättningar och uttag registreras vid huvudkassan med belopp, orsak, ansvarig och en bestämd verksamhetsdag. De påverkar förväntad kontantkassa utan att räknas som försäljning. Ett sparat försök behåller sin identifierare vid förlorat svar så att en omkontroll inte registrerar beloppet igen.
+- Databasregler skyddar kvittots innehåll, bekräftade kontrolluppgifter, avslutade dagar och journal mot omskrivning och radering via appens databasanslutning. Journalens hashkedja kontrolleras före serverstart. Dessa kontroller skyddar inte mot någon som har full kontroll över databasfilen eller operativsystemet; separat skyddad arkivering återstår.
+- Företagsuppgifter och kassabeteckning är låsta under en öppen verksamhetsdag. Inställningsändringar journalför både tidigare och nya värden. Momsdatum valideras utan att ogiltiga kalenderdatum blir serverfel.
+- Produktionsspärren gäller även när API-servern skapas direkt. Miljövariabler kan inte slå på riktig betalning, fysisk utskrift eller en verklig kontrollenhet i denna version.
+
+**Kvarstående hinder före skarp drift:**
+
+| ID | Hinder | Konkret underlag som krävs för att stänga punkten |
+|---|---|---|
+| L01 | Endast simulerad kontrollösning | Valt certifierat fabrikat/version, leverantörens protokoll och testmiljö, implementerad överföring och prov av avbrott/återhämtning. Försäljning, retur, kopia och övningskvitto måste ingå. |
+| L02 | En gemensam kassabeteckning för flera klienter | Fastställd modell för huvudkassan och de fyra enheter som kan slutföra betalning: unika identiteter och åtskilda journaler, kvitton, X/Z-rapporter och kontrollregistreringar enligt vald kontrollösning. De tre iPads som endast visar order bedöms utifrån sin faktiska funktion. |
+| L03 | Delbetalningar fördelas i pengar | Fastställd och testad modell för artikelantal, delade notor, returer och kontrollösningens kvittodata. Tydlig text om delbelopp gör träningskvittot begripligt men bevisar inte laglig kvittomodell. |
+| L04 | Träningsrapporter är inte kompletta skarpa X/Z-rapporter | Kravvis provning av alla föreskrivna uppgifter och räknare, bland annat varor/tjänster, rabatter, andra reduceringar, kvittokopior, lådöppningar och grand totals per registreringsenhet. Dagens träningsbelopp får inte göras om till verklig omsättning. |
+| L05 | XML-struktur täcker inte ensam journalens betydelse | Jämförelse mellan samtliga funktioner, journalposter och officiella element; datumurval, historiska identiteter och export per registreringsenhet. JSON-utdraget är ett kompletterande revisionsunderlag och ersätter inte föreskriven XML. |
+| L06 | Ingen färdig tillverkardeklaration | Identifierad ansvarig tillverkare, modell/programversion, funktionsdokumentation, kravmatris, testprotokoll med vald certifierad kontrollösning och korrekt deklaration till Skatteverket. Reglerade versionsändringar behöver följas upp. |
+| L07 | Ingen anmäld skarp installation | Verifierade företagsuppgifter, lokal och identifierare för varje anmälningspliktig registreringsenhet och kontrollösning samt företagets anmälan före användning. |
+| L08 | Ingen verklig betalnings- eller skrivardrift | Inlösar-/betalningsavtal, leverantörens godkända integration, fysisk terminalprovning, korrekt kvitto på valda skrivare och säker hantering av osäkra svar. PCI-ansvaret måste fastställas med leverantören. |
+| L09 | Arkiv och dataskydd är inte driftsatta | Beslutad arkiv-/bevarandeplan, separat skyddad backup, provad återläsning, konton och behörigheter per person, informationsrutiner och dokumenterat ansvar för personuppgifter. |
+
+L02 är ett arkitekturkrav, inte bara en nätverksinställning. Skatteverkets vägledning behandlar funktioner per registreringsenhet (4 kap. 2 §), åtskillnad för tunna klienter (5 kap. 3 §), kontrollregistrering (5 kap. 7 §) samt kvitton och rapporter (7 kap. SKVFS 2021:17). [Krav på kassaregister och tillverkardeklaration](https://www4.skatteverket.se/rattsligvagledning/edition/2026.14/339829.html). De tre skrivarna är utmatningsenheter; att lägga till skrivarprofiler löser inte kraven för de fem enheter som kan avsluta en försäljning.
+
+Nästa externa steg är att inhämta en certifierad kontrollösnings integrationsunderlag och välja betalningsleverantörens testmiljö. Ingen leverantör är vald och inga tjänster är köpta. Därefter behöver tillverkaren och restaurangen granska underlaget och sina respektive skyldigheter innan produktionsspärren ens övervägs. Skatteverket produktgodkänner inte programmet genom våra tester: [tillverkarens ansvar och deklarationsförfarande](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/fortillverkareochleverantorer.4.6efe6285127ab4f1d2580006050.html).
+
+### Bokföring, dataskydd och restaurangens rutiner
+
+Räkenskapsinformation ska normalt bevaras i sju år efter kalenderåret då räkenskapsåret avslutades. En backup på samma dator uppfyller inte i sig kraven på en fungerande arkivlösning. Restaurangen och redovisningsansvarig behöver bestämma vad som utgör räkenskapsinformation, var det förvaras och hur läsbarhet och återställning säkras under hela tiden. [Bokföringsnämndens arkiveringsvägledning](https://www.bfn.se/fragor-och-svar/arkivering/).
+
+Personalnamn, inloggnings- och aktivitetsloggar samt eventuella personuppgifter i anteckningar omfattas av dataskyddsbedömningen. Testkonton med gemensamma PIN-koder är avsedda för provning. Före verklig användning krävs individuella behörigheter, definierade ändamål och rättslig grund, information till berörda, lagringstider och hantering av rättighetsbegäranden. Uppgifter som måste sparas för bokföring ska hanteras med lämpligt avskild åtkomst. Ingen automatisk gallring av journalen är införd; behovet av bevarande och gallring måste beslutas tillsammans. Undvik kundnamn, kortuppgifter och identifierbara hälsouppgifter i testanteckningar. [IMY:s grundläggande principer](https://www.imy.se/verksamhet/dataskydd/det-har-galler-enligt-gdpr/grundlaggande-principer/), [behörighetsstyrning](https://www.imy.se/verksamhet/dataskydd/det-har-galler-enligt-gdpr/informationssakerhet/behorighetsstyrning/).
+
+Kortintegrationens PCI DSS-omfattning bestäms av den faktiska lösningen och avtalen. Att terminalen är separat innebär inte automatiskt att restaurangen saknar ansvar. Den nuvarande simulatorn skickar inga riktiga korttransaktioner. [PCI SSC om betalterminaler](https://www.pcisecuritystandards.org/faqs/1300/).
+
+Personalvyn i appen är ett behörighetsregister. Den är inte en personalliggare. Restaurangens skyldigheter kring personalliggare och övrig verksamhetsdrift behöver fortsatt hanteras utanför denna träningsapp. [Skatteverkets regler om personalliggare](https://www4.skatteverket.se/rattsligvagledning/edition/2026.14/340631.html).
 
 ## Säker provkörning
 
@@ -80,6 +122,7 @@ Den professionella designens lokala logotyp kommer från [Lagustosas egen webbpl
 - Returer till samma simulerade betalsätt, bevarade originalkvitton och journal.
 - Utskriftsförhandsvisning med misslyckad/osäker status och märkt återutskrift.
 - Växelkassa, kontantavstämning, dagsavslut, CSV och journal-XML för träning.
+- Insättningar och uttag under **Dagsöversikt → Insättning eller uttag**, med orsak och sparat försök vid avbrott. Funktionen registrerar träningsbelopp; den öppnar ingen fysisk kassalåda.
 - Roller, PIN-koder, enhetsregistrering och datumstyrda momsregler.
 
 ## Ett komplett träningsscenario
@@ -99,6 +142,16 @@ En godkänd registrering visas även om hela notan redan är betald. En okänd r
 
 ## Tester och byggd version
 
+Tester av journalens XML använder Python 3.12 eller senare och `lxml`. Installera testberoendet en gång; själva kassan behöver inte Python:
+
+```powershell
+python -m pip install -r scripts/requirements-test.txt
+```
+
+XSD-filerna under `vendor/skatteverket/` är oförändrade från Skatteverkets publicerade schema. Provningen granskar exporter med försäljning i övningsläge, returer, artikeländringar och dagsrapporter. En XML-fil kan även kontrolleras med `python scripts/validate-journal-xml.py "sökväg-till-journal.xml"`. Strukturellt giltig XML innebär inte att alla föreskriftskrav är täckta.
+
+Administratören kan hämta `/api/v1/journal.json` som kompletterande journalunderlag med fullständiga originalposter och hashkedjans gränser. XML-exporten avvisar för långa eller otillåtna textvärden och äldre historik vars identitet inte går att fastställa, i stället för att korta text eller tilldela gamla poster dagens företagsuppgifter. Bevara originaldatabasen och använd JSON-underlaget för utredning; detta ersätter inte föreskriven XML-export. Datumurval kan anges med `?from=2026-10-13&to=2026-10-13` på båda exporterna.
+
 ```powershell
 npm test
 npm run build
@@ -112,6 +165,8 @@ Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, retu
 Regressionssviterna omfattar även kontinuerlig ordertrafik, gamla inloggningssvar, 15 sekunders timeout inklusive svarskroppen, beloppsgränser efter pris-/rabattändringar samt hård processavslutning och omstart. En okänd betalning behåller samma identifierare; timeout medför ingen automatisk ny debitering. Dessa prov säger inget om bankernas eller den fysiska utrustningens tillgänglighet.
 
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
+
+Den lokala kravgenomgången den 13 oktober 2026 passerade **145 automatiska tester, 16 webbläsartester, bygge och isoleringsprovet**. Sviterna `compliance-integrity`, `receipt-compliance`, `report-compliance`, `journal-compliance` och `cash-movements` ger spårbara exempel på kontrollerna ovan. En ny komprimerad AW-körning med 36 gäster, åtta virtuella enheter och 654 HTTP-anrop gav inga oväntade fel och noll kassadifferens. Detta är testresultat för simulatorn, inte ett intyg om hela regelverket eller om 99 % tillgänglighet i restaurangdrift.
 
 För att köra den byggda versionen på datorn:
 
