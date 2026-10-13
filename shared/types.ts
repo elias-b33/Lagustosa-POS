@@ -9,6 +9,9 @@ export type PaymentStatus = 'pending' | 'approved' | 'declined' | 'cancelled' | 
 export type Simulation = 'approved' | 'declined' | 'cancelled' | 'unknown';
 export interface Staff { id: string; name: string; role: Role; active: boolean }
 export interface Device { id: string; name: string; kind: 'main' | 'serving' | 'display'; station: Station | null; active: boolean }
+export interface DeviceConnection { deviceId: string; connections: number; lastSeenAt: string | null }
+export type PrinterDestination = 'guest' | 'kitchen' | 'bar';
+export interface PrinterProfile { id: string; name: string; destination: PrinterDestination; paperWidthMm: 58 | 80; active: boolean }
 export interface Actor { staff: Staff; device: Device }
 export interface ModifierOption { id: string; name: string; priceOre: number }
 export interface ModifierGroup { id: string; name: string; min: number; max: number; options: ModifierOption[] }
@@ -57,6 +60,7 @@ export interface PrintJob {
   id: string; kind: 'guest' | 'kitchen' | 'bar' | 'closing' | 'drawer';
   sourceId: string; status: 'queued' | 'printing' | 'printed' | 'failed' | 'uncertain';
   text: string; createdAt: string; reprintOf: string | null; attempts: number;
+  printerId: string | null; printerName: string | null;
 }
 export interface BusinessDay {
   id: string; number: number; date: string; status: 'open' | 'closed'; openedAt: string; closedAt: string | null;
@@ -77,5 +81,6 @@ export interface Bootstrap {
   tickets: Ticket[]; payments: Payment[]; receipts: Receipt[]; printJobs: PrintJob[];
   days: BusinessDay[]; currentDay: BusinessDay | null; report: DayReport | null;
   settings: Settings; staff: Staff[]; devices: Device[];
+  printers: PrinterProfile[]; deviceConnections: DeviceConnection[];
   backup: { lastAt: string | null; error: string | null; external: boolean };
 }

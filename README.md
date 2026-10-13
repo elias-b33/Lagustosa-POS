@@ -71,7 +71,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, sparade betalningsförsök, utskrifter, åtta anslutna SSE-klienter, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer, responsiv layout och förlorade svar före och efter registrering av betalning/retur. Browser-tester använder en separat tillfällig databas på port 4183.
+Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, sparade betalningsförsök, skrivarroutning, åtta anslutna SSE-klienter med rätt order/station, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer, båda utseendena, handterminalens notaflöde, enhetsstatus, skrivarbyte och förlorade svar före och efter registrering av betalning/retur. Browser-tester använder en separat tillfällig databas på port 4183.
 
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
 
@@ -85,6 +85,21 @@ npm start
 Öppna <http://127.0.0.1:4173/>. Stäng servern med Ctrl+C i terminalen. Utvecklingsserver och byggd server ska inte köras samtidigt mot samma databas.
 
 ## Lokal installation och plattor
+
+Den planerade uppsättningen är **ny, egen utrustning** som ersätter den hyrda Qpay-utrustningen:
+
+| Antal | Utrustning | Uppgift i systemet |
+|---|---|---|
+| 1 | Huvudkassa | Öppna/stänga dagen, beställa, betala, returer och kontantavstämning |
+| 4 | Beställnings- och kortterminaler | Registrera order och ta betalt vid bordet |
+| 3 | iPads | Visa och hantera order i kök/bar; station väljs per enhet |
+| 3 | Skrivare | Köksbongar, barbongar samt gästkvitton/dagsavslut |
+
+De åtta kassorna/skärmarna arbetar mot samma lokala server. Testprofilerna har två orderskärmar för köket och en för baren; fördelningen kan ändras. **Inställningar → Enheter** visar öppna skärmanslutningar och senast sedd anslutning. Uppgiften beskriver anslutningen till appen, inte kortterminalens bankanslutning.
+
+**Inställningar → Skrivare** har tre förberedda profiler med utskriftstyp och pappersbredd. Varje köat jobb behåller sin tilldelning. Om en profil stängs av bevaras jobbet i kön; efter att en ersättare har aktiverats kan jobbet tilldelas den i **Utskrifter**, med en journalförd orsak. Ett jobb med osäker utskriftsstatus måste först kontrolleras innan en märkt kopia får skapas. Riktig kommunikation med skrivarna och betalningsleverantören läggs till efter val av nya modeller. Beställningsapp och betalningskoppling måste stödjas av de nya handterminalerna.
+
+På handterminaler och mindre skärmar ger **Visa nota** snabb åtkomst till aktuell order. **Till menyn** återgår till samma menyposition. Tillåtna skicka- och betalningsåtgärder använder samma serverflöde som huvudkassan.
 
 Använd en lokal installationsmapp på restaurangens laptop, exempelvis `C:\Lagustosa-Kassa`. Den aktiva SQLite-databasen ska ligga på datorns egen disk, utanför OneDrive eller en annan synkroniserad mapp. Säkerhetskopior kan däremot flyttas till separat lagring.
 

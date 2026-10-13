@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, assertTrainingMode } from '../server/app';
 import { key } from './helpers';
+import type { Bootstrap, PrinterProfile } from '../shared/types';
 
 const apps: Awaited<ReturnType<typeof createApp>>[] = [];
 afterEach(async () => { for (const { app } of apps.splice(0)) await app.close(); });
@@ -63,6 +64,22 @@ describe('API och flera enheter', () => {
     expect(f.store.all('payment')).toHaveLength(1); expect(f.store.all('receipt')).toHaveLength(1);
   });
 
+  it('validerar skrivartyper, pappersbredd och administratörens behörighet', async () => {
+    const f = await api();
+    expect((await f.app.inject('/api/v1/printers')).statusCode).toBe(401);
+    const profiles = (await f.app.inject({ url: '/api/v1/printers', headers: { cookie: f.cookie } })).json<PrinterProfile[]>();
+    expect(profiles).toHaveLength(3);
+    const profile = profiles[0]; const url = `/api/v1/printers/${profile.id}`;
+    expect((await f.app.inject({ method: 'PUT', url, headers: { cookie: f.cookie }, payload: { ...profile, paperWidthMm: 42 } })).statusCode).toBe(400);
+    expect((await f.app.inject({ method: 'PUT', url, headers: { cookie: f.cookie }, payload: { ...profile, host: 'unconfigured' } })).statusCode).toBe(400);
+    const duplicate = { ...profile, id: key() };
+    const conflict = await f.app.inject({ method: 'PUT', url: `/api/v1/printers/${duplicate.id}`, headers: { cookie: f.cookie }, payload: duplicate });
+    expect(conflict.statusCode).toBe(409); expect(conflict.json().code).toBe('PRINTER_CONFLICT');
+    const login = await f.app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { staffId: 'cashier', pin: '2345', deviceCode: 'LAGUSTOSA-TEST' } });
+    expect((await f.app.inject({ method: 'PUT', url, headers: { cookie: `lagustosa_session=${login.cookies[0].value}` }, payload: profile })).statusCode).toBe(403);
+    expect((await f.app.inject({ method: 'PUT', url, headers: { cookie: f.cookie }, payload: { ...profile, paperWidthMm: 58 } })).json<PrinterProfile>().paperWidthMm).toBe(58);
+  });
+
   it('synkroniserar åtta anslutna enheter när samma order ändras', async () => {
     const f = await api();
     f.service.openDay(f.service.session(f.cookie.split('=')[1]), { key: key(), floatOre: 0 });
@@ -77,18 +94,30 @@ describe('API och flera enheter', () => {
     ];
     const controller = new AbortController();
     try {
-      const readers = await Promise.all(devices.map(async ([staffId, pin, deviceCode]) => {
+      const clients = await Promise.all(devices.map(async ([staffId, pin, deviceCode]) => {
         const login = await f.app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { staffId, pin, deviceCode } });
-        const response = await fetch(`${base}/api/v1/events`, { headers: { Cookie: `lagustosa_session=${login.cookies[0].value}` }, signal: controller.signal });
+        const cookie = `lagustosa_session=${login.cookies[0].value}`;
+        const response = await fetch(`${base}/api/v1/events`, { headers: { Cookie: cookie }, signal: controller.signal });
         const reader = response.body!.getReader();
         expect(new TextDecoder().decode((await reader.read()).value)).toContain('data: ready');
-        return reader;
+        return { reader, cookie, station: ['kitchen', 'bar'].includes(staffId) ? staffId : null };
       }));
+      expect(f.service.deviceConnections().every(device => device.connections === 1)).toBe(true);
       const actor = f.service.session(f.cookie.split('=')[1]);
-      f.service.createTab(actor, { key: key(), tableId: 'table-1', guestCount: 2, serviceMode: 'dine_in' });
-      const updates = await Promise.all(readers.map(reader => reader.read()));
+      let tab = f.service.createTab(actor, { key: key(), tableId: 'table-1', guestCount: 2, serviceMode: 'dine_in' });
+      for (const input of [{ action: 'add', itemId: 'bread' }, { action: 'add', itemId: 'redwine' }, { action: 'send' }] as const) tab = f.service.updateTab(actor, tab.id, { ...input, key: key(), version: tab.version });
+      const updates = await Promise.all(clients.map(client => client.reader.read()));
       expect(updates).toHaveLength(8);
       for (const update of updates) expect(new TextDecoder().decode(update.value)).toContain('event: change');
-    } finally { controller.abort(); }
+      const snapshots = await Promise.all(clients.map(client => f.app.inject({ url: '/api/v1/bootstrap', headers: { cookie: client.cookie } })));
+      for (let index = 0; index < clients.length; index++) {
+        const data = snapshots[index].json<Bootstrap>();
+        if (clients[index].station) { expect(data.tabs).toEqual([]); expect(data.tickets).toHaveLength(1); expect(data.tickets[0].station).toBe(clients[index].station); }
+        else expect(data.tabs.find(candidate => candidate.id === tab.id)?.lines).toHaveLength(2);
+      }
+    } finally {
+      controller.abort();
+      await expect.poll(() => f.service.deviceConnections().reduce((sum, device) => sum + device.connections, 0), { timeout: 3000 }).toBe(0);
+    }
   });
 });

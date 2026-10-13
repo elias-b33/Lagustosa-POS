@@ -1,0 +1,108 @@
+/* Shared service controls; import after the two visual designs. */
+.mobile-order-bar, .mobile-menu-return { display: none; }
+.mobile-order-bar .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* When send/fire controls have gone, the line list absorbs excess height.
+   Short screens retain normal document scrolling instead of clipping controls. */
+@media (min-width: 761px) and (min-height: 850px) {
+  .service-layout .order-panel:not(:has(.fire-buttons, .count-chip)) {
+    display: flex;
+    flex-direction: column;
+    max-height: var(--checkout-available-height, calc(100dvh - 196px));
+  }
+  .service-layout .order-panel:not(:has(.fire-buttons, .count-chip)) > .order-heading,
+  .service-layout .order-panel:not(:has(.fire-buttons, .count-chip)) > .order-meta,
+  .service-layout .order-panel:not(:has(.fire-buttons, .count-chip)) > .order-footer {
+    flex-shrink: 0;
+  }
+  .service-layout .order-panel:not(:has(.fire-buttons, .count-chip)) > .guest-pills {
+    flex-shrink: 0;
+    max-height: 110px;
+    overflow-y: auto;
+  }
+  .service-layout .order-panel:not(:has(.fire-buttons, .count-chip)) > .order-lines {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 760px) {
+  html { --mobile-nav-height: 68px; --mobile-service-space: 104px; }
+  html[data-design="professional"] { --mobile-nav-height: 70px; }
+
+  .mobile-order-bar {
+    position: fixed;
+    z-index: 15;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -5px 20px #3a28200b;
+  }
+  .mobile-order-review {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+    min-height: 68px;
+    gap: 13px;
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    text-align: left;
+  }
+  .mobile-order-review:hover { background: var(--wine-pale); }
+  .mobile-order-summary { display: grid; gap: 2px; flex: 1; min-width: 0; }
+  .mobile-order-label { display: block; color: var(--ink); font-size: 12px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mobile-order-amount { color: var(--wine); font-size: 18px; font-weight: 650; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mobile-order-details { display: block; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mobile-order-review-label { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 9px 10px; border-radius: 8px; color: #fff; background: var(--wine); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .mobile-order-action { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 76px; min-height: 68px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; color: var(--wine); background: var(--wine-pale); font-size: 11px; font-weight: 600; }
+  .mobile-order-action:hover:not(:disabled) { border-color: var(--wine); }
+  .mobile-menu-return { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 10px; margin: -5px 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); color: var(--wine); font-size: 12px; font-weight: 500; }
+
+  html .app-content:has(.mobile-order-bar) { padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + var(--mobile-service-space)); }
+  .app-shell:has(.mobile-order-bar) .sidebar { height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .service-layout:has(.mobile-order-bar) .order-panel { scroll-margin-top: 16px; }
+  html .app-shell:has(.mobile-order-bar) .toast { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + var(--mobile-service-space) + 12px); }
+  .app-shell:has(.modal-backdrop) .mobile-order-bar { visibility: hidden; pointer-events: none; }
+
+  html[data-design="professional"] .mobile-order-bar { background: #fcfdf9; border-top-color: #cbd8c9; box-shadow: 0 -5px 18px #233a2b09; }
+  html[data-design="professional"] .mobile-order-review { border-radius: 10px; }
+  html[data-design="professional"] .mobile-order-review:hover { background: #eef4e8; }
+  html[data-design="professional"] .mobile-order-amount { color: #355340; }
+  html[data-design="professional"] .mobile-order-action { color: #426645; border-color: #c9d9c3; background: #edf4e7; border-radius: 10px; }
+  html[data-design="professional"] .order-heading .mobile-menu-return { border-color: #ffffff24; background: #ffffff0a; color: #d4e2cf; }
+}
+
+@media (max-width: 420px) {
+  .mobile-order-review { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 8px; }
+  .mobile-order-summary { display: contents; }
+  .mobile-order-label { align-self: end; }
+  .mobile-order-amount { align-self: end; justify-self: end; font-size: 16px; }
+  .mobile-order-details { align-self: center; }
+  .mobile-order-review-label { align-self: center; justify-self: end; min-height: 27px; padding: 4px 0; gap: 3px; color: var(--wine); background: none; font-size: 12px; }
+}
+
+@media (max-width: 360px) {
+  .mobile-order-bar { gap: 6px; padding-left: 9px; padding-right: 9px; }
+  .mobile-order-review { gap: 4px 6px; padding: 7px 6px; }
+  .mobile-order-label { font-size: 11px; }
+  .mobile-order-amount { font-size: 15px; }
+  .mobile-order-details { font-size: 9px; }
+  .mobile-order-action { min-width: 70px; padding-left: 9px; padding-right: 9px; }
+}
+
+@media print {
+  .mobile-order-bar, .mobile-menu-return { display: none !important; }
+  .service-layout .order-panel { max-height: none !important; }
+}

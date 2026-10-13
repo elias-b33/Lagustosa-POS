@@ -1,4 +1,4 @@
-import type { Payment, PaymentStatus, Receipt } from '../shared/types';
+import type { Payment, PaymentStatus, Receipt, PrintJob, PrinterProfile } from '../shared/types';
 import { Store, digest } from './db';
 
 export interface PaymentAdapter {
@@ -16,7 +16,7 @@ export interface FiscalAdapter {
 }
 export interface PrintAdapter {
   readonly kind: 'preview' | 'live';
-  print(text: string, outcome: 'printed' | 'failed' | 'uncertain'): Promise<'printed' | 'failed' | 'uncertain'>;
+  print(job: PrintJob, printer: PrinterProfile, outcome: 'printed' | 'failed' | 'uncertain'): Promise<'printed' | 'failed' | 'uncertain'>;
 }
 
 export class SimulatorPaymentAdapter implements PaymentAdapter {
@@ -56,5 +56,5 @@ export class SimulatorFiscalAdapter implements FiscalAdapter {
 
 export class PreviewPrintAdapter implements PrintAdapter {
   readonly kind = 'preview';
-  async print(_text: string, outcome: 'printed' | 'failed' | 'uncertain'): Promise<'printed' | 'failed' | 'uncertain'> { return outcome; }
+  async print(_job: PrintJob, _printer: PrinterProfile, outcome: 'printed' | 'failed' | 'uncertain'): Promise<'printed' | 'failed' | 'uncertain'> { return outcome; }
 }

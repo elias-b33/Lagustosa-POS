@@ -1,8 +1,23 @@
-import type { DiningTable, MenuItem, Settings, Staff, Device } from '../shared/types';
+import type { DiningTable, MenuItem, Settings, Staff, Device, PrinterProfile } from '../shared/types';
 import { Store, digest, hashPin } from './db';
 
 export interface StoredStaff extends Staff { pinHash: string }
 export interface StoredDevice extends Device { codeHash: string }
+
+export function seedPrinters(store: Store): void {
+  if (store.get('meta', 'printers-seeded')) return;
+  store.atomic(() => {
+    if (store.all('printer').length === 0) {
+      const printers: PrinterProfile[] = [
+        { id: 'printer-guest', name: 'Kvittoskrivare', destination: 'guest', paperWidthMm: 80, active: true },
+        { id: 'printer-kitchen', name: 'Köksskrivare', destination: 'kitchen', paperWidthMm: 80, active: true },
+        { id: 'printer-bar', name: 'Barskrivare', destination: 'bar', paperWidthMm: 80, active: true },
+      ];
+      for (const printer of printers) store.put('printer', printer);
+    }
+    store.put('meta', { id: 'printers-seeded', version: 1 });
+  });
+}
 
 const sides = { id: 'sides', name: 'Tillbehör', min: 1, max: 1, options: [{ id: 'potatoes', name: 'Klyftpotatis', priceOre: 0 }, { id: 'vegetables', name: 'Grillade grönsaker', priceOre: 0 }] };
 const sauces = { id: 'sauces', name: 'Sås', min: 1, max: 1, options: [{ id: 'pepper', name: 'Pepparsås', priceOre: 0 }, { id: 'mushroom', name: 'Champinjonsås', priceOre: 0 }, { id: 'roquefort', name: 'Roquefortsås', priceOre: 0 }] };

@@ -1,0 +1,6 @@
+.device-status { display: flex !important; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); margin-top: 7px; font-size: 11px; }
+.device-status.online { color: var(--green); }
+.device-status small { width: 100%; font-size: 10px; }
+.hardware-list .device-status.online { color: var(--green); }
+.hardware-list .list-row > div > strong, .hardware-list .list-row > div > span,
+.print-list .list-row > div > strong, .print-list .list-row > div > span { overflow-wrap: anywhere; }

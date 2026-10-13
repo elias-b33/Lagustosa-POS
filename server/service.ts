@@ -1,15 +1,16 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import type { Actor, Allocation, Bootstrap, BusinessDay, DayReport, Device, DiningTable, MenuItem, OrderLine, Payment, PaymentStatus, PrintJob, Receipt, Settings, Staff, Station, Tab, Ticket } from '../shared/types';
+import type { Actor, Allocation, Bootstrap, BusinessDay, DayReport, Device, DeviceConnection, DiningTable, MenuItem, OrderLine, Payment, PaymentStatus, PrintJob, PrinterProfile, Receipt, Settings, Staff, Station, Tab, Ticket } from '../shared/types';
 import { calculateTab, distribute, paidOre, roundRatio, taxRate } from '../shared/money';
 import { Store, digest, hashPin, verifyPin } from './db';
 import { AppError, demand } from './errors';
 import type { PaymentAdapter, FiscalAdapter, PrintAdapter } from './adapters';
 import { PreviewPrintAdapter, SimulatorFiscalAdapter, SimulatorPaymentAdapter } from './adapters';
-import { seed, type StoredDevice, type StoredStaff } from './seed';
+import { seed, seedPrinters, type StoredDevice, type StoredStaff } from './seed';
 import type { PaymentInput, RefundInput, TabCommand } from './validation';
 import { closingText, receiptText, ticketText } from './printing';
+import { printerDestination } from '../shared/printers';
 
 interface ServiceOptions {
   now?: () => Date; notify?: () => void; backupDir?: string;
@@ -29,6 +30,7 @@ export class KassaService {
   private backupDir: string;
   private backingUp = false;
   private fiscalInFlight = new Set<string>();
+  private deviceClients = new Map<string, { clients: Set<string>; lastSeenAt: string }>();
 
   constructor(readonly store: Store, options: ServiceOptions = {}) {
     this.now = options.now ?? (() => new Date());
@@ -38,7 +40,13 @@ export class KassaService {
     this.fiscalAdapter = options.fiscal ?? new SimulatorFiscalAdapter(store);
     this.printAdapter = options.printer ?? new PreviewPrintAdapter();
     seed(store);
+    seedPrinters(store);
     this.store.atomic(() => {
+      for (const job of this.store.all<PrintJob>('print').filter(entry => entry.printerId === undefined)) {
+        const printer = job.status === 'queued' ? this.store.all<PrinterProfile>('printer').find(printer => printer.active && printer.destination === printerDestination(job.kind)) : undefined;
+        this.store.put('print', { ...job, printerId: printer?.id ?? null, printerName: printer?.name ?? null });
+        this.log('system', 'print.routing_migrated', job.id, { printerId: printer?.id ?? null });
+      }
       for (const payment of this.store.all<Payment>('payment').filter(entry => entry.status === 'pending')) {
         this.store.put('payment', { ...payment, status: 'unknown', updatedAt: this.timestamp() });
         this.log('system', 'payment.recovered_unknown', payment.id, {});
@@ -62,6 +70,19 @@ export class KassaService {
   settings(): Settings { return this.store.get<Settings>('settings', 'settings')!; }
   publicStaff(): Staff[] { return this.store.all<StoredStaff>('staff').map(({ pinHash: _pinHash, ...staff }) => staff); }
   publicDevices(): Device[] { return this.store.all<StoredDevice>('device').map(({ codeHash: _codeHash, ...device }) => device); }
+  deviceConnections(): DeviceConnection[] {
+    return this.publicDevices().map(device => ({ deviceId: device.id, connections: this.deviceClients.get(device.id)?.clients.size ?? 0, lastSeenAt: this.deviceClients.get(device.id)?.lastSeenAt ?? null }));
+  }
+  connectDevice(deviceId: string): { touch: () => void; close: () => void } {
+    const clientId = randomUUID();
+    const entry = this.deviceClients.get(deviceId) ?? { clients: new Set<string>(), lastSeenAt: this.timestamp() };
+    entry.clients.add(clientId); entry.lastSeenAt = this.timestamp();
+    this.deviceClients.set(deviceId, entry); this.notify();
+    return {
+      touch: () => { if (entry.clients.has(clientId)) entry.lastSeenAt = this.timestamp(); },
+      close: () => { if (entry.clients.delete(clientId)) { entry.lastSeenAt = this.timestamp(); this.notify(); } },
+    };
+  }
   require(actor: Actor, roles: string[], main = false): void {
     demand(roles.includes(actor.staff.role), 'Du saknar behörighet för detta.', 403, 'FORBIDDEN');
     if (main) demand(actor.device.kind === 'main', 'Detta görs vid huvudkassan.', 403, 'MAIN_REQUIRED');
@@ -145,6 +166,7 @@ export class KassaService {
       days: station ? [] : this.store.all<BusinessDay>('day'), currentDay,
       report: currentDay && authorizedRoles.includes(actor.staff.role) && !station ? this.report(currentDay.id) : null,
       settings: this.settings(), staff: actor.staff.role === 'admin' ? this.publicStaff() : [actor.staff], devices: actor.staff.role === 'admin' ? this.publicDevices() : [actor.device],
+      printers: authorizedRoles.includes(actor.staff.role) && !station ? this.store.all<PrinterProfile>('printer') : [], deviceConnections: actor.staff.role === 'admin' && !station ? this.deviceConnections() : [],
       backup: { ...backup, external: path.parse(path.resolve(this.backupDir)).root.toLowerCase() !== path.parse(path.resolve(this.store.filename)).root.toLowerCase() },
     };
   }
@@ -405,6 +427,7 @@ export class KassaService {
   }
   async checkPayment(actor: Actor, id: string, cancel = false): Promise<Payment> {
     this.require(actor, workingRoles);
+    demand(actor.device.kind !== 'display', 'Betalningar kontrolleras på kassa eller serveringsenhet.', 403);
     const payment = this.store.get<Payment>('payment', id);
     demand(payment, 'Betalningen finns inte.', 404);
     if (payment.kind === 'refund') this.require(actor, authorizedRoles);
@@ -415,6 +438,7 @@ export class KassaService {
   }
   async verifyFiscal(actor: Actor, id: string): Promise<Receipt> {
     this.require(actor, authorizedRoles);
+    demand(actor.device.kind !== 'display', 'Kvitton kontrolleras på kassa eller serveringsenhet.', 403);
     const receipt = this.store.get<Receipt>('receipt', id);
     demand(receipt, 'Kvittot finns inte.', 404);
     if (receipt.fiscalStatus === 'confirmed') return receipt;
@@ -433,6 +457,7 @@ export class KassaService {
   }
   async refund(actor: Actor, parentId: string, input: RefundInput): Promise<Payment> {
     this.require(actor, authorizedRoles);
+    demand(actor.device.kind !== 'display', 'Returer görs på kassa eller serveringsenhet.', 403);
     const fingerprint = this.paymentFingerprint(input, actor, `refund:${parentId}`);
     const existing = this.existingPayment(input.key, fingerprint);
     if (existing) return existing;
@@ -459,21 +484,40 @@ export class KassaService {
     try { status = await this.paymentAdapter.refund(payment); } catch { status = 'unknown'; }
     return this.finishPayment(actor, payment.id, status);
   }
-  queuePrint(kind: PrintJob['kind'], sourceId: string, text: string, reprintOf: string | null = null): PrintJob {
-    const job: PrintJob = { id: randomUUID(), kind, sourceId, status: 'queued', text, createdAt: this.timestamp(), reprintOf, attempts: 0 };
+  queuePrint(kind: PrintJob['kind'], sourceId: string, text: string, reprintOf: string | null = null, originalPrinterId?: string | null): PrintJob {
+    const printer = originalPrinterId === undefined
+      ? this.store.all<PrinterProfile>('printer').find(printer => printer.active && printer.destination === printerDestination(kind))
+      : originalPrinterId ? this.store.get<PrinterProfile>('printer', originalPrinterId) : undefined;
+    const job: PrintJob = { id: randomUUID(), kind, sourceId, status: 'queued', text, createdAt: this.timestamp(), reprintOf, attempts: 0, printerId: printer?.id ?? null, printerName: printer?.name ?? null };
     this.store.put('print', job);
     return job;
   }
-  async print(actor: Actor, id: string, action: 'print' | 'resolve' | 'reprint', outcome?: 'printed' | 'failed' | 'uncertain', reason = ''): Promise<PrintJob> {
+  async print(actor: Actor, id: string, action: 'print' | 'resolve' | 'reprint' | 'route', outcome?: 'printed' | 'failed' | 'uncertain', reason = '', printerId?: string): Promise<PrintJob> {
     this.require(actor, authorizedRoles);
+    demand(actor.device.kind !== 'display', 'Utskrifter hanteras på kassa eller serveringsenhet.', 403);
     const storedJob = this.store.get<PrintJob>('print', id);
     demand(storedJob, 'Utskriften finns inte.', 404);
     let job: PrintJob = storedJob;
+    if (action === 'route') {
+      job = this.store.atomic(() => {
+        const current = this.store.get<PrintJob>('print', id)!;
+        demand(current.status === 'queued', 'Endast en väntande utskrift kan byta skrivare. Kontrollera osäker status först.', 409);
+        demand(reason.trim().length >= 3, 'Ange orsak till bytet av skrivare.');
+        const target = printerId ? this.store.get<PrinterProfile>('printer', printerId) : undefined;
+        demand(target?.active && target.destination === printerDestination(current.kind), 'Välj en aktiv skrivare för rätt typ av utskrift.');
+        const previousPrinterId = current.printerId;
+        current.printerId = target.id; current.printerName = target.name;
+        this.store.put('print', current);
+        this.log(actor, 'print.routed', id, { previousPrinterId, printerId: target.id, reason });
+        return current;
+      });
+      this.notify(); return job;
+    }
     if (action === 'reprint') {
       demand(['printed', 'failed'].includes(job.status), 'Kontrollera först om den osäkra utskriften kom ut.');
       demand(reason.trim().length >= 3, 'Ange orsak till återutskriften.');
       const copy = this.store.atomic(() => {
-        const copy = this.queuePrint(job.kind, job.sourceId, `KOPIA · ${reason}\n${job.text}`, job.id);
+        const copy = this.queuePrint(job.kind, job.sourceId, `KOPIA · ${reason}\n${job.text}`, job.id, job.printerId);
         this.log(actor, 'print.reprint', copy.id, { originalId: job.id, reason });
         return copy;
       });
@@ -485,17 +529,20 @@ export class KassaService {
       demand(job.status === 'uncertain' && outcome !== 'uncertain' && reason.trim().length >= 3, 'Kontrollera utskriften och ange resultat och orsak.');
       job.status = outcome;
     } else {
-      job = this.store.atomic(() => {
+      const claimed = this.store.atomic(() => {
         const current = this.store.get<PrintJob>('print', id)!;
         demand(current.status === 'queued', 'Den här utskriften har redan hanterats.', 409);
+        const printer = current.printerId ? this.store.get<PrinterProfile>('printer', current.printerId) : undefined;
+        demand(printer?.active && printer.destination === printerDestination(current.kind), 'Välj en aktiv skrivare för rätt typ av utskrift innan utskriften startas.', 409, 'PRINTER_REQUIRED');
         current.status = 'printing';
         current.attempts++;
         this.store.put('print', current);
         this.log(actor, 'print.started', id, {});
-        return current;
+        return { job: current, printer };
       });
+      job = claimed.job;
       this.notify();
-      try { job.status = await this.printAdapter.print(job.text, outcome); }
+      try { job.status = await this.printAdapter.print(job, claimed.printer, outcome); }
       catch { job.status = 'uncertain'; }
     }
     this.store.atomic(() => { this.store.put('print', job); this.log(actor, `print.${action}`, id, { status: job.status, reason }); });
@@ -621,6 +668,18 @@ export class KassaService {
     });
     this.notify();
     return { ...device, code };
+  }
+  savePrinter(actor: Actor, printer: PrinterProfile): PrinterProfile {
+    this.require(actor, ['admin']);
+    demand(actor.device.kind !== 'display', 'Skrivare konfigureras på kassa eller serveringsenhet.', 403);
+    this.store.atomic(() => {
+      demand(!printer.active || !this.store.all<PrinterProfile>('printer').some(candidate => candidate.id !== printer.id && candidate.active && candidate.destination === printer.destination), 'Den här utskriftstypen har redan en aktiv skrivare. Stäng av den tidigare profilen innan den nya aktiveras.', 409, 'PRINTER_CONFLICT');
+      demand(!this.store.all<PrintJob>('print').some(job => job.printerId === printer.id && job.status === 'printing'), 'Vänta tills den pågående utskriften har fått ett resultat innan skrivaren ändras.', 409, 'PRINTER_BUSY');
+      const previous = this.store.get<PrinterProfile>('printer', printer.id) ?? null;
+      this.store.put('printer', printer);
+      this.log(actor, 'printer.saved', printer.id, { previous, printer });
+    });
+    this.notify(); return printer;
   }
   saveSettings(actor: Actor, settings: Settings): Settings {
     this.require(actor, ['admin']);

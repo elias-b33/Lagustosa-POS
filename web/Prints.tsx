@@ -1,0 +1,53 @@
+import { useState } from 'react';
+import { ArrowRight, CircleAlert, Printer, RefreshCw } from 'lucide-react';
+import type { PrinterProfile, PrintJob } from '../shared/types';
+import { printerDestination } from '../shared/printers';
+import { api } from './api';
+import { Action, Empty, Field, Modal, printStatusNames, type WorkspaceProps } from './components';
+
+export function PrintsView({ data, busy, run }: WorkspaceProps) {
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [filter, setFilter] = useState('all');
+  const selected = data.printJobs.find(job => job.id === jobId);
+  const jobs = [...data.printJobs].reverse().filter(job => filter === 'all' || job.status === filter);
+  const sourceLabel = (job: PrintJob) => data.tickets.find(ticket => ticket.id === job.sourceId)?.tabLabel
+    ?? data.receipts.find(receipt => receipt.id === job.sourceId)?.tab.label
+    ?? data.tabs.find(tab => tab.id === job.sourceId)?.label
+    ?? data.days.find(day => day.id === job.sourceId)?.date
+    ?? data.devices.find(device => device.id === job.sourceId)?.name;
+  return <section className="operations"><div className="section-heading"><div><span className="eyebrow">VARJE BONG PÅ RÄTT PLATS</span><h2>Utskrifter</h2></div><span className="tag">Förhandsvisning</span></div>
+    <div className="category-row">{[['all', 'Alla'], ['queued', 'I kö'], ['printing', 'Pågår'], ['failed', 'Misslyckade'], ['uncertain', 'Osäkra'], ['printed', 'Utskrivna']].map(([value, label]) => <button className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} key={value}>{label}</button>)}</div>
+    {jobs.length ? <div className="list-card print-list">{jobs.map(job => <button className="list-row" onClick={() => setJobId(job.id)} key={job.id}><span className="list-icon"><Printer size={19} /></span><div><strong>{job.kind === 'guest' ? 'Gästkvitto' : job.kind === 'kitchen' ? 'Köksbong' : job.kind === 'bar' ? 'Barbong' : job.kind === 'drawer' ? 'Kassalåda' : 'Dagsavslut'}{sourceLabel(job) ? ` · ${sourceLabel(job)}` : ''}{job.reprintOf ? ' · kopia' : ''}</strong><span>{job.printerName ?? 'Skrivare behöver väljas'} · {new Date(job.createdAt).toLocaleString('sv-SE')}</span></div><span className={`tag ${job.status}`}>{printStatusNames[job.status]}</span><ArrowRight size={16} /></button>)}</div> : <Empty title="Ingen utskrift i den här vyn" text="Köksbongar och kvitton sparas i kön när du arbetar i kassan." />}
+    {selected && <PrintPreview key={selected.id} job={selected} printers={data.printers ?? []} busy={busy} onClose={() => setJobId(null)} onAction={async body => { const job = await run(() => api<PrintJob>(`/print-jobs/${selected.id}/actions`, body)); if (job) setJobId(job.id); }} />}
+  </section>;
+}
+
+function PrintPreview({ job, printers, busy, onClose, onAction }: { job: PrintJob; printers: PrinterProfile[]; busy: boolean; onClose: () => void; onAction: (body: unknown) => Promise<void> }) {
+  const [outcome, setOutcome] = useState('printed');
+  const [reason, setReason] = useState('');
+  const [targetId, setTargetId] = useState(job.printerId ?? '');
+  const targets = printers.filter(printer => printer.active && printer.destination === printerDestination(job.kind));
+  const assigned = targets.find(printer => printer.id === job.printerId);
+  const selectedId = targets.some(printer => printer.id === targetId) ? targetId : targets[0]?.id ?? '';
+  return <Modal title="Utskriftsförhandsvisning" subtitle={`${printStatusNames[job.status]} · ${job.printerName ?? 'Ingen skrivare tilldelad'}`} onClose={onClose}>
+    <pre className="print-paper">{job.text}</pre>
+    {job.status === 'printing' ? <div className="notice">Utskriften pågår. Vänta på resultatet innan du försöker igen.</div> : job.status === 'queued' ? <>
+      {!assigned && <div className="notice warning"><CircleAlert size={18} /><span>Välj en aktiv profil för rätt utskriftstyp. Jobbet bevaras i kön tills en skrivare har tilldelats.</span></div>}
+      {(targets.length > 1 || !assigned) && <>
+        <Field label="Skrivare för den här utskriften"><select value={selectedId} onChange={event => setTargetId(event.target.value)}><option value="">Välj skrivare</option>{targets.map(printer => <option key={printer.id} value={printer.id}>{printer.name} · {printer.paperWidthMm} mm</option>)}</select></Field>
+        <Field label="Orsak till byte av skrivare"><input value={reason} onChange={event => setReason(event.target.value)} /></Field>
+        <Action secondary disabled={busy || !selectedId || selectedId === job.printerId || reason.trim().length < 3} onClick={() => void onAction({ action: 'route', printerId: selectedId, reason })}>Tilldela skrivare</Action>
+      </>}
+      <Field label="Simulerat skrivarresultat"><select value={outcome} onChange={event => setOutcome(event.target.value)}><option value="printed">Utskriven</option><option value="failed">Avbrott · ingen utskrift</option><option value="uncertain">Förlorat svar · osäker utskrift</option></select></Field>
+      <Action disabled={busy || !assigned} onClick={() => void onAction({ action: 'print', outcome })}><Printer size={17} />Simulera utskrift</Action>
+    </> : job.status === 'uncertain' ? <>
+      <div className="notice warning"><CircleAlert size={18} />Kontrollera först om pappret kom ut.</div>
+      <Field label="Vad visade kontrollen?"><select value={outcome} onChange={event => setOutcome(event.target.value)}><option value="printed">Pappret kom ut</option><option value="failed">Pappret kom inte ut</option></select></Field>
+      <Field label="Anteckning om kontrollen"><input value={reason} onChange={event => setReason(event.target.value)} /></Field>
+      <Action disabled={busy || reason.trim().length < 3} onClick={() => void onAction({ action: 'resolve', outcome, reason })}>Spara kontrollerad status</Action>
+    </> : <>
+      <Field label="Orsak till återutskrift"><input value={reason} onChange={event => setReason(event.target.value)} /></Field>
+      <Action secondary disabled={busy || reason.trim().length < 3} onClick={() => void onAction({ action: 'reprint', reason })}><RefreshCw size={16} />Skapa en märkt kopia</Action>
+    </>}
+  </Modal>;
+}

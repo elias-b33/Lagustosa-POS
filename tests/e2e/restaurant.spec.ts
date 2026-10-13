@@ -82,6 +82,7 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
     await page.getByLabel('Utseende', { exact: true }).selectOption(design);
     await expect(page.getByLabel('Öppna notor', { exact: true })).toHaveValue(selectedTab);
     await expect(page.locator('.order-line')).toHaveCount(3);
+    await expect(page.getByRole('button', { name: 'Ta betalt', exact: true })).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: `artifacts/lagustosa-${design}-order.png` });
   }
   await page.getByRole('button', { name: 'Ta betalt', exact: true }).click();
@@ -263,4 +264,87 @@ test('återhämtar en godkänd retur efter förlorat svar utan dubbel återbetal
   expect(recovered.receipts.filter(receipt => receipt.payment.parentId === original.id)).toHaveLength(1);
   expect(recovered.receipts.find(receipt => receipt.paymentId === original.id)).toBeDefined();
   await expect(page.locator('.recovery-banner')).toHaveCount(0);
+});
+
+test('visar anslutna enheter och flyttar en väntande bong med kontrollerad återutskrift', async ({ page }) => {
+  await login(page); const tab = await sentTab(page);
+  await page.getByRole('dialog').getByRole('button', { name: 'Stäng', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Huvudmeny' }).getByRole('button', { name: 'Inställningar', exact: true }).click();
+  await page.getByRole('button', { name: 'Enheter', exact: true }).click();
+  await expect(page.locator('.list-row')).toHaveCount(8);
+  await expect(page.locator('.list-row').filter({ has: page.getByText('Huvudkassa · denna enhet', { exact: true }) })).toContainText('Skärm ansluten');
+  await page.screenshot({ path: 'artifacts/lagustosa-device-status.png' });
+  await page.getByRole('button', { name: 'Skrivare', exact: true }).click();
+  await expect(page.locator('.list-row')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Redigera Köksskrivare', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('Profilen är aktiv').uncheck();
+  await page.getByRole('dialog').getByRole('button', { name: 'Spara skrivarprofil', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Ny skrivarprofil', exact: true }).click();
+  let modal = page.getByRole('dialog');
+  await modal.getByLabel('Skrivarens namn').fill('Kök · ersättare');
+  await modal.getByLabel('Utskriftstyp').selectOption('kitchen');
+  await modal.getByLabel('Profilen är aktiv').check();
+  await modal.getByRole('button', { name: 'Spara skrivarprofil', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.screenshot({ path: 'artifacts/lagustosa-printer-profiles.png' });
+  await page.getByRole('navigation', { name: 'Huvudmeny' }).getByRole('button', { name: 'Utskrifter', exact: true }).click();
+  await page.locator('.list-row').filter({ has: page.getByText(`Köksbong · ${tab.label}`, { exact: true }) }).click();
+  modal = page.getByRole('dialog', { name: 'Utskriftsförhandsvisning' });
+  await expect(modal.getByRole('button', { name: 'Simulera utskrift', exact: true })).toBeDisabled();
+  await modal.getByLabel('Orsak till byte av skrivare').fill('Tidigare skrivaren ersätts');
+  await modal.getByRole('button', { name: 'Tilldela skrivare', exact: true }).click();
+  await expect(modal.getByRole('button', { name: 'Simulera utskrift', exact: true })).toBeEnabled();
+  await modal.getByLabel('Simulerat skrivarresultat').selectOption('uncertain');
+  await modal.getByRole('button', { name: 'Simulera utskrift', exact: true }).click();
+  await expect(modal.getByText('Kontrollera först om pappret kom ut.', { exact: true })).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Tilldela skrivare', exact: true })).toHaveCount(0);
+  await modal.getByLabel('Vad visade kontrollen?').selectOption('failed');
+  await modal.getByLabel('Anteckning om kontrollen').fill('Kontrollerat: inget papper kom ut');
+  await modal.getByRole('button', { name: 'Spara kontrollerad status', exact: true }).click();
+  await modal.getByLabel('Orsak till återutskrift').fill('Ny kopia efter kontrollerat avbrott');
+  await modal.getByRole('button', { name: 'Skapa en märkt kopia', exact: true }).click();
+  await expect(modal.locator('.print-paper')).toContainText('KOPIA');
+  await modal.getByLabel('Simulerat skrivarresultat').selectOption('printed');
+  await modal.getByRole('button', { name: 'Simulera utskrift', exact: true }).click();
+  await expect(modal).toContainText('Utskriven');
+  const data: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  const ticket = data.tickets.find(ticket => ticket.tabId === tab.id)!;
+  const jobs = data.printJobs.filter(job => job.sourceId === ticket.id);
+  expect(jobs).toHaveLength(2);
+  expect(jobs.find(job => job.reprintOf)?.status).toBe('printed');
+  expect(data.printers.find(printer => printer.id === jobs.find(job => job.reprintOf)?.printerId)?.name).toBe('Kök · ersättare');
+});
+
+test('handterminalens notaknapp bevarar menyposition och använder samma skicka/betala-flöde', async ({ page }) => {
+  await login(page); const tab = await sentTab(page);
+  await page.getByRole('dialog').getByRole('button', { name: 'Stäng', exact: true }).click();
+  for (const design of ['classic', 'professional'] as const) {
+    await page.getByLabel('Utseende', { exact: true }).selectOption(design);
+    for (const width of [320, 390, 600]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.locator('.product-card').filter({ has: page.getByText('Regina Margherita', { exact: true }) }).scrollIntoViewIfNeeded();
+      const menuPosition = await page.evaluate(() => window.scrollY);
+      expect(menuPosition).toBeGreaterThan(0);
+      await expect(page.getByRole('button', { name: 'Visa nota', exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      if (width === 390) await page.screenshot({ path: `artifacts/lagustosa-${design}-handheld.png` });
+      await page.getByRole('button', { name: 'Visa nota', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Till menyn', exact: true })).toBeInViewport();
+      await expect(page.getByLabel('Öppna notor', { exact: true })).toHaveValue(tab.id);
+      await page.getByRole('button', { name: 'Till menyn', exact: true }).click();
+      await expect.poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - menuPosition)).toBeLessThan(2);
+      await page.getByRole('button', { name: 'Betala aktuell nota', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: 'Ta betalt' })).toBeVisible();
+      await expect(page.locator('.mobile-order-bar')).toBeHidden();
+      await page.getByRole('dialog').getByRole('button', { name: 'Stäng', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Visa nota', exact: true })).toBeVisible();
+    }
+  }
+  await add(page, 'Cola');
+  await page.getByRole('button', { name: 'Skicka beställning', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Betala aktuell nota', exact: true })).toBeVisible();
+  const data: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  expect(data.tabs.find(candidate => candidate.id === tab.id)?.lines).toHaveLength(2);
+  expect(data.tickets.find(ticket => ticket.tabId === tab.id && ticket.station === 'bar')?.items[0].name).toBe('Cola');
 });

@@ -16,6 +16,7 @@ export const menuSchema = z.object({
 }).strict();
 export const tableSchema = z.object({ id, name: z.string().trim().min(1).max(40), seats: z.number().int().min(1).max(100), area: z.string().trim().min(1).max(60), x: z.number().min(0).max(100), y: z.number().min(0).max(100), active: z.boolean() }).strict();
 export const deviceSchema = z.object({ name: z.string().trim().min(1).max(60), kind: z.enum(['main', 'serving', 'display']), station: z.enum(['kitchen', 'bar']).nullable(), active: z.boolean() }).strict();
+export const printerSchema = z.object({ id, name: z.string().trim().min(1).max(60), destination: z.enum(['guest', 'kitchen', 'bar']), paperWidthMm: z.union([z.literal(58), z.literal(80)]), active: z.boolean() }).strict();
 export const staffSchema = z.object({ id, name: z.string().trim().min(1).max(60), role, active: z.boolean(), pin: z.string().regex(/^\d{4,8}$/).optional() }).strict();
 export const loginSchema = z.object({ staffId: id, pin: z.string().regex(/^\d{4,8}$/), deviceCode: z.string().min(1).max(100) }).strict();
 export const createTabSchema = z.object({ key: id, tableId: id.nullable(), guestCount: z.number().int().min(1).max(100), serviceMode: z.enum(['dine_in', 'takeaway']) }).strict();
@@ -31,7 +32,7 @@ export const commandSchema = z.object({
 export const openDaySchema = z.object({ key: id, floatOre: ore }).strict();
 export const closeDaySchema = z.object({ key: id, countedCashOre: ore }).strict();
 export const ticketSchema = z.object({ status: z.enum(['started', 'ready', 'served']) }).strict();
-export const printSchema = z.object({ action: z.enum(['print', 'resolve', 'reprint']), outcome: z.enum(['printed', 'failed', 'uncertain']).optional(), reason: text.optional() }).strict();
+export const printSchema = z.object({ action: z.enum(['print', 'resolve', 'reprint', 'route']), outcome: z.enum(['printed', 'failed', 'uncertain']).optional(), reason: text.optional(), printerId: id.optional() }).strict();
 export const settingsSchema = z.object({
   company: z.object({ name: z.string().trim().min(1).max(100), organizationNumber: z.string().regex(/^\d{10}$/), address: z.string().trim().min(1).max(100), city: z.string().trim().min(1).max(100), phone: z.string().trim().max(40) }).strict(),
   registerId: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/),

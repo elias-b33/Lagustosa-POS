@@ -71,16 +71,17 @@ export async function createApp(options: AppOptions) {
   });
   app.get('/api/v1/bootstrap', async request => service.bootstrap(actor(request)));
   app.get('/api/v1/events', async (request, reply) => {
-    actor(request);
+    const identity = actor(request);
     reply.hijack();
     reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', 'X-Content-Type-Options': 'nosniff' });
     reply.raw.write('retry: 1500\nevent: change\ndata: ready\n\n');
     const change = () => { if (!reply.raw.destroyed) reply.raw.write(`event: change\ndata: ${service.timestamp()}\n\n`); };
     events.on('change', change);
+    const deviceConnection = service.connectDevice(identity.device.id);
     const heartbeat = setInterval(() => {
-      try { actor(request); reply.raw.write(': heartbeat\n\n'); } catch { reply.raw.end(); }
+      try { actor(request); deviceConnection.touch(); reply.raw.write(': heartbeat\n\n'); } catch { reply.raw.end(); }
     }, 20000);
-    const cleanup = () => { clearInterval(heartbeat); events.off('change', change); };
+    const cleanup = () => { clearInterval(heartbeat); events.off('change', change); deviceConnection.close(); };
     reply.raw.on('close', cleanup);
     request.raw.on('aborted', cleanup);
   });
@@ -108,7 +109,7 @@ export async function createApp(options: AppOptions) {
   app.post('/api/v1/receipts/:id/verify', async request => { z.object({}).strict().parse(request.body); return service.verifyFiscal(actor(request), paramId(request)); });
   app.post('/api/v1/print-jobs/:id/actions', async request => {
     const input = schema.printSchema.parse(request.body);
-    return service.print(actor(request), paramId(request), input.action, input.outcome, input.reason);
+    return service.print(actor(request), paramId(request), input.action, input.outcome, input.reason, input.printerId);
   });
   app.post('/api/v1/drawer/open', async request => service.drawer(actor(request), z.object({ reason: z.string().trim().min(3).max(500) }).strict().parse(request.body).reason));
   app.post('/api/v1/business-days', async request => service.openDay(actor(request), schema.openDaySchema.parse(request.body)));
@@ -143,6 +144,12 @@ export async function createApp(options: AppOptions) {
   });
   app.post('/api/v1/devices', async request => service.saveDevice(actor(request), schema.deviceSchema.parse(request.body)));
   app.put('/api/v1/devices/:id', async request => service.saveDevice(actor(request), schema.deviceSchema.parse(request.body), paramId(request)));
+  app.get('/api/v1/printers', async request => { service.require(actor(request), ['admin', 'cashier']); return store.all('printer'); });
+  app.put('/api/v1/printers/:id', async request => {
+    const input = schema.printerSchema.parse(request.body);
+    demand(input.id === paramId(request), 'Skrivarens identifierare stämmer inte.');
+    return service.savePrinter(actor(request), input);
+  });
   app.post('/api/v1/backups', async request => { z.object({}).strict().parse(request.body); const identity = actor(request); service.require(identity, ['admin', 'cashier'], true); const result = await service.backup(identity); return { at: result.at }; });
 
   if (options.webDir && existsSync(options.webDir)) {
