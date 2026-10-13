@@ -21,6 +21,8 @@ Skatteverkets normala modell är ett tillverkardeklarerat kassaregister tillsamm
 
 Från **1 januari 2027** ska kassaregister uppfylla SKVFS 2021:17; journalminnen ska kunna exportera registreringar i XML. Att appen kan generera en XML-fil är inte bevis på att hela kravet uppfylls. [Skatteverkets aktuella information](https://www.skatteverket.se/foretag/drivaforetag/kassaregister). Installationen ska anmälas innan användning: [så anmäler du kassaregister](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/saharanmalerdukassaregister.4.69ef368911e1304a62580008748.html).
 
+Övergången avser användning av vissa äldre kassor. Den innebär inte att en nyutvecklad produkt kan skjuta upp dagens tillverkarkrav till 2027. Enligt 8 kap. 4 § ska tillverkardeklaration och utdrag ur testprotokoll skickas **senast två veckor före tillhandahållande av modellen/programmet på den svenska marknaden**. Själva deklarationen ska ingå i produktens dokumentation; reglerade versionsändringar kräver ny bedömning och i tillämpliga fall ny deklaration. [SKVFS 2021:17 med övergångsbestämmelser](https://www4.skatteverket.se/download/18.566df4d617d171254ec3e41/1698824220274/SKVFS%202021_17.pdf).
+
 Behåll ordinarie kassaregister för kundförsäljning medan denna app provas med testnotor. Ingen deklaration eller myndighetsanmälan har skickats från projektet.
 
 ### Kravgranskning och återstående hinder
@@ -54,6 +56,14 @@ Följande förbättringar ingår i träningsprogrammet. De är avgränsade progr
 L02 är ett arkitekturkrav, inte bara en nätverksinställning. Skatteverkets vägledning behandlar funktioner per registreringsenhet (4 kap. 2 §), åtskillnad för tunna klienter (5 kap. 3 §), kontrollregistrering (5 kap. 7 §) samt kvitton och rapporter (7 kap. SKVFS 2021:17). [Krav på kassaregister och tillverkardeklaration](https://www4.skatteverket.se/rattsligvagledning/edition/2026.14/339829.html). De tre skrivarna är utmatningsenheter; att lägga till skrivarprofiler löser inte kraven för de fem enheter som kan avsluta en försäljning.
 
 Nästa externa steg är att inhämta en certifierad kontrollösnings integrationsunderlag och välja betalningsleverantörens testmiljö. Ingen leverantör är vald och inga tjänster är köpta. Därefter behöver tillverkaren och restaurangen granska underlaget och sina respektive skyldigheter innan produktionsspärren ens övervägs. Skatteverket produktgodkänner inte programmet genom våra tester: [tillverkarens ansvar och deklarationsförfarande](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/fortillverkareochleverantorer.4.6efe6285127ab4f1d2580006050.html).
+
+### Inför kommersiell distribution
+
+Att sälja programmet medför även produkt-, licens- och dataskyddsfrågor. Identifiera juridisk tillverkare, modell/version och rättigheter till kod, namn, logotyp och annat material. La Gustosas logotyp kommer från restaurangens webbplats; detta dokumenterar inte rätt att använda den i en produkt för andra kunder. Ett utvecklings-/testavtal måste beskriva den faktiska ofärdiga leveransen och gör inte programmet färdigt för skarp kassaförsäljning.
+
+Nuvarande Windows-paket med lokal nätverksserver talar för en produkt som omfattas av EU:s cyberresiliensförordning (CRA) när den tillhandahålls kommersiellt. Ren SaaS och nödvändig fjärrdatabehandling kräver en bedömning av den verkliga lösningen. **Artikel 14 om rapportering gäller från 11 september 2026**, även för berörda produkter utsläppta före huvudreglernas datum. Huvudreglerna gäller från **11 december 2027**, med övergångsregler för tidigare utsläppta produkter och väsentliga ändringar. Versionsbundet underlag för risker, komponenter, säkerhetsuppdateringar, incidentrapportering och tillämplig bedömning av överensstämmelse behövs. CRA:s EU-försäkran och CE-märkning är separata från Skatteverkets tillverkardeklaration. [CRA](https://eur-lex.europa.eu/eli/reg/2024/2847/oj), [kommissionens antagna vägledning från juli 2026](https://digital-strategy.ec.europa.eu/en/library/commission-publishes-new-guidance-support-timely-cyber-resilience-act-implementation), [rapporteringsskyldigheter](https://digital-strategy.ec.europa.eu/en/policies/cra-reporting).
+
+Personuppgiftsbiträdesavtal behövs när leverantören behandlar kundens personuppgifter på kundens uppdrag, exempelvis genom drift, hanterad backup eller support med sådan behandling. En ren lokal licens utan sådan behandling skapar inte automatiskt en biträdesroll. Roller, behandlingsländer, underbiträden, säkerhet, lagring och export vid avtalets slut ska dokumenteras utifrån faktisk leverans. [IMY om personuppgiftsbiträdesavtal](https://www.imy.se/verksamhet/dataskydd/det-har-galler-enligt-gdpr/personuppgiftsansvariga-och-personuppgiftsbitraden/personuppgiftsbitradesavtal/).
 
 ### Bokföring, dataskydd och restaurangens rutiner
 
@@ -166,7 +176,7 @@ Regressionssviterna omfattar även kontinuerlig ordertrafik, gamla inloggningssv
 
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
 
-Den lokala kravgenomgången den 13 oktober 2026 passerade **147 automatiska tester, 16 webbläsartester, bygge och isoleringsprovet**. Sviterna `compliance-integrity`, `receipt-compliance`, `report-compliance`, `journal-compliance` och `cash-movements` ger spårbara exempel på kontrollerna ovan. En ny komprimerad AW-körning med 36 gäster, åtta virtuella enheter och 654 HTTP-anrop gav inga oväntade fel och noll kassadifferens. Detta är testresultat för simulatorn, inte ett intyg om hela regelverket eller om 99 % tillgänglighet i restaurangdrift.
+Den samlade lokala verifieringen den 13 oktober 2026 passerade **165 automatiska tester, 16 webbläsartester, bygge och isoleringsprovet**. Sviterna `compliance-integrity`, `receipt-compliance`, `report-compliance`, `journal-compliance` och `cash-movements` ger spårbara exempel på kontrollerna ovan. `aw-scenario` verifierar den separata belastningsplanen och `license-notices` kontrollerar distributionsnotiser. Nya komprimerade AW-körningar med 36 respektive 90 gäster gav inga oväntade fel och noll kassadifferens. Detta är testresultat för simulatorn, inte ett intyg om hela regelverket eller om 99 % tillgänglighet i restaurangdrift.
 
 För att köra den byggda versionen på datorn:
 
@@ -196,7 +206,7 @@ På handterminaler och mindre skärmar ger **Visa nota** snabb åtkomst till akt
 
 Skrivarprofilerna är ännu ingen fysisk anslutning: de innehåller destination och pappersbredd, men inte IP-adress, USB-port eller modellprotokoll. En tillverkaradapter och en utskriftstjänst behöver kopplas till den beständiga kön. Möjliga vägar för kompatibla modeller är [Epson ePOS](https://download4.epson.biz/sec_pubs/pos/reference_en/technology/epson_epos_sdk.html) eller [Star CloudPRNT](https://star-m.jp/products/s_print/sdk/StarCloudPRNT/manual/en/protocol-guide.html); modellstöd måste verifieras innan utrustning väljs. Två köksskärmar visar samma kö; barens skärm visar en annan station.
 
-En reproducerbar **AW-simulering för 36 gäster** finns i `scripts/simulate-aw.mjs`. Den använder en ny, isolerad testomgång med åtta virtuella anslutningar, samtidiga order, tre skrivarrutter och delbetalningar. Se [testguiden](TEST-GUIDE.md#aw-med-36-samtidiga-gäster) för full körning och en interaktiv demonstration mitt i rusningen.
+En reproducerbar **AW-simulering för 36 eller 90 gäster** finns i `scripts/simulate-aw.mjs`. Den använder en ny, isolerad testomgång med åtta virtuella anslutningar, fyra samtidiga serveringsklienter, tre skrivarrutter och delbetalningar. 90-gästprovet den 13 oktober 2026 passerade med 1 552 HTTP-anrop, 90 betalningar, 90 kvitton, inga oväntade fel och noll kassadifferens. Körningen tog 10,9 sekunder; detta styrker de provade flödena, inte 99 procent tillgänglighet eller fysisk utrustning. Se [testguiden](TEST-GUIDE.md#aw-med-36-eller-90-samtidiga-gäster) för full körning, separat förväntansberäkning och en interaktiv demonstration mitt i rusningen.
 
 Använd en lokal installationsmapp på restaurangens laptop, exempelvis `C:\Lagustosa-Kassa`. Den aktiva SQLite-databasen ska ligga på datorns egen disk, utanför OneDrive eller en annan synkroniserad mapp. Säkerhetskopior kan däremot flyttas till separat lagring.
 

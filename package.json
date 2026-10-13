@@ -6,7 +6,7 @@
   "engines": { "node": ">=24 <25" },
   "scripts": {
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
-    "build": "tsc --noEmit && vite build && tsup server/index.ts --format esm --out-dir dist/server --platform node --target node24 --external better-sqlite3",
+    "build": "node scripts/generate-third-party-notices.mjs && tsc --noEmit && vite build && tsup server/index.ts --format esm --out-dir dist/server --platform node --target node24 --external better-sqlite3",
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:e2e": "playwright test",

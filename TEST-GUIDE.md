@@ -69,9 +69,9 @@ Prova de uppdaterade beställnings- och betalningsflödena:
 
 Automatiserade tester provar även ett förlorat svar *efter* att en betalning eller retur har registrerats, och kontrollerar att samma köp/retur hämtas utan en dubbel registrering.
 
-## AW med 36 samtidiga gäster
+## AW med 36 eller 90 samtidiga gäster
 
-`scripts/simulate-aw.mjs` kör en reproducerbar AW mot appens riktiga HTTP-API med simulatorer. Den kräver en **ny tom datamapp** och en separat port; befintliga testomgångar ändras inte. Sex tillfälliga AW-bord får sex platser vardera enbart i denna databas.
+`scripts/simulate-aw.mjs` kör en reproducerbar AW mot appens riktiga HTTP-API med simulatorer. Den kräver en **ny tom datamapp** och en separat port; befintliga testomgångar ändras inte. Tillfälliga AW-bord får sex platser vardera enbart i denna databas. Standard är 36 gäster på sex bord. `--guests 90` ger 15 bokningar. Utvecklings-, E2E- och befintliga demoportar, bland annat 4273 och 4373, är spärrade för simulatorn.
 
 Scenariot använder huvudkassa, fyra serveringsprofiler och tre virtuella orderskärmsanslutningar. Det lägger 54 drycker, 12 delningsfat och 36 huvudrätter, framkallar väntande huvudrätter, byter en pizza och provar samtidiga ändringar på samma nota. Två köksskärmar ska få samma kö, baren en separat kö. Varje aktiv orderrad kontrolleras mot exakt en stationsrad, inklusive gäst, val och anteckning.
 
@@ -82,18 +82,30 @@ $awRoot = Join-Path $env:LOCALAPPDATA ('LagustosaPOS\aw-' + (Get-Date -Format 'y
 node scripts/simulate-aw.mjs --root "$awRoot\full" --port 4383 --mode full
 ```
 
-Den fulla körningen lägger även 12 desserter och 12 kaffe, gör 36 lika delbetalningar (sex per bord) med kort, verifierad Swish och kontanter, provar nekat/osäkert svar, kvittoåterhämtning och en osäker utskrift med märkt kopia. Försäljning och kassabehållning jämförs med separat beräknade förväntade belopp. Dagen stängs, journalen kontrolleras och backup skapas. Servern stoppas efteråt; resultatet finns i `aw-report.json` under den valda mappen.
+Den fulla standardkörningen lägger även 12 desserter och 12 kaffe, gör 36 lika delbetalningar (sex per bord) med kort, verifierad Swish och kontanter, provar nekat/osäkert svar, kvittoåterhämtning och en osäker utskrift med märkt kopia. En gästkvittokopia tillåts; en andra kopia och kopia av kopia spärras. Kontantinsättning och uttag provas med återförsök. Dagen stängs, journalen kontrolleras och backup skapas. Servern stoppas efteråt.
+
+För en större bokning med **90 gäster och en betalning per gäst**:
+
+```powershell
+node scripts/simulate-aw.mjs --root "$awRoot\full-90" --port 4483 --mode full --guests 90 --split guest --pace-ms 25
+```
+
+Alla 15 bokningar öppnas i samma ankomstfas. Fyra serveringsklienter arbetar parallellt med 135 drycker, 30 delningsfat och 90 huvudrätter, följt av 30 desserter och 30 kaffe. Gäster 1–5 betalar sina egna rader; gäst 6 betalar sina och bordets gemensamma fat. `--split equal` behåller lika delning. `--pace-ms` är en syntetisk paus mellan kommandon, inte verklig köks- eller gästtid. Gästantalet kan väljas i hela grupper om sex, från 36 till 180.
+
+Rapporten `aw-report.json`, den separat beräknade planen `aw-expected.json` och anropsspåret `aw-http.json` sparas under vald mapp. Förväntade mängder, belopp, moms och kontantkassa beräknas från beställningsplanen och ursprungsmenyn, utan att använda serverns betalningsbelopp som facit. Varje aktiv rad kontrolleras mot station och slutlig betalning. Rapporten skiljer avsiktliga fel från oväntade HTTP-/transportfel och redovisar faktisk samtidighet samt svarstider.
+
+Körningen den 13 oktober 2026 med 90 gäster passerade: **1 552 HTTP-anrop, högst fyra samtidigt, inga oväntade fel, 90 betalningar, 90 kvitton och noll kassadifferens**. Försäljningen blev 40 109 kr, dricks 150 kr och moms 4 854,81 kr. Median/p95/max var 3/18/81 ms. Förloppet var komprimerat till 10,9 sekunder och bevisar inte uthållighet under ett helt arbetspass eller 99 procent tillgänglighet.
 
 För att lämna en separat demonstration **mitt i rusningen**:
 
 ```powershell
-node scripts/simulate-aw.mjs --root "$awRoot\preview" --port 4373 --mode rush
+node scripts/simulate-aw.mjs --root "$awRoot\preview-90" --port 4493 --mode rush --guests 90
 ```
 
-Öppna `http://127.0.0.1:4373/#kitchen` och logga in som **Ansvarig / 1234 / LAGUSTOSA-TEST**. Gå mellan **Bord**, **Kök**, **Bar** och **Utskrifter**. Använd statusknapparna för att själv fortsätta serveringen. För att stoppa just demonstrationen utan att ta bort data:
+Öppna `http://127.0.0.1:4493/#kitchen` och logga in som **Ansvarig / 1234 / LAGUSTOSA-TEST**. Gå mellan **Bord**, **Kök**, **Bar** och **Utskrifter**. Använd statusknapparna för att själv fortsätta serveringen. För att stoppa just demonstrationen utan att ta bort data:
 
 ```powershell
-node scripts/safe-test.mjs stop --root "$awRoot\preview" --port 4373 --no-browser
+node scripts/safe-test.mjs stop --root "$awRoot\preview-90" --port 4493 --no-browser
 ```
 
 Detta är ett komprimerat lokalt arbetsflödestest. Åtta virtuella anslutningar motsvarar inte ett verifierat test på åtta fysiska enheter. Mätta HTTP-tider är inte iPad-skärmarnas uppdateringstid eller kökets kapacitet. Dryckernas exempelpriser är kvar, så omsättningen är ingen AW-offert. Utskrifter hanteras genom testadaptern; ingen fysisk skrivare eller automatisk utskriftsbrygga är ansluten.

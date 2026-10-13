@@ -12,6 +12,7 @@ test-results/
 releases/
 artifacts/
 coverage/
+web/public/licenses/generated/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm

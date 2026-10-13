@@ -10,7 +10,7 @@ try {
   & npm.cmd run build
   if ($LASTEXITCODE -ne 0) { throw 'Bygget misslyckades.' }
   New-Item -ItemType Directory -Path $packagePath -Force | Out-Null
-  foreach ($item in @('dist','vendor','scripts','package.json','package-lock.json','README.md','TEST-GUIDE.md','.env.example','Start-Lagustosa.cmd','Start-Testmiljo.cmd','Stoppa-Testmiljo.cmd','Ny-Testomgang.cmd')) {
+  foreach ($item in @('dist','vendor','scripts','package.json','package-lock.json','README.md','TEST-GUIDE.md','LICENSE-NOTES.md','.env.example','Start-Lagustosa.cmd','Start-Testmiljo.cmd','Stoppa-Testmiljo.cmd','Ny-Testomgang.cmd')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $item) -Destination $packagePath -Recurse
   }
   New-Item -ItemType Directory -Path (Join-Path $packagePath 'runtime') | Out-Null
@@ -20,6 +20,12 @@ try {
     & npm.cmd ci --omit=dev --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Installation av driftberoenden misslyckades.' }
   } finally { Pop-Location }
+  & (Join-Path $packagePath 'runtime\node.exe') (Join-Path $packagePath 'scripts\generate-third-party-notices.mjs') --package-root $packagePath
+  if ($LASTEXITCODE -ne 0) { throw 'Licenskontrollen misslyckades. Paketet far inte distribueras.' }
+  $licenseManifestPath = Join-Path $packagePath 'THIRD-PARTY-MANIFEST.json'
+  $licenseHasher = [System.Security.Cryptography.SHA256]::Create()
+  try { $licenseManifestSha256 = [System.BitConverter]::ToString($licenseHasher.ComputeHash([System.IO.File]::ReadAllBytes($licenseManifestPath))).Replace('-', '').ToLowerInvariant() }
+  finally { $licenseHasher.Dispose() }
   $sourceCommit = $null
   $workingTreeDirty = $null
   if (Get-Command git.exe -ErrorAction SilentlyContinue) {
@@ -38,6 +44,9 @@ try {
     fiscal = 'simulator'
     print = 'preview'
     defaultLauncher = 'Start-Testmiljo.cmd'
+    licenses = 'THIRD-PARTY-NOTICES.txt'
+    licenseManifest = 'THIRD-PARTY-MANIFEST.json'
+    licenseManifestSha256 = $licenseManifestSha256
   }
   [System.IO.File]::WriteAllText((Join-Path $packagePath 'BUILD-INFO.json'), ($buildInfo | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
   Add-Type -AssemblyName System.IO.Compression.FileSystem
