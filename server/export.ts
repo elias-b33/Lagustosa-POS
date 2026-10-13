@@ -104,6 +104,14 @@ function historicalSettings(all: AuditEntry[], current: Settings): Map<number, S
   }
   return contexts;
 }
+function journalUser(actor: string): string {
+  // KassaService.log records staffId@deviceId. Device IDs are generated UUIDs
+  // or fixed seed IDs without '@'; staff IDs may themselves contain '@'. The
+  // XSD field identifies the logged-in user, not the combined audit actor.
+  // Keep the stable staff ID instead of looking up a possibly renamed user.
+  const boundary = actor.lastIndexOf('@');
+  return boundary > 0 ? actor.slice(0, boundary) : actor;
+}
 function changedArticles(details: JournalDetails): string[] {
   if (!details.before || !details.tab) return [];
   const before = details.before;
@@ -142,7 +150,7 @@ export function exportXml(store: Store, user: string, at: string, from?: string,
   const registerIds = [...new Set(selectedSettings.map(context => context.registerId))];
   const receipts = store.all<Receipt>('receipt');
   const days = store.all<BusinessDay>('day');
-  const eventXml = (entry: AuditEntry, content: string, registerId: string) => group('Handelse', element('InloggadAnvandare', entry.actor) + element('Kassabeteckning', registerId) + element('Registreringstidpunkt', xmlTime(entry.at)) + content);
+  const eventXml = (entry: AuditEntry, content: string, registerId: string) => group('Handelse', element('InloggadAnvandare', journalUser(entry.actor)) + element('Kassabeteckning', registerId) + element('Registreringstidpunkt', xmlTime(entry.at)) + content);
   const events = journal.map(entry => {
     const context = contexts.get(entry.id)!;
     const details = entry.details as JournalDetails;

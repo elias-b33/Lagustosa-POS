@@ -166,7 +166,7 @@ Regressionssviterna omfattar även kontinuerlig ordertrafik, gamla inloggningssv
 
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
 
-Den lokala kravgenomgången den 13 oktober 2026 passerade **145 automatiska tester, 16 webbläsartester, bygge och isoleringsprovet**. Sviterna `compliance-integrity`, `receipt-compliance`, `report-compliance`, `journal-compliance` och `cash-movements` ger spårbara exempel på kontrollerna ovan. En ny komprimerad AW-körning med 36 gäster, åtta virtuella enheter och 654 HTTP-anrop gav inga oväntade fel och noll kassadifferens. Detta är testresultat för simulatorn, inte ett intyg om hela regelverket eller om 99 % tillgänglighet i restaurangdrift.
+Den lokala kravgenomgången den 13 oktober 2026 passerade **147 automatiska tester, 16 webbläsartester, bygge och isoleringsprovet**. Sviterna `compliance-integrity`, `receipt-compliance`, `report-compliance`, `journal-compliance` och `cash-movements` ger spårbara exempel på kontrollerna ovan. En ny komprimerad AW-körning med 36 gäster, åtta virtuella enheter och 654 HTTP-anrop gav inga oväntade fel och noll kassadifferens. Detta är testresultat för simulatorn, inte ett intyg om hela regelverket eller om 99 % tillgänglighet i restaurangdrift.
 
 För att köra den byggda versionen på datorn:
 

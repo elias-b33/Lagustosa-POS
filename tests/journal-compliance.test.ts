@@ -78,6 +78,30 @@ describe('Journalexport mot Skatteverkets oförändrade schema', () => {
     expect(xml).toContain('<k:BeteckningPaValtKassaregisterForExportAvDataFranJournalminnet>FRAMTIDA-KASSA</k:BeteckningPaValtKassaregisterForExportAvDataFranJournalminnet>');
   });
 
+  it.each([['ny personal med UUID', key()], ['personal-ID som innehåller @', 'elin@lagustosa.se']])('exporterar inloggad användare separat från enhet för %s', (_label, staffId) => {
+    const f = fixture(); f.open();
+    const staff = f.service.saveStaff(f.admin, { id: staffId, name: 'Ny servering', role: 'waiter', active: true, pin: '6789' });
+    const device = f.service.saveDevice(f.admin, { name: 'Ny handterminal', kind: 'serving', station: null, active: true });
+    const actor = f.service.login(staff.id, '6789', device.code, '127.0.0.1').actor;
+    const tab = f.service.createTab(actor, { key: key(), tableId: null, guestCount: 1, serviceMode: 'dine_in' });
+    f.command(tab.id, { action: 'add', itemId: 'bread' }, actor);
+    // A later display-name change must not rewrite the historical user's ID.
+    f.service.saveStaff(f.admin, { ...staff, name: 'Ändrat visningsnamn' });
+    const originalActor = `${staff.id}@${device.id}`;
+    const journalBeforeExport = f.store.journal();
+    const originalEntries = journalBeforeExport.filter(entry => entry.actor === originalActor);
+    expect(originalEntries.map(entry => entry.action)).toEqual(['auth.login', 'tab.create', 'tab.add']);
+    const xml = exportXml(f.store, 'Ansvarig', at);
+    validate(xml);
+    const users = contents(xml, 'InloggadAnvandare');
+    expect(users.filter(user => user === staff.id)).toHaveLength(4); // Article add includes registration + parking.
+    expect(users).not.toContain(originalActor);
+    expect(users).not.toContain('Ändrat visningsnamn');
+    const json = JSON.parse(exportJournalJson(f.store, 'Ansvarig', at)) as { entries: AuditEntry[] };
+    expect(json.entries.filter(entry => entry.actor === originalActor)).toEqual(originalEntries);
+    expect(f.store.journal()).toEqual(journalBeforeExport);
+  });
+
   it('skiljer insättning och uttag i schemats kassaförändringar', () => {
     const f = fixture(); const day = f.open();
     f.service.log(f.admin, 'cash.move', key(), { dayId: day.id, direction: 'in', amountOre: 12345, reason: 'Mer växel' });
@@ -116,7 +140,9 @@ describe('Journalexport mot Skatteverkets oförändrade schema', () => {
     for (const entry of data.entries) expect(entry.hash).toBe(digest(JSON.stringify([entry.at, entry.actor, entry.action, entry.entityId, JSON.stringify(entry.details), entry.previousHash])));
     expect(data.integrity).toMatchObject({ lastHash: data.entries.at(-1)!.hash, contiguous: true, externallyAttested: false });
     expect(json).toContain('originalReceiptId'); expect(json).toContain('Extra vitlök');
-    expect(json).not.toMatch(/pinHash|codeHash|"pin"|9876/);
+    // Check credential fields and the exact PIN value, not a digit sequence
+    // that can legitimately occur inside a random UUID or SHA-256 hash.
+    expect(json).not.toMatch(/"(?:pinHash|codeHash|pin)"\s*:|:\s*"9876"/);
     f.service.log('system', 'bad.future.event', 'test', { nested: { pinHash: 'should-never-export' } });
     expect(() => exportJournalJson(f.store, 'Ansvarig', at)).toThrow('autentiseringsuppgifter');
   });
