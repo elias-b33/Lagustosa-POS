@@ -6,5 +6,6 @@ import './hardware.css';
 import './design-controls.css';
 import './styles-professional.css';
 import './mobile-service.css';
+import './menu.css';
 
 createRoot(document.getElementById('root')!).render(<App />);

@@ -10,6 +10,7 @@ const option = z.object({ id, name: z.string().trim().min(1).max(100), priceOre:
 const modifier = z.object({ id, name: z.string().trim().min(1).max(100), min: z.number().int().min(0).max(20), max: z.number().int().min(1).max(20), options: z.array(option).max(20) }).strict();
 export const menuSchema = z.object({
   id, name: z.string().trim().min(1).max(100), category: z.string().trim().min(1).max(100), description: text,
+  position: z.number().int().min(0).max(100000).optional(),
   priceOre: ore, takeawayPriceOre: ore.nullable(), taxClass: z.enum(['food', 'alcohol', 'standard']),
   course: z.enum(['starter', 'main', 'dessert', 'drink']), station: z.enum(['kitchen', 'bar']),
   available: z.boolean(), example: z.boolean(), modifiers: z.array(modifier).max(10),

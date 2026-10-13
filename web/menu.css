@@ -1,0 +1,9 @@
+.product-test-price {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--muted);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}

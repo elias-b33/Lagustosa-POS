@@ -31,7 +31,15 @@ Använd profilen **Ansvarig**, PIN **1234** och enhetskoden **LAGUSTOSA-TEST**. 
 | Kök | 4567 | KOK-TEST eller KOK-TEST-2 |
 | Bar | 5678 | BAR-TEST |
 
-Testkoderna visas även under **Enhet och testprofiler** på inloggningssidan. Dessa är avsedda för träning. Meny, bord, personal och enheter kan ändras i **Inställningar**. Menyn och bordsplaceringen är exempeldata.
+Testkoderna visas även under **Enhet och testprofiler** på inloggningssidan. Dessa är avsedda för träning. Meny, bord, personal och enheter kan ändras i **Inställningar**. Bordsplaceringen är exempeldata.
+
+## Restaurangens meny
+
+Matmenyn följer PDF:en **La-Gustosa-meny-Cotto-Terrakotta.pdf**: 47 rätter i nio kategorier, med namn, beskrivningar och priser i dokumentets ordning. Antipasto della casa har de obligatoriska storlekarna Piccolo (139 kr), Medio (255 kr) och Grande (399 kr). Pollo alla griglia och Filetto di manzo har val av inkluderat tillbehör och sås; oxfilén kräver också stekning.
+
+PDF:en innehåller inga dryckespriser. De fyra förberedda dryckesartiklarna behåller därför sina exempelpriser och visas med **Testpris** i kassan. Dokumentet anger inga särskilda avhämtningspriser eller verifierade allergenlistor; dessa har inte lagts till.
+
+Vid första starten med denna version uppdateras matartiklarna i en transaktion och den föregående menyn arkiveras i databasen. Befintliga orderrader, bongar, betalningar och kvitton behåller sina sparade uppgifter och belopp. Egna artiklar och drycker bevaras. Senare ändringar i **Inställningar → Meny** skrivs inte över vid omstart. Källans filnamn och SHA-256 sparas med importen; själva PDF:en ingår inte i Windows-paketet.
 
 ## Välj utseende
 
@@ -56,7 +64,7 @@ Den professionella designens lokala logotyp kommer från [Lagustosas egen webbpl
 ## Ett komplett träningsscenario
 
 1. Logga in som Ansvarig och öppna dagen med 1 500 kr växelkassa.
-2. Öppna Bord 01 för två gäster. Lägg Vitlöksbröd och Penne Manzo på gäst 1 samt Husets röda på gäst 2.
+2. Öppna Bord 01 för två gäster. Lägg Vitlöksbröd och Penne manzo e peperoncino på gäst 1 samt Husets röda på gäst 2.
 3. Skicka till kök och bar. Kontrollera respektive station: huvudrätten ska fortfarande vänta.
 4. Återgå till kassan och välj **Fram huvudrätt**.
 5. Öppna **Ta betalt → Dela lika**. Prova först en nekad betalning.

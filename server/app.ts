@@ -90,7 +90,7 @@ export async function createApp(options: AppOptions) {
     reply.raw.on('close', cleanup);
     request.raw.on('aborted', cleanup);
   });
-  app.get('/api/v1/menu', async request => { actor(request); return store.all('menu'); });
+  app.get('/api/v1/menu', async request => { actor(request); return service.menu(); });
   app.put('/api/v1/menu/:id', async request => {
     const input = schema.menuSchema.parse(request.body);
     demand(input.id === paramId(request), 'Artikelns identifierare stämmer inte.');

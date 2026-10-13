@@ -117,11 +117,11 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await page.getByRole('button', { name: 'Gäst 2', exact: true }).click();
   await add(page, 'Husets röda · glas');
   await page.getByRole('button', { name: 'Gäst 1', exact: true }).click();
-  await add(page, 'Penne Manzo');
+  await add(page, 'Penne manzo e peperoncino');
   await page.getByRole('button', { name: /^Skicka till kök & bar/ }).click();
   await page.getByRole('button', { name: 'Kök', exact: true }).click();
   await expect(page.getByText('1 × Vitlöksbröd', { exact: true })).toBeVisible();
-  await expect(page.getByText('1 × Penne Manzo', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('1 × Penne manzo e peperoncino', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Bar', exact: true }).click();
   await expect(page.getByText('1 × Husets röda · glas', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Kassa', exact: true }).click();
@@ -160,7 +160,7 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await expect(payment.getByText('Notan är helt betald.', { exact: false })).toBeVisible();
   await payment.getByRole('button', { name: 'Kontrollera', exact: true }).click();
   await payment.getByRole('button', { name: 'Visa testkvitto', exact: true }).click();
-  await expect(payment.locator('.receipt-paper')).toContainText('189,50');
+  await expect(payment.locator('.receipt-paper')).toContainText('194,50');
   await payment.getByRole('button', { name: 'Klart', exact: true }).click();
   await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
   await page.getByRole('button', { name: 'Dagsöversikt', exact: true }).click();
@@ -172,7 +172,7 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   const download = await downloadPromise;
   const csv = await readFile((await download.path())!, 'utf8');
   expect(csv).toContain('TEST — inga riktiga betalningar');
-  expect(csv).toContain('379.00');
+  expect(csv).toContain('389.00');
   expect(errors).toEqual([]);
 });
 

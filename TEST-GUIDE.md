@@ -1,6 +1,6 @@
 # Prova Lagustosa i en säker testmiljö
 
-Denna provversion använder **simulerade betalningar, simulerad kontrollenhet och utskriftsförhandsvisning**. Alla testkvitton är märkta TEST. Meny, priser och bord är exempeldata. Använd påhittade beställningar för att prova serviceflödet.
+Denna provversion använder **simulerade betalningar, simulerad kontrollenhet och utskriftsförhandsvisning**. Alla testkvitton är märkta TEST. Matmenyn har restaurangens 47 rätter och priser från den levererade PDF:en. De fyra förberedda dryckerna är märkta **Testpris**, eftersom PDF:en saknar dryckespriser. Bord och testprofiler är exempeldata. Använd påhittade beställningar för att prova serviceflödet.
 
 ## Start på denna dator
 
@@ -13,7 +13,9 @@ Servern sparar sin separata databas, logg och backup under `%LOCALAPPDATA%\Lagus
 
 Du kan stänga startfönstret; testservern fortsätter i bakgrunden. Om du öppnar startverktyget igen återanvänds den verifierade testservern. **Stoppa-Testmiljo.cmd** stoppar bara servern vars identitet stämmer med testmiljön. Starta den igen för att fortsätta samma testomgång.
 
-**Ny-Testomgang.cmd** stoppar den aktuella testservern och öppnar en ny tom testomgång. Tidigare omgångars databaser, loggar och säkerhetskopior sparas i sina egna mappar. Den nya omgången börjar med standardprofilerna och exempelmenyn. Avsluta först betalningsdialoger i gamla flikar; stäng eller ladda om dem efter bytet.
+**Ny-Testomgang.cmd** stoppar den aktuella testservern och öppnar en ny tom testomgång. Tidigare omgångars databaser, loggar och säkerhetskopior sparas i sina egna mappar. Den nya omgången börjar med standardprofilerna och restaurangens matmeny. Avsluta först betalningsdialoger i gamla flikar; stäng eller ladda om dem efter bytet.
+
+Menyuppdateringen gäller nya orderrader. Äldre notor, bongar och kvitton behåller sina sparade priser, och den tidigare menyn arkiveras i databasen. Prova gärna **Antipasto della casa → Medio** (255 kr) och **Filetto di manzo** (355 kr) med tillbehör, sås och stekning. Välj **Storlek**, **Tillbehör**, **Sås** eller **Stekning** i artikelns dialog innan den läggs på notan.
 
 Sparade betalnings- och returförsök i webbläsaren hör till respektive testomgång. En ny omgång visar inte gamla försök och raderar inte deras lagring.
 
@@ -36,7 +38,7 @@ Planerad utrustning: **1 huvudkassa, 4 enheter för beställning och betalning, 
 
 | Steg | Gör så här | Kontrollera |
 |---|---|---|
-| 1. Bord och gäster | Öppna Bord 01 för två gäster. Lägg Vitlöksbröd och Penne Manzo på gäst 1, samt Husets röda på gäst 2. | Rätt bord, gäster och belopp syns på notan. |
+| 1. Bord och gäster | Öppna Bord 01 för två gäster. Lägg Vitlöksbröd och Penne manzo e peperoncino på gäst 1, samt Husets röda på gäst 2. | Rätt bord, gäster och belopp syns på notan. |
 | 2. Kök och bar | Välj **Skicka till kök & bar**. Öppna respektive station. | Förrätten går till kök, vinet till bar, huvudrätten väntar. |
 | 3. Huvudrätt | Återgå till notan och välj **Fram huvudrätt**. | En egen huvudrättsbong visas i köket. Prova stationens statusknappar. |
 | 4. Delad betalning | Öppna **Ta betalt → Dela lika**, välj två delar. Ange simulerad dricks. | Beloppen fördelas i hela ören; dricks är separat. |

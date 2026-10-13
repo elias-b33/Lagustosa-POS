@@ -24,7 +24,7 @@ describe('Restaurangens arbetsflöde', () => {
   it('bevarar orderradens pris när menyn ändras och kräver obligatoriska tillval', () => {
     const f = fixture(); f.open(); const tab = f.tab();
     expect(() => f.command(tab.id, { action: 'add', itemId: 'filetto' })).toThrow('Välj');
-    f.command(tab.id, { action: 'add', itemId: 'filetto', modifiers: ['potatoes', 'pepper'] });
+    f.command(tab.id, { action: 'add', itemId: 'filetto', modifiers: ['potatoes', 'pepper', 'medium'] });
     const item = f.store.get<MenuItem>('menu', 'filetto')!;
     f.service.saveMenu(f.admin, { ...item, priceOre: 50000 });
     expect(f.service.tab(tab.id).lines[0].unitPriceOre).toBe(35500);
@@ -126,8 +126,8 @@ describe('Betalning och dagsavslut', () => {
     const f = fixture(); const day = f.open(); const tab = f.tab();
     f.command(tab.id, { action: 'add', itemId: 'bread' }); f.command(tab.id, { action: 'send' });
     const payment = await f.pay(tab.id, { method: 'cash', tenderedOre: 10000, tipOre: 1000 });
-    expect(payment.changeOre).toBe(2100);
-    expect(f.service.report(day.id).expectedCashOre).toBe(157900);
+    expect(payment.changeOre).toBe(1100);
+    expect(f.service.report(day.id).expectedCashOre).toBe(158900);
   });
 
   it('håller verksamhetsdagen samman efter midnatt', async () => {

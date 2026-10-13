@@ -11,6 +11,7 @@ import { seed, seedPrinters, type StoredDevice, type StoredStaff } from './seed'
 import type { PaymentInput, RefundInput, TabCommand } from './validation';
 import { closingText, receiptText, ticketText } from './printing';
 import { printerDestination } from '../shared/printers';
+import { orderedMenu, seedRestaurantMenu } from './menu-catalog';
 
 interface ServiceOptions {
   now?: () => Date; notify?: () => void; backupDir?: string;
@@ -41,6 +42,7 @@ export class KassaService {
     this.printAdapter = options.printer ?? new PreviewPrintAdapter();
     seed(store);
     seedPrinters(store);
+    seedRestaurantMenu(store, this.timestamp());
     this.store.atomic(() => {
       for (const job of this.store.all<PrintJob>('print').filter(entry => entry.printerId === undefined)) {
         const printer = job.status === 'queued' ? this.store.all<PrinterProfile>('printer').find(printer => printer.active && printer.destination === printerDestination(job.kind)) : undefined;
@@ -68,6 +70,7 @@ export class KassaService {
     this.store.audit(typeof actor === 'string' ? actor : `${actor.staff.id}@${actor.device.id}`, action, entityId, details, this.timestamp());
   }
   settings(): Settings { return this.store.get<Settings>('settings', 'settings')!; }
+  menu(): MenuItem[] { return orderedMenu(this.store); }
   publicStaff(): Staff[] { return this.store.all<StoredStaff>('staff').map(({ pinHash: _pinHash, ...staff }) => staff); }
   publicDevices(): Device[] { return this.store.all<StoredDevice>('device').map(({ codeHash: _codeHash, ...device }) => device); }
   deviceConnections(): DeviceConnection[] {
@@ -159,7 +162,7 @@ export class KassaService {
     const currentDay = this.currentDay();
     const backup = this.store.get<{ lastAt: string | null; error: string | null }>('meta', 'backup') ?? { lastAt: null, error: null };
     return {
-      mode: 'training', actor, menu: this.store.all<MenuItem>('menu'), tables: this.store.all<DiningTable>('table'),
+      mode: 'training', actor, menu: this.menu(), tables: this.store.all<DiningTable>('table'),
       tabs: station ? [] : this.store.all<Tab>('tab'), tickets: this.store.all<Ticket>('ticket').filter(ticket => !station || ticket.station === station),
       payments: station ? [] : this.store.all<Payment>('payment'), receipts: station ? [] : this.store.all<Receipt>('receipt'),
       printJobs: authorizedRoles.includes(actor.staff.role) && !station ? this.store.all<PrintJob>('print') : [],

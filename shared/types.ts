@@ -17,6 +17,7 @@ export interface ModifierOption { id: string; name: string; priceOre: number }
 export interface ModifierGroup { id: string; name: string; min: number; max: number; options: ModifierOption[] }
 export interface MenuItem {
   id: string; name: string; category: string; description: string; priceOre: number;
+  position?: number;
   takeawayPriceOre: number | null; taxClass: TaxClass; course: Course; station: Station;
   available: boolean; example: boolean; modifiers: ModifierGroup[];
 }
