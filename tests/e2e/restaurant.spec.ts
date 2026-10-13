@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFile, mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import type { Bootstrap, Tab } from '../../shared/types';
 
 test.describe.configure({ mode: 'serial' });
 async function login(page: Page, staff = 'admin', pin = '1234', code = 'LAGUSTOSA-TEST') {
@@ -16,6 +17,22 @@ async function add(page: Page, name: string) {
   await page.locator('.product-card').filter({ has: page.getByText(name, { exact: true }) }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Lägg till/ }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+}
+
+async function sentTab(page: Page): Promise<Tab> {
+  const snapshot: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  if (!snapshot.currentDay) {
+    expect((await page.request.post('/api/v1/business-days', { data: { key: randomUUID(), floatOre: 0 } })).ok()).toBe(true);
+  }
+  let tab: Tab = await (await page.request.post('/api/v1/tabs', { data: { key: randomUUID(), tableId: null, guestCount: 1, serviceMode: 'dine_in' } })).json();
+  for (const input of [{ action: 'add', itemId: 'bread' }, { action: 'send' }]) {
+    const response = await page.request.post(`/api/v1/tabs/${tab.id}/commands`, { data: { key: randomUUID(), version: tab.version, ...input } });
+    expect(response.ok()).toBe(true); tab = await response.json();
+  }
+  await page.goto('/#pos');
+  await page.getByLabel('Öppna notor', { exact: true }).selectOption(tab.id);
+  await page.getByRole('button', { name: 'Ta betalt', exact: true }).click();
+  return tab;
 }
 
 test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavslut', async ({ page }) => {
@@ -116,4 +133,89 @@ test('gränssnittet fungerar på skrivbord, platta och mobil utan vågrät över
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: `artifacts/lagustosa-${name}.png`, fullPage: true });
   }
+});
+
+test('återupptar samma osända betalning efter omladdning och tillåter inte ändrat belopp', async ({ page }) => {
+  await login(page); const tab = await sentTab(page);
+  const keys: string[] = [];
+  await page.route(`**/api/v1/tabs/${tab.id}/payments`, async route => {
+    keys.push(route.request().postDataJSON().key);
+    if (keys.length === 1) await route.abort('failed'); else await route.continue();
+  });
+  let modal = page.getByRole('dialog', { name: 'Ta betalt' });
+  await modal.getByLabel('Dricks i kronor').fill('12');
+  await modal.getByRole('button', { name: /^Simulera betalning/ }).click();
+  await expect(modal.getByText('Betalningsförsöket är sparat på enheten', { exact: true })).toBeVisible();
+  await expect(modal.getByLabel('Dricks i kronor')).toBeDisabled();
+  await expect(modal.getByRole('button', { name: 'Återuppta samma betalningsförsök', exact: true })).toBeEnabled();
+  await modal.getByRole('button', { name: 'Stäng', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Återuppta betalning', exact: true }).click();
+  modal = page.getByRole('dialog', { name: 'Ta betalt' });
+  await modal.getByRole('button', { name: 'Återuppta samma betalningsförsök', exact: true }).click();
+  await expect(modal.getByRole('heading', { name: 'Betalningen är godkänd' })).toBeVisible();
+  expect(keys).toHaveLength(2); expect(keys[1]).toBe(keys[0]);
+  const data: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  const payments = data.payments.filter(payment => payment.tabId === tab.id);
+  expect(payments).toHaveLength(1); expect(payments[0].tipOre).toBe(1200);
+  expect(data.receipts.filter(receipt => receipt.tab.id === tab.id)).toHaveLength(1);
+  await expect(page.locator('.recovery-banner')).toHaveCount(0);
+});
+
+test('hittar redan godkänd betalning efter förlorat svar utan en ny betalningsbegäran', async ({ page }) => {
+  await login(page); const tab = await sentTab(page);
+  let blockRefresh = false; let paymentRequests = 0;
+  await page.route('**/api/v1/bootstrap', route => blockRefresh ? route.abort('failed') : route.continue());
+  await page.route(`**/api/v1/tabs/${tab.id}/payments`, async route => {
+    paymentRequests++; blockRefresh = true;
+    const response = await route.fetch(); expect(response.ok()).toBe(true);
+    await route.abort('failed');
+  });
+  const modal = page.getByRole('dialog', { name: 'Ta betalt' });
+  await modal.getByRole('button', { name: /^Simulera betalning/ }).click();
+  await expect(modal.getByText('Betalningsförsöket är sparat på enheten', { exact: true })).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Återuppta samma betalningsförsök', exact: true })).toBeEnabled();
+  const registered: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  expect(registered.tabs.find(candidate => candidate.id === tab.id)?.status).toBe('paid');
+  blockRefresh = false; await page.reload();
+  await page.getByRole('button', { name: 'Återuppta betalning', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Betalningen är godkänd' })).toBeVisible();
+  expect(paymentRequests).toBe(1);
+  const recovered: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  expect(recovered.payments.filter(payment => payment.tabId === tab.id)).toHaveLength(1);
+  expect(recovered.receipts.filter(receipt => receipt.tab.id === tab.id)).toHaveLength(1);
+  await expect(page.locator('.recovery-banner')).toHaveCount(0);
+});
+
+test('återhämtar en godkänd retur efter förlorat svar utan dubbel återbetalning', async ({ page }) => {
+  await login(page); const tab = await sentTab(page);
+  await page.getByRole('dialog', { name: 'Ta betalt' }).getByRole('button', { name: /^Simulera betalning/ }).click();
+  await expect(page.getByRole('heading', { name: 'Betalningen är godkänd' })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Klart', exact: true }).click();
+  const before: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  const original = before.payments.find(payment => payment.tabId === tab.id && payment.kind === 'sale')!;
+  await page.getByRole('button', { name: 'Dagsöversikt', exact: true }).click();
+  await page.locator('.list-row').filter({ has: page.getByRole('button', { name: new RegExp(tab.label) }) }).getByRole('button', { name: 'Retur', exact: true }).click();
+  let blockRefresh = false; let refundRequests = 0;
+  await page.route('**/api/v1/bootstrap', route => blockRefresh ? route.abort('failed') : route.continue());
+  await page.route(`**/api/v1/payments/${original.id}/refunds`, async route => {
+    refundRequests++; blockRefresh = true;
+    const response = await route.fetch(); expect(response.ok()).toBe(true);
+    await route.abort('failed');
+  });
+  const modal = page.getByRole('dialog', { name: 'Gör en testretur' });
+  await modal.getByLabel('Orsak till returen').fill('Övning: fel rätt serverad');
+  await modal.getByRole('button', { name: 'Simulera retur', exact: true }).click();
+  await expect(modal.getByText('Returförsöket är sparat på enheten', { exact: true })).toBeVisible();
+  await expect(modal.getByLabel('Returbelopp i kronor')).toBeDisabled();
+  await expect(modal.getByRole('button', { name: 'Återuppta samma returförsök', exact: true })).toBeEnabled();
+  blockRefresh = false; await page.reload();
+  await page.getByRole('button', { name: 'Återuppta retur', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Returen är godkänd' })).toBeVisible();
+  expect(refundRequests).toBe(1);
+  const recovered: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+  expect(recovered.payments.filter(payment => payment.parentId === original.id)).toHaveLength(1);
+  expect(recovered.receipts.filter(receipt => receipt.payment.parentId === original.id)).toHaveLength(1);
+  expect(recovered.receipts.find(receipt => receipt.paymentId === original.id)).toBeDefined();
+  await expect(page.locator('.recovery-banner')).toHaveCount(0);
 });

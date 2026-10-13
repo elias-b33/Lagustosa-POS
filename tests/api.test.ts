@@ -44,6 +44,25 @@ describe('API och flera enheter', () => {
     expect(sixth.statusCode).toBe(429);
   });
 
+  it('läser samma betalningsförsök utan att ta betalt igen och skyddar andra kassörers nycklar', async () => {
+    const f = await api(); const actor = f.service.session(f.cookie.split('=')[1]);
+    f.service.openDay(actor, { key: key(), floatOre: 0 });
+    let tab = f.service.createTab(actor, { key: key(), tableId: null, guestCount: 1, serviceMode: 'dine_in' });
+    tab = f.service.updateTab(actor, tab.id, { key: key(), version: tab.version, action: 'add', itemId: 'bread' });
+    tab = f.service.updateTab(actor, tab.id, { key: key(), version: tab.version, action: 'send' });
+    const attemptKey = key();
+    const payment = await f.service.startPayment(actor, tab.id, { key: attemptKey, version: tab.version, method: 'card', tipOre: 0, simulation: 'approved', fiscalSimulation: 'confirmed' });
+    const route = `/api/v1/payment-attempts/${attemptKey}`;
+    expect((await f.app.inject(route)).statusCode).toBe(401);
+    const response = await f.app.inject({ url: route, headers: { cookie: f.cookie } });
+    expect(response.statusCode).toBe(200); expect(response.json().id).toBe(payment.id);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect((await f.app.inject({ url: `/api/v1/payment-attempts/${key()}`, headers: { cookie: f.cookie } })).json()).toBeNull();
+    const other = await f.app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { staffId: 'cashier', pin: '2345', deviceCode: 'LAGUSTOSA-TEST' } });
+    expect((await f.app.inject({ url: route, headers: { cookie: `lagustosa_session=${other.cookies[0].value}` } })).json()).toBeNull();
+    expect(f.store.all('payment')).toHaveLength(1); expect(f.store.all('receipt')).toHaveLength(1);
+  });
+
   it('synkroniserar åtta anslutna enheter när samma order ändras', async () => {
     const f = await api();
     f.service.openDay(f.service.session(f.cookie.split('=')[1]), { key: key(), floatOre: 0 });

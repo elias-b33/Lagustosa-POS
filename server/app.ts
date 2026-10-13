@@ -101,6 +101,7 @@ export async function createApp(options: AppOptions) {
   app.post('/api/v1/tabs/:id/commands', async request => service.updateTab(actor(request), paramId(request), schema.commandSchema.parse(request.body)));
   app.post('/api/v1/tickets/:id/status', async request => service.updateTicket(actor(request), paramId(request), schema.ticketSchema.parse(request.body).status));
   app.post('/api/v1/tabs/:id/payments', async request => service.startPayment(actor(request), paramId(request), schema.paymentSchema.parse(request.body)));
+  app.get('/api/v1/payment-attempts/:id', async request => service.paymentAttempt(actor(request), paramId(request)));
   app.post('/api/v1/payments/:id/check', async request => { z.object({}).strict().parse(request.body); return service.checkPayment(actor(request), paramId(request)); });
   app.post('/api/v1/payments/:id/cancel', async request => { z.object({}).strict().parse(request.body); return service.checkPayment(actor(request), paramId(request), true); });
   app.post('/api/v1/payments/:id/refunds', async request => service.refund(actor(request), paramId(request), schema.refundSchema.parse(request.body)));

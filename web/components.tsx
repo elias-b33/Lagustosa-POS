@@ -9,14 +9,16 @@ export interface WorkspaceProps {
 }
 export function Modal({ title, subtitle, children, onClose, wide = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const dialog = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const first = dialog.current?.querySelector<HTMLElement>('input, select, textarea, button');
+    const first = dialog.current?.querySelector<HTMLElement>('input:enabled, select:enabled, textarea:enabled, button:enabled');
     first?.focus();
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') close.current();
       if (event.key === 'Tab') {
-        const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]') ?? []);
+        const controls = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:enabled, input:enabled, select:enabled, textarea:enabled, a[href]') ?? []);
         const firstControl = controls[0];
         const lastControl = controls.at(-1);
         if (event.shiftKey && document.activeElement === firstControl) { event.preventDefault(); lastControl?.focus(); }
@@ -25,7 +27,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false }: { ti
     };
     document.addEventListener('keydown', handleKey);
     return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
-  }, [onClose]);
+  }, []);
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={dialog}><div className="modal-head"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" onClick={onClose} aria-label="Stäng"><X size={21} /></button></div>{children}</div></div>;
 }
 export function Empty({ title, text, children }: { title: string; text: string; children?: ReactNode }) {

@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { ChefHat, Wine, Clock3, Check, ArrowRight, Printer, Download, Banknote, ShieldCheck, RefreshCw, FolderClock, CircleAlert, ReceiptText, Undo2 } from 'lucide-react';
 import type { BusinessDay, DayReport, Payment, PrintJob, Receipt, Station, Ticket } from '../shared/types';
 import { money, parseMoney } from '../shared/money';
 import { api, newKey } from './api';
 import { Action, Empty, Field, Modal, printStatusNames, type WorkspaceProps } from './components';
 import { ReceiptPaper } from './Payments';
+import { usePaymentAttempts } from './usePaymentAttempt';
+import { submitPaymentAttempt } from './submitPaymentAttempt';
+import type { PaymentAttempt } from './payment-attempts';
 
 export function StationView({ station, ...props }: WorkspaceProps & { station: Station }) {
   const { data, busy, run } = props;
@@ -65,12 +68,44 @@ export function ReportsView(props: WorkspaceProps) {
     {drawer && <Modal title="Simulera kassalådsöppning" subtitle="Öppningen och orsaken journalförs." onClose={() => setDrawer(false)}><Field label="Orsak"><input value={reason} onChange={event => setReason(event.target.value)} /></Field><Action disabled={busy || reason.length < 3} onClick={async () => { if (await run(() => api('/drawer/open', { reason }), 'Kassalådsöppningen är simulerad.')) setDrawer(false); }}>Öppna i simulator</Action></Modal>}
   </section>;
 }
-function RefundModal({ payment, onClose, ...props }: WorkspaceProps & { payment: Payment; onClose: () => void }) {
-  const [amount, setAmount] = useState(String(payment.amountOre / 100));
-  const [reason, setReason] = useState('');
-  const [simulation, setSimulation] = useState('approved');
+export function RefundModal({ payment, onClose, ...props }: WorkspaceProps & { payment: Payment; onClose: () => void }) {
   const reserved = props.data.payments.filter(candidate => candidate.parentId === payment.id && ['approved', 'pending', 'unknown'].includes(candidate.status)).reduce((sum, candidate) => sum + candidate.amountOre, 0);
   const remaining = payment.amountOre - reserved;
-  const retry = useRef<{ key: string; amountOre: number | null; reason: string; simulation: string; fiscalSimulation: string } | null>(null);
-  return <Modal title="Gör en testretur" subtitle={`Kan återbetalas: ${money(remaining)} · samma betalsätt som originalet`} onClose={onClose}><Field label="Returbelopp i kronor"><input value={amount} inputMode="decimal" onChange={event => { setAmount(event.target.value); retry.current = null; }} /></Field><Field label="Orsak till returen"><textarea value={reason} onChange={event => { setReason(event.target.value); retry.current = null; }} /></Field><Field label="Testscenario"><select value={simulation} onChange={event => { setSimulation(event.target.value); retry.current = null; }}><option value="approved">Godkänd</option><option value="declined">Nekad</option><option value="unknown">Okänd status</option></select></Field><Action disabled={props.busy || reason.length < 3 || (parseMoney(amount) ?? 0) <= 0 || (parseMoney(amount) ?? 0) > remaining} onClick={async () => { if (!retry.current) retry.current = { key: newKey(), amountOre: parseMoney(amount), reason, simulation, fiscalSimulation: 'confirmed' }; const result = await props.run(() => api<Payment>(`/payments/${payment.id}/refunds`, retry.current), 'Returförsöket är registrerat.'); if (result) onClose(); }}><Undo2 size={17} />Simulera retur</Action><p className="receipt-footnote">Returen skapar en ny registrering. Originalkvittot bevaras.</p></Modal>;
+  const [amount, setAmount] = useState(String(remaining / 100));
+  const [reason, setReason] = useState('');
+  const [simulation, setSimulation] = useState<'approved' | 'declined' | 'unknown'>('approved');
+  const [resultId, setResultId] = useState<string | null>(null);
+  const { attempts, storageError, remember, forget } = usePaymentAttempts(props.data.actor);
+  const attempt = attempts.find((entry): entry is Extract<PaymentAttempt, { kind: 'refund' }> => entry.kind === 'refund' && entry.targetId === payment.id);
+  const recovered = attempt ? props.data.payments.find(candidate => candidate.key === attempt.input.key) : undefined;
+  const result = props.data.payments.find(candidate => candidate.id === resultId);
+  const receipt = props.data.receipts.find(candidate => candidate.paymentId === resultId);
+  const uncertain = props.data.payments.filter(candidate => candidate.parentId === payment.id && ['pending', 'unknown'].includes(candidate.status));
+  const amountOre = parseMoney(amount);
+  useEffect(() => {
+    if (!recovered) return;
+    setResultId(recovered.id);
+    if (['approved', 'declined', 'cancelled'].includes(recovered.status)) forget(recovered.key);
+  }, [recovered?.id, recovered?.status, forget]);
+  const submit = async () => {
+    if (!attempt && amountOre === null) return;
+    const saved: PaymentAttempt = attempt ?? { version: 1, kind: 'refund', targetId: payment.id, createdAt: new Date().toISOString(), input: { key: newKey(), amountOre: amountOre!, reason, simulation, fiscalSimulation: 'confirmed' } };
+    const result = await props.run(() => submitPaymentAttempt(saved, remember, forget));
+    if (result) setResultId(result.id);
+  };
+  return <Modal title="Gör en testretur" subtitle={`Kan återbetalas: ${money(remaining)} · samma betalsätt som originalet`} onClose={onClose}>
+    {result?.status === 'approved' ? <div className="payment-success"><ShieldCheck size={40} /><h3>Returen är godkänd</h3><strong>{money(result.amountOre)}</strong><p>Originalkvittot är bevarat. Returen har ett eget testkvitto.</p>{receipt?.fiscalStatus === 'confirmed' && <ReceiptPaper receipt={receipt} />}<Action onClick={onClose}>Klart</Action></div> : <>
+      {storageError && <p className="form-error" role="alert">{storageError}</p>}
+      {attempt && !recovered && <div className="notice warning payment-recovery"><CircleAlert size={18} /><div><strong>Returförsöket är sparat på enheten</strong><span>{money(attempt.input.amountOre)} · {attempt.input.reason}</span><span>Återuppta samma försök innan du gör en ny retur.</span></div></div>}
+      {uncertain.map(candidate => <div className="notice warning" key={candidate.id}><CircleAlert size={18} /><div><strong>Osäker retur · {money(candidate.amountOre)}</strong><span>Kontrollera samma registrering.</span></div><Action secondary disabled={props.busy} onClick={async () => { const checked = await props.run(() => api<Payment>(`/payments/${candidate.id}/check`, {})); if (checked) setResultId(checked.id); }}>Kontrollera retur</Action><button disabled={props.busy} onClick={async () => { const checked = await props.run(() => api<Payment>(`/payments/${candidate.id}/cancel`, {})); if (checked) setResultId(checked.id); }}>Avbryt</button></div>)}
+      <fieldset className="payment-fields" disabled={props.busy || !!attempt || uncertain.length > 0 || !!storageError}>
+        <Field label="Returbelopp i kronor"><input value={amount} inputMode="decimal" onChange={event => setAmount(event.target.value)} /></Field>
+        <Field label="Orsak till returen"><textarea value={reason} onChange={event => setReason(event.target.value)} /></Field>
+        <Field label="Testscenario"><select value={simulation} onChange={event => setSimulation(event.target.value as typeof simulation)}><option value="approved">Godkänd</option><option value="declined">Nekad</option><option value="unknown">Okänd status</option></select></Field>
+      </fieldset>
+      {result && ['declined', 'cancelled'].includes(result.status) && <p className="form-error" role="alert">{result.status === 'declined' ? 'Testreturen nekades.' : 'Testreturen avbröts.'} Inget belopp har återbetalats.</p>}
+      <Action disabled={props.busy || !!storageError || (!!attempt ? !!recovered : uncertain.length > 0 || reason.trim().length < 3 || amountOre === null || amountOre <= 0 || amountOre > remaining)} onClick={() => void submit()}><Undo2 size={17} />{attempt ? 'Återuppta samma returförsök' : 'Simulera retur'}</Action>
+      <p className="receipt-footnote">Returen skapar en ny registrering. Originalkvittot bevaras.</p>
+    </>}
+  </Modal>;
 }

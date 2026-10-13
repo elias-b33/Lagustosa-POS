@@ -33,7 +33,7 @@ Testkoderna visas även under **Enhet och testprofiler** på inloggningssidan. D
 - Separata köks- och barbongar, väntande huvudrätter och framkallning.
 - Flytt av bord med uppdaterad information till stationerna.
 - Delning per gäst, artikel, delbelopp eller lika delar, samt separat dricks.
-- Godkänd, nekad, avbruten och okänd betalning; kontroll av samma försök efter ett förlorat svar.
+- Godkänd, nekad, avbruten och okänd betalning; återhämtning av samma försök efter förlorat svar eller omladdning.
 - Returer till samma simulerade betalsätt, bevarade originalkvitton och journal.
 - Utskriftsförhandsvisning med misslyckad/osäker status och märkt återutskrift.
 - Växelkassa, kontantavstämning, dagsavslut, CSV och journal-XML för träning.
@@ -50,6 +50,10 @@ Testkoderna visas även under **Enhet och testprofiler** på inloggningssidan. D
 7. Prova ett förlorat kontrollenhetssvar och verifiera befintlig registrering. Slutför resterande delbetalning och visa testkvittot.
 8. Stäng dagen, kontrollera avstämningen och hämta CSV/journal-XML.
 
+Betalnings- och returförsök sparas i webbläsaren innan anropet skickas. Om anslutningen bryts kan dialogen stängas och sidan laddas om. En avisering med **Återuppta betalning** eller **Återuppta retur** öppnar det sparade försöket för samma personal och enhet. Belopp och övriga uppgifter är låsta tills resultatet har kontrollerats. Servern söks först efter den befintliga registreringen; endast ett försök som ännu inte registrerats skickas igen, med samma identifierare.
+
+En godkänd registrering visas även om hela notan redan är betald. En okänd registrering kontrolleras eller avbryts innan ett nytt försök kan göras. Om webbläsaren inte kan spara försöket stoppas anropet med ett meddelande i dialogen.
+
 ## Tester och byggd version
 
 ```powershell
@@ -59,7 +63,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, utskrifter, åtta anslutna SSE-klienter, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer och responsiv layout. Browser-tester använder en separat tillfällig databas på port 4183.
+Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, sparade betalningsförsök, utskrifter, åtta anslutna SSE-klienter, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer, responsiv layout och förlorade svar före och efter registrering av betalning/retur. Browser-tester använder en separat tillfällig databas på port 4183.
 
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
 

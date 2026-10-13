@@ -300,6 +300,13 @@ export class KassaService {
     if (payment) demand(payment.fingerprint === fingerprint, 'Betalningsidentifieraren har använts med andra uppgifter.', 409, 'KEY_REUSED');
     return payment;
   }
+  paymentAttempt(actor: Actor, key: string): Payment | null {
+    this.require(actor, workingRoles);
+    demand(actor.device.kind !== 'display', 'Betalning kontrolleras på kassa eller serveringsenhet.', 403);
+    const payment = this.store.all<Payment>('payment').find(candidate => candidate.key === key && candidate.staffId === actor.staff.id);
+    if (payment?.kind === 'refund') this.require(actor, authorizedRoles);
+    return payment ?? null;
+  }
   allocations(tab: Tab, input: PaymentInput): Allocation[] {
     const totals = calculateTab(tab);
     const reserved = this.store.all<Payment>('payment').filter(payment => payment.tabId === tab.id && payment.kind === 'sale' && reservedStatuses.includes(payment.status));

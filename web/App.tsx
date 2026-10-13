@@ -5,9 +5,10 @@ import { api, ApiError } from './api';
 import { Login } from './Login';
 import { Pos } from './Pos';
 import { PaymentModal } from './Payments';
-import { PrintsView, ReportsView, StationView } from './Operations';
+import { PrintsView, RefundModal, ReportsView, StationView } from './Operations';
 import { Admin } from './Admin';
 import { Spinner } from './components';
+import { usePaymentAttempts } from './usePaymentAttempt';
 
 const navigation = [
   { id: 'pos', label: 'Kassa', icon: Utensils }, { id: 'tables', label: 'Bord', icon: LayoutGrid },
@@ -24,6 +25,7 @@ export function App() {
   const [view, setView] = useState(location.hash.slice(1) || 'tables');
   const [tabId, setTabId] = useState<string | null>(null);
   const [paymentTab, setPaymentTab] = useState<string | null>(null);
+  const [recoveryRefund, setRecoveryRefund] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const [clock, setClock] = useState(() => new Date());
   const refreshSequence = useRef(0);
@@ -43,6 +45,7 @@ export function App() {
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   const identity = data ? `${data.actor.staff.id}:${data.actor.device.id}` : null;
+  const { attempts: savedAttempts, storageError } = usePaymentAttempts(data?.actor);
   useEffect(() => {
     if (!identity) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -86,7 +89,10 @@ export function App() {
   const common = { data, run, refresh, busy };
   const readyCount = data.tickets.filter(ticket => ticket.status === 'ready').length;
   const livePayment = data.tabs.find(tab => tab.id === paymentTab);
+  const liveRefund = data.payments.find(payment => payment.id === recoveryRefund);
   return <div className="app-shell"><aside className="sidebar"><div className="brand-monogram">g<span>•</span></div><nav aria-label="Huvudmeny">{availableNav.map(item => <button className={activeView === item.id ? 'active' : ''} key={item.id} onClick={() => navigate(item.id)} title={item.label}><item.icon size={22} strokeWidth={1.5} /><span>{item.label}</span>{item.id === 'prints' && data.printJobs.some(job => job.status === 'uncertain') && <i className="nav-alert" />}</button>)}</nav><div className="sidebar-bottom"><span className="sidebar-leaf">✦</span><span>LA<br />GUSTOSA</span><small>v0.1 · träning</small></div></aside><div className="app-content"><div className="test-strip"><ShieldCheck size={14} /><span>TEST — inga riktiga betalningar</span><small>Träningsversion</small></div><header className="topbar"><div className="topbar-brand">la gustosa<span>{navigation.find(item => item.id === activeView)?.label}</span></div><div className="topbar-right"><span className={`connection ${offline ? 'offline' : ''}`}>{offline ? <WifiOff size={15} /> : <Wifi size={15} />}<span>{offline ? 'Anslutningen kontrolleras' : 'Lokalt ansluten'}</span></span><span className="device-name">{data.actor.device.name}</span><span className="topbar-clock">{clock.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</span><div className="staff-chip"><span>{data.actor.staff.name.charAt(0)}</span><strong>{data.actor.staff.name}</strong></div><button className="icon-button" aria-label="Logga ut" title="Logga ut" disabled={busy} onClick={() => void run(() => api('/auth/logout', {}))}><LogOut size={18} /></button></div></header><main className="workspace">
+    {storageError && <div className="notice warning recovery-banner" role="alert"><CircleAlert size={19} /><span>{storageError}</span></div>}
+    {savedAttempts.map(attempt => <div className="notice warning recovery-banner" key={attempt.input.key}><CircleAlert size={19} /><div><strong>{attempt.kind === 'sale' ? 'Ett betalningsförsök behöver kontrolleras' : 'Ett returförsök behöver kontrolleras'}</strong><span>{data.tabs.find(tab => tab.id === (attempt.kind === 'sale' ? attempt.targetId : data.payments.find(payment => payment.id === attempt.targetId)?.tabId))?.label ?? 'Sparat försök'} · sparat {new Date(attempt.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</span></div><button disabled={busy} onClick={() => { if (attempt.kind === 'sale') setPaymentTab(attempt.targetId); else setRecoveryRefund(attempt.targetId); }}>{attempt.kind === 'sale' ? 'Återuppta betalning' : 'Återuppta retur'}<ArrowRight size={16} /></button></div>)}
     {!data.currentDay && !deviceStation && !['reports', 'admin'].includes(activeView) && <div className="notice day-notice"><CircleAlert size={19} /><span>Ingen verksamhetsdag är öppen.</span>{canManage && <button onClick={() => navigate('reports')}>Öppna dagen<ArrowRight size={16} /></button>}</div>}
     {['pos', 'tables'].includes(activeView) && <div className="service-context"><span>{clock.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })}</span><span>{data.currentDay ? `Verksamhetsdag ${data.currentDay.date}` : 'Redo för nästa service'}</span>{readyCount > 0 && <button onClick={() => navigate('kitchen')}><Bell size={14} />{readyCount} klara beställningar</button>}{busy && <Spinner />}</div>}
     {['pos', 'tables'].includes(activeView) && <Pos {...common} tabId={tabId} setTabId={setTabId} tablesView={activeView === 'tables'} showPos={() => navigate('pos')} pay={(tab: Tab) => setPaymentTab(tab.id)} />}
@@ -97,6 +103,7 @@ export function App() {
     {activeView === 'admin' && <Admin {...common} />}
   </main><footer className="app-footer"><span>LA GUSTOSA · BORÅS</span><span>En god kväll, från första beställningen till sista kvittot.</span><i /> <span>Träning</span></footer></div>
   {toast && <div className={`toast ${toast.error ? 'toast-error' : ''}`} role={toast.error ? 'alert' : 'status'}>{toast.error ? <CircleAlert size={20} /> : <Check size={20} />}<span>{toast.text}</span><button className="icon-button" onClick={() => setToast(null)} aria-label="Stäng meddelande"><X size={17} /></button></div>}
-  {livePayment && <PaymentModal {...common} tabId={livePayment.id} onClose={() => setPaymentTab(null)} />}
+  {livePayment && <PaymentModal key={livePayment.id} {...common} tabId={livePayment.id} onClose={() => setPaymentTab(null)} />}
+  {liveRefund && <RefundModal key={liveRefund.id} {...common} payment={liveRefund} onClose={() => setRecoveryRefund(null)} />}
   </div>;
 }

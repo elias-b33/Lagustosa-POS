@@ -1,0 +1,5 @@
+.payment-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.payment-fields:disabled { opacity: .6; }
+.payment-recovery, .recovery-banner { margin-bottom: 16px; }
+.payment-recovery > div, .recovery-banner > div { display: grid; gap: 4px; min-width: 0; }
+.payment-recovery span, .recovery-banner span { overflow-wrap: anywhere; }

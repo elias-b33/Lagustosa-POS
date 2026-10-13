@@ -1,4 +1,6 @@
 import { z } from 'zod';
+export { paymentSchema, refundSchema } from '../shared/payment-inputs';
+export type { PaymentInput, RefundInput } from '../shared/payment-inputs';
 
 const ore = z.number().int().min(0).max(100000000);
 const id = z.string().min(1).max(100);
@@ -26,13 +28,6 @@ export const commandSchema = z.object({
   tableId: id.nullable().optional(), guestCount: z.number().int().min(1).max(100).optional(),
   discountBps: z.number().int().min(0).max(10000).optional(), priceOre: ore.optional(), reason: text.optional(),
 }).strict();
-export const paymentSchema = z.object({
-  key: id, version: z.number().int().min(1), method: z.enum(['card', 'swish', 'cash']),
-  amountOre: ore.optional(), tipOre: ore, lineIds: z.array(id).max(1000).optional(), guest: z.number().int().min(0).max(100).optional(),
-  tenderedOre: ore.optional(), swishVerified: z.boolean().optional(),
-  simulation: z.enum(['approved', 'declined', 'cancelled', 'unknown']), fiscalSimulation: z.enum(['confirmed', 'unknown']).default('confirmed'),
-}).strict();
-export const refundSchema = z.object({ key: id, amountOre: ore, reason: z.string().trim().min(3).max(500), simulation: z.enum(['approved', 'declined', 'cancelled', 'unknown']), fiscalSimulation: z.enum(['confirmed', 'unknown']).default('confirmed') }).strict();
 export const openDaySchema = z.object({ key: id, floatOre: ore }).strict();
 export const closeDaySchema = z.object({ key: id, countedCashOre: ore }).strict();
 export const ticketSchema = z.object({ status: z.enum(['started', 'ready', 'served']) }).strict();
@@ -43,5 +38,3 @@ export const settingsSchema = z.object({
   taxRules: z.array(z.object({ id, taxClass: z.enum(['food', 'alcohol', 'standard']), mode: z.enum(['dine_in', 'takeaway']), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), rateBps: z.number().int().min(0).max(10000) }).strict()).min(6).max(100),
 }).strict();
 export type TabCommand = z.infer<typeof commandSchema>;
-export type PaymentInput = z.infer<typeof paymentSchema>;
-export type RefundInput = z.infer<typeof refundSchema>;
