@@ -13,6 +13,25 @@ async function api(development = false) {
 }
 
 describe('API och flera enheter', () => {
+  it('håller testmiljöns inloggning separat från utvecklingskassans på samma dator', async () => {
+    const development = await api();
+    const safe = await createApp({ database: ':memory:', sessionCookieName: 'lagustosa_safe_test_example', safeTest: { instanceId: key(), launchId: key(), sessionId: key() } }); apps.push(safe);
+    const login = await safe.app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { staffId: 'admin', pin: '1234', deviceCode: 'LAGUSTOSA-TEST' } });
+    const safeCookie = `lagustosa_safe_test_example=${login.cookies[0].value}`;
+    expect(login.headers['set-cookie']).toContain('lagustosa_safe_test_example=');
+    expect((await safe.app.inject({ url: '/api/v1/bootstrap', headers: { cookie: development.cookie } })).statusCode).toBe(401);
+    expect((await development.app.inject({ url: '/api/v1/bootstrap', headers: { cookie: safeCookie } })).statusCode).toBe(401);
+    const bothCookies = `${development.cookie}; ${safeCookie}`;
+    expect((await safe.app.inject({ url: '/api/v1/bootstrap', headers: { cookie: bothCookies } })).json<Bootstrap>().testEnvironment).toBe('safe-test');
+    const logout = await safe.app.inject({ method: 'POST', url: '/api/v1/auth/logout', headers: { cookie: bothCookies }, payload: {} });
+    expect(logout.statusCode).toBe(200); expect(logout.headers['set-cookie']).toContain('lagustosa_safe_test_example=;');
+    expect((await safe.app.inject({ url: '/api/v1/bootstrap', headers: { cookie: safeCookie } })).statusCode).toBe(401);
+    expect((await development.app.inject({ url: '/api/v1/bootstrap', headers: { cookie: bothCookies } })).statusCode).toBe(200);
+    expect(safe.service.bootstrap(safe.service.login('admin', '1234', 'LAGUSTOSA-TEST', 'local').actor).currentDay).toBeNull();
+    expect((await safe.app.inject('/api/v1/health')).json()).toMatchObject({ environment: 'safe-test', adapters: { payment: 'simulator', fiscal: 'simulator', print: 'preview' } });
+    await expect(createApp({ database: ':memory:', safeTest: { instanceId: key(), launchId: key(), sessionId: key() } })).rejects.toThrow('separat inloggningssession');
+  });
+
   it('har ett tydligt träningsläge och spärrar produktionsinställningar', () => {
     expect(() => assertTrainingMode({ APP_MODE: 'training' })).not.toThrow();
     expect(() => assertTrainingMode({ APP_MODE: 'production' })).toThrow('Produktionsläget är spärrat');

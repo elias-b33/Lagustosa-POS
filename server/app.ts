@@ -15,6 +15,8 @@ import { exportCsv, exportXml } from './export';
 export interface AppOptions {
   database: string; backupDir?: string; webDir?: string;
   https?: { key: Buffer; cert: Buffer }; now?: () => Date; logger?: boolean; development?: boolean;
+  sessionCookieName?: string;
+  safeTest?: { instanceId: string; launchId: string; sessionId: string };
 }
 
 export function assertTrainingMode(env: NodeJS.ProcessEnv): void {
@@ -24,6 +26,9 @@ export function assertTrainingMode(env: NodeJS.ProcessEnv): void {
 }
 
 export async function createApp(options: AppOptions) {
+  const sessionCookieName = options.sessionCookieName ?? 'lagustosa_session';
+  demand(/^[a-zA-Z0-9_]{1,100}$/.test(sessionCookieName), 'Ogiltigt namn för inloggningssessionen.', 500);
+  demand(!options.safeTest || sessionCookieName !== 'lagustosa_session', 'Testmiljön behöver en separat inloggningssession.', 500);
   const commonOptions = { logger: options.logger ?? false, bodyLimit: 256 * 1024, requestTimeout: 15000, forceCloseConnections: true };
   const app = (options.https ? Fastify({ ...commonOptions, https: options.https }) : Fastify(commonOptions)) as unknown as FastifyInstance;
   const store = new Store(options.database);
@@ -53,23 +58,23 @@ export async function createApp(options: AppOptions) {
       demand(request.headers['content-type']?.startsWith('application/json'), 'Använd JSON för ändringar.', 415);
     }
   });
-  const actor = (request: FastifyRequest): Actor => service.session(request.cookies.lagustosa_session);
+  const actor = (request: FastifyRequest): Actor => service.session(request.cookies[sessionCookieName]);
   const paramId = (request: FastifyRequest): string => z.object({ id: z.string().min(1).max(100) }).parse(request.params).id;
 
-  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0' }));
+  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: 'simulator', fiscal: 'simulator', print: 'preview' } }));
   app.get('/api/v1/auth/staff', async () => service.publicStaff().filter(staff => staff.active));
   app.post('/api/v1/auth/login', async (request, reply) => {
     const input = schema.loginSchema.parse(request.body);
     const result = service.login(input.staffId, input.pin, input.deviceCode, request.ip);
-    reply.setCookie('lagustosa_session', result.token, { path: '/', httpOnly: true, secure: Boolean(options.https), sameSite: 'strict', maxAge: 16 * 3600 });
+    reply.setCookie(sessionCookieName, result.token, { path: '/', httpOnly: true, secure: Boolean(options.https), sameSite: 'strict', maxAge: 16 * 3600 });
     return { actor: result.actor };
   });
   app.post('/api/v1/auth/logout', async (request, reply) => {
-    service.logout(request.cookies.lagustosa_session!, actor(request));
-    reply.clearCookie('lagustosa_session', { path: '/' });
+    service.logout(request.cookies[sessionCookieName]!, actor(request));
+    reply.clearCookie(sessionCookieName, { path: '/' });
     return { ok: true };
   });
-  app.get('/api/v1/bootstrap', async request => service.bootstrap(actor(request)));
+  app.get('/api/v1/bootstrap', async request => ({ ...service.bootstrap(actor(request)), ...(options.safeTest ? { testEnvironment: 'safe-test' as const, testRoundId: options.safeTest.sessionId } : {}) }));
   app.get('/api/v1/events', async (request, reply) => {
     const identity = actor(request);
     reply.hijack();

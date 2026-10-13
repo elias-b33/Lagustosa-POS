@@ -11,6 +11,20 @@ function sale(targetId = 'test-tab'): Extract<PaymentAttempt, { kind: 'sale' }> 
 }
 
 describe('Sparade betalningsförsök', () => {
+  it('skiljer testomgångar och bevarar tidigare försök när en ny omgång börjar', () => {
+    const f = fixture(); const storage = memoryStorage(); const attempt = sale();
+    saveAttempt(f.admin, attempt, storage, 'session-one');
+    expect(readAttempts(f.admin, storage, 'session-two')).toEqual([]);
+    expect(readAttempts(f.admin, storage)).toEqual([]);
+    const fresh = sale(); saveAttempt(f.admin, fresh, storage, 'session-two');
+    forgetAttempt(f.admin, fresh.input.key, storage, 'session-two');
+    expect(readAttempts(f.admin, storage, 'session-one')).toEqual([attempt]);
+    expect(readAttempts(f.admin, storage, 'session-two')).toEqual([]);
+    saveAttempt(f.admin, fresh, storage);
+    expect(readAttempts(f.admin, storage)).toEqual([fresh]);
+    expect(readAttempts(f.admin, storage, 'session-one')).toEqual([attempt]);
+  });
+
   it('behåller samma belopp, dricks och nyckel när en ny sida läser försöket', () => {
     const f = fixture(); const storage = memoryStorage(); const attempt = sale();
     saveAttempt(f.admin, attempt, storage);

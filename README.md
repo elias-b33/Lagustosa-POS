@@ -4,6 +4,12 @@ Restaurangens egen lokala webbapp för huvudkassa, bordsservering, kök och bar.
 
 **Den här versionen är en träningskassa.** Betalningar, kontrollenhet och skrivare är simulatorer. Gränssnitt, kvitton och rapporter är märkta `TEST — inga riktiga betalningar`. Produktionsläge är spärrat i servern.
 
+## Säker provkörning
+
+Dubbelklicka på **Start-Testmiljo.cmd** för att öppna **http://127.0.0.1:4273/**. Den här starten använder en separat databas under `%LOCALAPPDATA%\LagustosaPOS\safe-test\sessions\`, en separat inloggningscookie och tvingade simulatorer. Startverktyget verifierar rätt server innan webbläsaren öppnas. Utvecklingsdata bevaras.
+
+**Stoppa-Testmiljo.cmd** stoppar testservern. **Ny-Testomgang.cmd** börjar en ny tom testomgång och sparar de tidigare. Startverktyget fungerar även i Windows-paketet med medföljande Node, utan npm-installation. Läs [TEST-GUIDE.md](TEST-GUIDE.md) för första restaurangscenariot, alla åtta enhetsprofiler och HTTPS på testplattor.
+
 ## Starta utvecklingen
 
 Installera Node.js 24 och kör från projektmappen:
@@ -67,6 +73,7 @@ En godkänd registrering visas även om hela notan redan är betald. En okänd r
 ```powershell
 npm test
 npm run build
+npm run test:safe-env
 npx playwright install chromium
 npm run test:e2e
 ```

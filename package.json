@@ -10,6 +10,8 @@
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:safe-env": "node scripts/smoke-safe-test.mjs",
+    "start:safe-test": "node scripts/safe-test.mjs start",
     "check": "tsc --noEmit",
     "certs": "node scripts/create-certs.mjs",
     "backup": "node scripts/backup.mjs",

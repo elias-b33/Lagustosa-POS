@@ -61,7 +61,7 @@ export function RefundModal({ payment, onClose, ...props }: WorkspaceProps & { p
   const [reason, setReason] = useState('');
   const [simulation, setSimulation] = useState<'approved' | 'declined' | 'unknown'>('approved');
   const [resultId, setResultId] = useState<string | null>(null);
-  const { attempts, storageError, remember, forget } = usePaymentAttempts(props.data.actor);
+  const { attempts, storageError, remember, forget } = usePaymentAttempts(props.data.actor, props.data.testRoundId);
   const attempt = attempts.find((entry): entry is Extract<PaymentAttempt, { kind: 'refund' }> => entry.kind === 'refund' && entry.targetId === payment.id);
   const recovered = attempt ? props.data.payments.find(candidate => candidate.key === attempt.input.key) : undefined;
   const result = props.data.payments.find(candidate => candidate.id === resultId);

@@ -16,22 +16,22 @@ export class AttemptStorageError extends Error {
   constructor(message = 'Betalningsförsöket kunde inte sparas på enheten. Kontrollera att webblagring är tillåten innan du tar betalt.') { super(message); }
 }
 
-export function attemptsKey(actor: Actor): string {
-  return `lagustosa.payment-attempts.v1:${encodeURIComponent(actor.staff.id)}:${encodeURIComponent(actor.device.id)}`;
+export function attemptsKey(actor: Actor, scope?: string): string {
+  return `lagustosa.payment-attempts.v1:${encodeURIComponent(actor.staff.id)}:${encodeURIComponent(actor.device.id)}${scope ? ':' + encodeURIComponent(scope) : ''}`;
 }
 
-export function readAttempts(actor: Actor, storage: AttemptStorage): PaymentAttempt[] {
+export function readAttempts(actor: Actor, storage: AttemptStorage, scope?: string): PaymentAttempt[] {
   try {
-    const value = storage.getItem(attemptsKey(actor));
+    const value = storage.getItem(attemptsKey(actor, scope));
     return value === null ? [] : attemptsSchema.parse(JSON.parse(value));
   } catch {
     throw new AttemptStorageError('Tidigare betalningsförsök på enheten kunde inte läsas. Kontrollera webblagringen och betalningshistoriken innan du fortsätter.');
   }
 }
 
-function writeAttempts(actor: Actor, attempts: PaymentAttempt[], storage: AttemptStorage): void {
+function writeAttempts(actor: Actor, attempts: PaymentAttempt[], storage: AttemptStorage, scope?: string): void {
   try {
-    const key = attemptsKey(actor);
+    const key = attemptsKey(actor, scope);
     const value = JSON.stringify(attempts);
     if (attempts.length) storage.setItem(key, value);
     else storage.removeItem(key);
@@ -39,9 +39,9 @@ function writeAttempts(actor: Actor, attempts: PaymentAttempt[], storage: Attemp
   } catch { throw new AttemptStorageError(); }
 }
 
-export function saveAttempt(actor: Actor, attempt: PaymentAttempt, storage: AttemptStorage): void {
+export function saveAttempt(actor: Actor, attempt: PaymentAttempt, storage: AttemptStorage, scope?: string): void {
   const validated = attemptSchema.parse(attempt);
-  const current = readAttempts(actor, storage);
+  const current = readAttempts(actor, storage, scope);
   const prior = current.find(entry => entry.kind === attempt.kind && entry.targetId === attempt.targetId);
   if (prior) {
     // A version retry may change only the order version, never the financial request or its key.
@@ -50,11 +50,11 @@ export function saveAttempt(actor: Actor, attempt: PaymentAttempt, storage: Atte
       throw new AttemptStorageError('Ett tidigare försök väntar på kontroll. Kontrollera samma försök innan uppgifterna ändras.');
     }
   }
-  writeAttempts(actor, [...current.filter(entry => entry.kind !== attempt.kind || entry.targetId !== attempt.targetId), validated], storage);
+  writeAttempts(actor, [...current.filter(entry => entry.kind !== attempt.kind || entry.targetId !== attempt.targetId), validated], storage, scope);
 }
 
-export function forgetAttempt(actor: Actor, key: string, storage: AttemptStorage): void {
-  const current = readAttempts(actor, storage);
+export function forgetAttempt(actor: Actor, key: string, storage: AttemptStorage, scope?: string): void {
+  const current = readAttempts(actor, storage, scope);
   if (!current.some(entry => entry.input.key === key)) return;
-  writeAttempts(actor, current.filter(entry => entry.input.key !== key), storage);
+  writeAttempts(actor, current.filter(entry => entry.input.key !== key), storage, scope);
 }

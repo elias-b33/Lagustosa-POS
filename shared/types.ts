@@ -78,6 +78,8 @@ export interface Settings { company: Company; registerId: string; taxRules: TaxR
 export interface AuditEntry { id: number; at: string; actor: string; action: string; entityId: string; details: unknown; hash: string; previousHash: string }
 export interface Bootstrap {
   mode: 'training'; actor: Actor; menu: MenuItem[]; tables: DiningTable[]; tabs: Tab[];
+  testEnvironment?: 'safe-test';
+  testRoundId?: string;
   tickets: Ticket[]; payments: Payment[]; receipts: Receipt[]; printJobs: PrintJob[];
   days: BusinessDay[]; currentDay: BusinessDay | null; report: DayReport | null;
   settings: Settings; staff: Staff[]; devices: Device[];

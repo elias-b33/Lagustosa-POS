@@ -10,7 +10,7 @@ try {
   & npm.cmd run build
   if ($LASTEXITCODE -ne 0) { throw 'Bygget misslyckades.' }
   New-Item -ItemType Directory -Path $packagePath -Force | Out-Null
-  foreach ($item in @('dist','vendor','scripts','package.json','package-lock.json','README.md','.env.example','Start-Lagustosa.cmd')) {
+  foreach ($item in @('dist','vendor','scripts','package.json','package-lock.json','README.md','TEST-GUIDE.md','.env.example','Start-Lagustosa.cmd','Start-Testmiljo.cmd','Stoppa-Testmiljo.cmd','Ny-Testomgang.cmd')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $item) -Destination $packagePath -Recurse
   }
   New-Item -ItemType Directory -Path (Join-Path $packagePath 'runtime') | Out-Null
@@ -20,8 +20,31 @@ try {
     & npm.cmd ci --omit=dev --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Installation av driftberoenden misslyckades.' }
   } finally { Pop-Location }
+  $sourceCommit = $null
+  $workingTreeDirty = $null
+  if (Get-Command git.exe -ErrorAction SilentlyContinue) {
+    $sourceCommit = & git.exe -C $projectRoot rev-parse HEAD 2>$null
+    if ($LASTEXITCODE -eq 0) { $workingTreeDirty = [bool](& git.exe -C $projectRoot status --porcelain) } else { $sourceCommit = $null }
+  }
+  $buildInfo = [ordered]@{
+    application = 'Lagustosa POS'
+    mode = 'training'
+    createdAt = [DateTime]::UtcNow.ToString('o')
+    sourceCommit = $sourceCommit
+    workingTreeDirty = $workingTreeDirty
+    nodeVersion = (& node.exe --version)
+    architecture = (& node.exe -p 'process.arch')
+    payment = 'simulator'
+    fiscal = 'simulator'
+    print = 'preview'
+    defaultLauncher = 'Start-Testmiljo.cmd'
+  }
+  [System.IO.File]::WriteAllText((Join-Path $packagePath 'BUILD-INFO.json'), ($buildInfo | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $zipPath = Join-Path $releaseRoot ($releaseName + '.zip')
   [System.IO.Compression.ZipFile]::CreateFromDirectory($packagePath, $zipPath)
+  $sha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  [System.IO.File]::WriteAllText(($zipPath + '.sha256'), ($sha256 + '  ' + [System.IO.Path]::GetFileName($zipPath) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
   Write-Output ('Windows-paket skapat: ' + $zipPath)
+  Write-Output ('SHA-256: ' + $sha256)
 } finally { Pop-Location }

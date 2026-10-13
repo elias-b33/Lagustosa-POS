@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { Bootstrap, Tab } from '../../shared/types';
 
 test.describe.configure({ mode: 'serial' });
@@ -35,10 +39,56 @@ async function sentTab(page: Page): Promise<Tab> {
   return tab;
 }
 
+test('en ny testomgång bevarar gamla försök utan att blanda dem med nya betalningar', async ({ browser }) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'lagustosa-round-browser-'));
+  const reservation = createServer();
+  await new Promise<void>(resolve => { reservation.listen(0, '127.0.0.1', resolve); });
+  const address = reservation.address();
+  if (!address || typeof address === 'string') throw new Error('Test port missing');
+  const port = address.port;
+  await new Promise<void>(resolve => { reservation.close(() => resolve()); });
+  const cli = (action: string) => spawnSync(process.execPath, ['scripts/safe-test.mjs', action, '--root', root, '--port', String(port), '--no-browser'], { encoding: 'utf8', windowsHide: true, timeout: 35000 });
+  const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
+  try {
+    const started = cli('start'); expect(started.status, started.stdout + started.stderr).toBe(0);
+    const page = await context.newPage(); await login(page);
+    const oldRound: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+    const originalTab = await sentTab(page);
+    await page.route(`**/api/v1/tabs/${originalTab.id}/payments`, route => route.abort('failed'));
+    const modal = page.getByRole('dialog', { name: 'Ta betalt' });
+    await modal.getByRole('button', { name: /^Simulera betalning/ }).click();
+    await expect(modal.getByText('Betalningsförsöket är sparat på enheten', { exact: true })).toBeVisible();
+    const stored = await page.evaluate(id => Object.entries(localStorage).filter(([key, value]) => key.startsWith('lagustosa.payment-attempts.v1:') && value.includes(id)), originalTab.id);
+    expect(stored).toHaveLength(1);
+    await modal.getByRole('button', { name: 'Stäng', exact: true }).click();
+    const fresh = cli('new-session'); expect(fresh.status, fresh.stdout + fresh.stderr).toBe(0);
+    await login(page);
+    const freshRound: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+    expect(freshRound.testRoundId).not.toBe(oldRound.testRoundId);
+    expect(freshRound.tabs).toEqual([]); expect(freshRound.payments).toEqual([]);
+    await expect(page.locator('.recovery-banner')).toHaveCount(0);
+    expect(await page.evaluate(keys => keys.map(key => [key, localStorage.getItem(key)]), stored.map(([key]) => key))).toEqual(stored);
+    const newTab = await sentTab(page);
+    const payment = page.getByRole('dialog', { name: 'Ta betalt' });
+    await expect(payment.getByLabel('Dricks i kronor')).toBeEnabled();
+    await payment.getByRole('button', { name: /^Simulera betalning/ }).click();
+    await expect(payment.getByRole('heading', { name: 'Betalningen är godkänd' })).toBeVisible();
+    const results: Bootstrap = await (await page.request.get('/api/v1/bootstrap')).json();
+    expect(results.payments).toHaveLength(1); expect(results.payments[0].tabId).toBe(newTab.id); expect(results.receipts).toHaveLength(1);
+    expect(await page.evaluate(keys => keys.map(key => [key, localStorage.getItem(key)]), stored.map(([key]) => key))).toEqual(stored);
+  } finally {
+    await context.close();
+    const stopped = cli('stop'); expect(stopped.status, stopped.stdout + stopped.stderr).toBe(0);
+    if (!path.resolve(root).startsWith(path.resolve(tmpdir()) + path.sep) || !path.basename(root).startsWith('lagustosa-round-browser-')) throw new Error('Invalid cleanup directory');
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('inloggningen har synlig startknapp på en mindre datorskärm och mobil', async ({ page }) => {
   await mkdir('artifacts', { recursive: true });
   await page.goto('/');
   await expect(page.getByLabel('Personal', { exact: true })).toBeVisible();
+  await expect(page.getByText('SÄKER TESTMILJÖ', { exact: true })).toBeVisible();
   for (const design of ['professional', 'classic'] as const) {
     await page.getByLabel('Utseende', { exact: true }).selectOption(design);
     for (const [name, width, height] of [['compact', 1280, 720], ['phone', 390, 844], ['small-phone', 320, 812]] as const) {

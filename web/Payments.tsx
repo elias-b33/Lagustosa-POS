@@ -28,7 +28,7 @@ export function PaymentModal({ tabId, onClose, ...props }: WorkspaceProps & { ta
   const [swishVerified, setSwishVerified] = useState(false);
   const [resultId, setResultId] = useState<string | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
-  const { attempts, storageError, remember, forget } = usePaymentAttempts(data.actor);
+  const { attempts, storageError, remember, forget } = usePaymentAttempts(data.actor, data.testRoundId);
   const attempt = attempts.find((entry): entry is Extract<PaymentAttempt, { kind: 'sale' }> => entry.kind === 'sale' && entry.targetId === tabId);
   const recovered = attempt ? data.payments.find(payment => payment.key === attempt.input.key) : undefined;
   useEffect(() => {
