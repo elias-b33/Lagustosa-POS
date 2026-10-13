@@ -22,6 +22,12 @@ const workingRoles = ['admin', 'cashier', 'waiter'];
 const authorizedRoles = ['admin', 'cashier'];
 const reservedStatuses = ['approved', 'pending', 'unknown'];
 
+function allocateRemainingVat(totalGross: number, totalVat: number, usedGross: number, usedVat: number, gross: number): number {
+  // A declined earlier reservation can change the remaining VAT ratio. Allocate
+  // from the balance instead of subtracting an old cumulative rounding result.
+  return gross === 0 ? 0 : roundRatio((totalVat - usedVat) * gross, totalGross - usedGross);
+}
+
 export class KassaService {
   readonly paymentAdapter: PaymentAdapter;
   readonly fiscalAdapter: FiscalAdapter;
@@ -232,6 +238,7 @@ export class KassaService {
           this.require(actor, authorizedRoles);
           demand(input.reason && input.reason.trim().length >= 3, 'Ange orsak till makuleringen.');
           this.makeTickets(tab, [line], actor, 'cancel', input.reason);
+          this.cancelTicketLine(tab.id, line.id, actor, input.reason);
         }
         line.status = 'void';
       } else if (input.action === 'send' || input.action === 'fire') {
@@ -296,12 +303,29 @@ export class KassaService {
       this.log(actor, 'ticket.create', ticket.id, { ticket });
     }
   }
+  cancelTicketLine(tabId: string, lineId: string, actor: Actor, reason: string): void {
+    for (const ticket of this.store.all<Ticket>('ticket').filter(ticket => ticket.tabId === tabId && ticket.kind === 'order' && ticket.items.some(item => item.id === lineId && item.status !== 'void'))) {
+      for (const item of ticket.items) if (item.id === lineId) item.status = 'void';
+      ticket.updatedAt = this.timestamp();
+      this.store.put('ticket', ticket);
+      const updatedPrintIds: string[] = [];
+      for (const job of this.store.all<PrintJob>('print').filter(job => job.sourceId === ticket.id && job.status === 'queued')) {
+        // A queued copy retains its original snapshot and is never silently
+        // replaced. The cancellation bong still accompanies every cancellation.
+        if (job.reprintOf) continue;
+        this.store.put('print', { ...job, text: ticketText(ticket) });
+        updatedPrintIds.push(job.id);
+      }
+      this.log(actor, 'ticket.line_cancelled', ticket.id, { lineId, reason, updatedPrintIds });
+    }
+  }
   updateTicket(actor: Actor, id: string, status: Ticket['status']): Ticket {
     const ticket = this.store.get<Ticket>('ticket', id);
     demand(ticket, 'Beställningen finns inte.', 404);
     if (actor.device.kind === 'display') demand(actor.device.station === ticket.station, 'Enheten tillhör en annan station.', 403);
     this.require(actor, [...workingRoles, ticket.station]);
     return this.store.atomic(() => {
+      demand(ticket.kind !== 'order' || ticket.items.some(item => item.status !== 'void'), 'Alla rätter på beställningen är makulerade.', 409, 'TICKET_CANCELLED');
       const progression = ['queued', 'started', 'ready', 'served'];
       demand(progression.indexOf(status) === progression.indexOf(ticket.status) + 1 || status === ticket.status, 'Uppdatera beställningen ett steg åt gången.', 409);
       ticket.status = status;
@@ -351,7 +375,7 @@ export class KassaService {
     return candidates.flatMap(({ line, usedGross, usedVat }, index) => {
       const grossOre = portions[index];
       if (grossOre === 0 && totals.grossOre !== 0) return [];
-      return [{ lineId: line.lineId, grossOre, vatOre: line.grossOre === 0 ? 0 : roundRatio(line.vatOre * (usedGross + grossOre), line.grossOre) - usedVat, vatBps: line.vatBps }];
+      return [{ lineId: line.lineId, grossOre, vatOre: allocateRemainingVat(line.grossOre, line.vatOre, usedGross, usedVat, grossOre), vatBps: line.vatBps }];
     });
   }
   async startPayment(actor: Actor, tabId: string, input: PaymentInput): Promise<Payment> {
@@ -445,16 +469,21 @@ export class KassaService {
     const receipt = this.store.get<Receipt>('receipt', id);
     demand(receipt, 'Kvittot finns inte.', 404);
     if (receipt.fiscalStatus === 'confirmed') return receipt;
-    const result = await this.fiscalAdapter.lookup(id);
-    this.store.atomic(() => {
-      const latest = this.store.get<Receipt>('receipt', id)!;
-      if (latest.fiscalStatus === 'confirmed') return;
-      latest.fiscalStatus = result.status;
-      latest.controlCode = result.controlCode;
-      this.store.put('receipt', latest);
-      if (result.status === 'confirmed') this.queuePrint('guest', latest.id, receiptText(latest));
-      this.log(actor, 'fiscal.verify', id, result);
-    });
+    if (this.fiscalInFlight.has(id)) return receipt;
+    this.fiscalInFlight.add(id);
+    try {
+      let result = await this.fiscalAdapter.lookup(id);
+      if (result.status === 'unknown' && this.fiscalAdapter.recoverMissing) result = await this.fiscalAdapter.recoverMissing(receipt);
+      this.store.atomic(() => {
+        const latest = this.store.get<Receipt>('receipt', id)!;
+        if (latest.fiscalStatus === 'confirmed') return;
+        latest.fiscalStatus = result.status;
+        latest.controlCode = result.controlCode;
+        this.store.put('receipt', latest);
+        if (result.status === 'confirmed') this.queuePrint('guest', latest.id, receiptText(latest));
+        this.log(actor, 'fiscal.verify', id, result);
+      });
+    } finally { this.fiscalInFlight.delete(id); }
     this.notify();
     return this.store.get<Receipt>('receipt', id)!;
   }
@@ -477,7 +506,7 @@ export class KassaService {
       const weights = remaining.map(entry => entry.allocation.grossOre - entry.usedGross);
       demand(input.amountOre > 0 && input.amountOre <= weights.reduce((sum, amount) => sum + amount, 0), 'Returbeloppet överstiger vad som återstår att återbetala.');
       const portions = distribute(input.amountOre, weights);
-      const allocations = remaining.flatMap(({ allocation, usedGross, usedVat }, index) => portions[index] ? [{ lineId: allocation.lineId, grossOre: portions[index], vatOre: roundRatio(allocation.vatOre * (usedGross + portions[index]), allocation.grossOre) - usedVat, vatBps: allocation.vatBps }] : []);
+      const allocations = remaining.flatMap(({ allocation, usedGross, usedVat }, index) => portions[index] ? [{ lineId: allocation.lineId, grossOre: portions[index], vatOre: allocateRemainingVat(allocation.grossOre, allocation.vatOre, usedGross, usedVat, portions[index]), vatBps: allocation.vatBps }] : []);
       const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId: parent.tabId, dayId: day.id, kind: 'refund', parentId, method: parent.method, status: 'pending', amountOre: input.amountOre, tipOre: 0, allocations, tenderedOre: null, changeOre: 0, reason: input.reason, simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id };
       this.store.put('payment', payment);
       this.log(actor, 'refund.start', payment.id, { payment });

@@ -29,7 +29,7 @@ export function ticketText(ticket: Ticket): string {
     'TEST · KÖK / BAR', ticket.kind === 'cancel' ? 'MAKULERING — STOPPA RÄTT' : ticket.station === 'bar' ? 'BARBESTÄLLNING' : 'KÖKSBESTÄLLNING',
     ticket.tabLabel, ...(ticket.movedFrom ? [`FLYTTAT FRÅN ${ticket.movedFrom}`] : []), new Date(ticket.createdAt).toLocaleTimeString('sv-SE', { timeZone: 'Europe/Stockholm' }), divider,
     ...ticket.items.flatMap(line => [
-      `${line.quantity} × ${line.name}`, `Gäst ${line.guest || 'gemensamt'} · ${line.course}`,
+      `${line.status === 'void' ? 'MAKULERAD — TILLAGA INTE: ' : ''}${line.quantity} × ${line.name}`, `Gäst ${line.guest || 'gemensamt'} · ${line.course}`,
       ...line.modifiers.map(modifier => `  + ${modifier.name}`), ...(line.notes ? [`! ${line.notes}`] : []), '',
     ]), ...(ticket.reason ? [`Orsak: ${ticket.reason}`] : []), divider,
   ].join('\n');

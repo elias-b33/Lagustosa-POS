@@ -13,6 +13,9 @@ export interface FiscalAdapter {
   readonly kind: 'simulator' | 'live';
   register(receipt: Receipt, simulation?: 'confirmed' | 'unknown'): Promise<FiscalResult>;
   lookup(receiptId: string): Promise<FiscalResult>;
+  // Optional recovery only for adapters that can prove an absent registration
+  // and idempotently register that same receipt. Unknown live state is not proof.
+  recoverMissing?(receipt: Receipt): Promise<FiscalResult>;
 }
 export interface PrintAdapter {
   readonly kind: 'preview' | 'live';
@@ -51,6 +54,10 @@ export class SimulatorFiscalAdapter implements FiscalAdapter {
   async lookup(receiptId: string): Promise<FiscalResult> {
     const entry = this.store.get<{ controlCode: string }>('fiscal-simulator', receiptId);
     return entry ? { status: 'confirmed', controlCode: entry.controlCode } : { status: 'unknown', controlCode: null };
+  }
+  async recoverMissing(receipt: Receipt): Promise<FiscalResult> {
+    // The simulator's durable store is authoritative; register reuses receipt.id.
+    return this.register(receipt);
   }
 }
 

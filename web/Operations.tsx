@@ -11,17 +11,37 @@ import type { PaymentAttempt } from './payment-attempts';
 
 export function StationView({ station, ...props }: WorkspaceProps & { station: Station }) {
   const { data, busy, run } = props;
-  const [showServed, setShowServed] = useState(false);
-  const tickets = data.tickets.filter(ticket => ticket.station === station && (showServed ? ticket.status === 'served' : ticket.status !== 'served'));
+  const [showHistory, setShowHistory] = useState(false);
+  const fullyCancelled = (ticket: Ticket) => ticket.kind !== 'cancel' && ticket.items.length > 0 && ticket.items.every(line => line.status === 'void');
+  const stationTickets = data.tickets.filter(ticket => ticket.station === station);
+  const activeTickets = stationTickets.filter(ticket => ticket.status !== 'served' && !fullyCancelled(ticket));
+  const tickets = showHistory ? stationTickets.filter(ticket => ticket.status === 'served' || fullyCancelled(ticket)) : activeTickets;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 15000);
     return () => clearInterval(timer);
   }, []);
-  return <section className="station-view"><div className="section-heading"><div><span className="eyebrow">{station === 'kitchen' ? 'FRÅN FÖRSTA BONG TILL SISTA RÄTT' : 'DRYCK MED KÄNSLA FÖR TIMING'}</span><h2>{station === 'kitchen' ? 'Kökets beställningar' : 'Barens beställningar'}</h2></div><button className="text-button" onClick={() => setShowServed(current => !current)}>{showServed ? 'Visa pågående' : 'Visa serverade'}</button></div><div className="station-summary"><span><i className="status-dot" /> {tickets.filter(ticket => ticket.status === 'queued').length} nya</span><span>{tickets.filter(ticket => ticket.status === 'started').length} påbörjade</span><span className="green-text">{tickets.filter(ticket => ticket.status === 'ready').length} klara att servera</span><span className="muted">Uppdateras automatiskt</span></div>{tickets.length ? <div className="ticket-grid">{tickets.map(ticket => {
+  return <section className="station-view"><div className="section-heading"><div><span className="eyebrow">{station === 'kitchen' ? 'FRÅN FÖRSTA BONG TILL SISTA RÄTT' : 'DRYCK MED KÄNSLA FÖR TIMING'}</span><h2>{station === 'kitchen' ? 'Kökets beställningar' : 'Barens beställningar'}</h2></div><button className="text-button" onClick={() => setShowHistory(current => !current)}>{showHistory ? 'Visa pågående' : 'Visa historik'}</button></div><div className="station-summary"><span><i className="status-dot" /> {activeTickets.filter(ticket => ticket.status === 'queued').length} nya</span><span>{activeTickets.filter(ticket => ticket.status === 'started').length} påbörjade</span><span className="green-text">{activeTickets.filter(ticket => ticket.status === 'ready').length} klara att servera</span><span className="muted">Uppdateras automatiskt</span></div>{tickets.length ? <div className="ticket-grid">{tickets.map(ticket => {
     const next: Record<Ticket['status'], Ticket['status']> = { queued: 'started', started: 'ready', ready: 'served', served: 'served' };
-    return <article className={`ticket ${ticket.status} ${ticket.kind === 'cancel' ? 'cancel-ticket' : ''}`} key={ticket.id}><header><div><span className="eyebrow">{ticket.kind === 'cancel' ? 'MAKULERING' : station === 'kitchen' ? 'KÖKSBONG' : 'BARBONG'}</span><h3>{ticket.tabLabel}</h3></div>{station === 'kitchen' ? <ChefHat size={24} /> : <Wine size={24} />}</header>{ticket.movedFrom && <p className="kitchen-note">Flyttat från {ticket.movedFrom} till {ticket.tabLabel}</p>}<div className="ticket-meta"><span><Clock3 size={13} />{Math.max(0, Math.round((now - Date.parse(ticket.createdAt)) / 60000))} min</span><span>{ticket.createdBy}</span><span>{new Date(ticket.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</span></div><div className="ticket-lines">{ticket.items.map(line => <div key={line.id}><strong>{line.quantity} × {line.name}</strong><span>Gäst {line.guest || 'gemensamt'}</span>{line.modifiers.map(modifier => <small key={modifier.id}>+ {modifier.name}</small>)}{line.notes && <p className="kitchen-note">{line.notes}</p>}</div>)}</div>{ticket.reason && <p className="kitchen-note">{ticket.reason}</p>}<div className="ticket-footer"><span className={`tag ${ticket.status}`}>{ticket.status === 'queued' ? 'Ny beställning' : ticket.status === 'started' ? 'Påbörjad' : ticket.status === 'ready' ? 'Klar' : 'Serverad'}</span>{ticket.status !== 'served' && <Action disabled={busy} onClick={() => void run(() => api(`/tickets/${ticket.id}/status`, { status: next[ticket.status] }))}>{ticket.status === 'queued' ? 'Påbörja' : ticket.status === 'started' ? 'Markera klar' : 'Serverad'}{ticket.status === 'started' ? <Check size={16} /> : <ArrowRight size={16} />}</Action>}</div></article>;
-  })}</div> : <Empty title={showServed ? 'Inga serverade bongar' : 'Lugnt i stationen'} text={showServed ? 'Avslutade beställningar visas här.' : 'Nya beställningar visas här så fort de skickas från serveringen.'} />}</section>;
+    const cancelled = fullyCancelled(ticket);
+    return <article className={`ticket ${cancelled ? 'void-ticket' : ticket.status} ${ticket.kind === 'cancel' ? 'cancel-ticket' : ''}`} key={ticket.id}>
+      <header><div><span className="eyebrow">{ticket.kind === 'cancel' ? 'MAKULERING' : station === 'kitchen' ? 'KÖKSBONG' : 'BARBONG'}</span><h3>{ticket.tabLabel}</h3></div>{station === 'kitchen' ? <ChefHat size={24} /> : <Wine size={24} />}</header>
+      {ticket.movedFrom && <p className="kitchen-note">Flyttat från {ticket.movedFrom} till {ticket.tabLabel}</p>}
+      <div className="ticket-meta"><span><Clock3 size={13} />{Math.max(0, Math.round((now - Date.parse(ticket.createdAt)) / 60000))} min</span><span>{ticket.createdBy}</span><span>{new Date(ticket.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}</span></div>
+      <div className="ticket-lines">{ticket.items.map(line => {
+        const lineCancelled = ticket.kind !== 'cancel' && line.status === 'void';
+        return <div className={lineCancelled ? 'ticket-line-void' : undefined} key={line.id}>
+          <strong>{line.quantity} × {lineCancelled ? <s>{line.name}</s> : line.name}</strong>
+          {lineCancelled && <span className="ticket-line-void-label">Makulerad</span>}
+          <span>Gäst {line.guest || 'gemensamt'}</span>
+          {line.modifiers.map(modifier => <small key={modifier.id}>+ {modifier.name}</small>)}
+          {line.notes && <p className="kitchen-note">{line.notes}</p>}
+        </div>;
+      })}</div>
+      {ticket.reason && <p className="kitchen-note">{ticket.reason}</p>}
+      <div className="ticket-footer"><span className={`tag ${cancelled ? 'void' : ticket.status}`}>{cancelled ? 'Makulerad' : ticket.status === 'queued' ? 'Ny beställning' : ticket.status === 'started' ? 'Påbörjad' : ticket.status === 'ready' ? 'Klar' : 'Serverad'}</span>{!cancelled && ticket.status !== 'served' && <Action disabled={busy} onClick={() => void run(() => api(`/tickets/${ticket.id}/status`, { status: next[ticket.status] }))}>{ticket.status === 'queued' ? 'Påbörja' : ticket.status === 'started' ? 'Markera klar' : 'Serverad'}{ticket.status === 'started' ? <Check size={16} /> : <ArrowRight size={16} />}</Action>}</div>
+    </article>;
+  })}</div> : <Empty title={showHistory ? 'Ingen bonghistorik ännu' : 'Lugnt i stationen'} text={showHistory ? 'Serverade och helt makulerade beställningar visas här.' : 'Nya beställningar visas här så fort de skickas från serveringen.'} />}</section>;
 }
 
 export function ReportsView(props: WorkspaceProps) {

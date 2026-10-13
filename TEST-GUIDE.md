@@ -53,6 +53,13 @@ Byt **Utseende → Cotto / Professionell / Klassisk** medan en nota är öppen. 
 
 Prova också en liten kontantnota från huvudkassan och kontrollera växel. Serveringsenheterna tillåter inte kontantförsäljning.
 
+Prova de uppdaterade beställnings- och betalningsflödena:
+
+- Välj ingen aktuell nota och tryck på **Antipasto della casa**. Öppna disknotan: samma rätt ska öppnas direkt och kräva val av storlek.
+- Öppna en rätt med tillval. Om menyn ändras från en annan enhet visas en uppmaning att kontrollera pris och val. Ett borttaget obligatoriskt tillval måste väljas på nytt; antal och anteckning bevaras.
+- Makulera en skickad rätt med orsak. Köket får en separat makuleringsbong; raden i originalbongen märks **Makulerad**. En helt makulerad originalbong finns under **Visa historik** och kan inte startas igen.
+- Vid flera Swish-delbetalningar ska varje ny del kräva en egen verifiering. Vid kontant delbetalning ska mottaget belopp anges på nytt. Dricks börjar på noll för nästa del.
+
 ## Flera enheter och avbrott
 
 - Logga in två serveringsprofiler på olika enheter/webbläsarprofiler. Lägg artiklar på samma bord och kontrollera att båda ser ändringarna.
