@@ -1,25 +1,35 @@
 import { calculateTab, money } from './money';
+import { allocationQuantity, quantityLabel } from './allocations';
 import type { Receipt } from './types';
 
 export const receiptMethodNames = { card: 'Kort', swish: 'Swish', cash: 'Kontanter' };
 export const vatRateLabel = (rateBps: number): string => `${String(rateBps / 100).replace('.', ',')} %`;
 
-// A payment can settle an amount of a row without settling an integer number
-// of items. Keep the original quantity as a reference, never as a new sale.
+// Amount sharing records exact economic quantities. Legacy records retain
+// their saved reference row; their missing allocation history is not invented.
 export function receiptRows(receipt: Receipt) {
   const totals = calculateTab(receipt.tab);
   return receipt.payment.allocations.map(allocation => {
     const line = receipt.tab.lines.find(candidate => candidate.id === allocation.lineId);
     const total = totals.lines.find(candidate => candidate.lineId === allocation.lineId);
     if (!line || !total) throw new Error('Kvittots artikelunderlag saknas.');
+    const quantity = allocationQuantity(allocation);
+    const share = allocation.quantityBasis === 'amount-share';
     const wholeRow = allocation.grossOre === total.grossOre;
     const item = `${line.quantity} × ${line.name}`;
+    const label = quantity
+      ? `${share ? `${receipt.kind === 'refund' ? 'Delretur' : 'Delbelopp'} · ` : ''}${quantityLabel(quantity)} × ${line.name}`
+      : wholeRow ? item : `${receipt.kind === 'refund' ? 'Delretur' : 'Delbelopp'} av ${item}`;
+    const allocatedDiscount = allocation.discountOre;
     return {
-      lineId: line.id, grossOre: allocation.grossOre,
-      label: wholeRow ? item : `${receipt.kind === 'refund' ? 'Delretur' : 'Delbelopp'} av ${item}`,
+      lineId: line.id, grossOre: allocation.grossOre, quantity, quantityBasis: allocation.quantityBasis ?? null, label,
       details: [
-        wholeRow ? `À ${money(line.unitPriceOre)}` : `Referens: hela raden ${money(total.grossOre)} · à ${money(line.unitPriceOre)}`,
-        ...(total.discountOre > 0 ? [`${wholeRow ? 'Rabatt' : 'Rabatt på referensraden'}: ${money(total.discountOre)}`] : []),
+        quantity && !share || !quantity && wholeRow ? `À ${money(line.unitPriceOre)}` : `Referens: hela raden ${money(total.grossOre)} · ${line.quantity} st · à ${money(line.unitPriceOre)}`,
+        ...(share ? ['Antalet är en ekonomisk andel av artikelraden.'] : []),
+        ...(!quantity ? ['Äldre kvitto: separat artikelantal per betalning saknas.'] : []),
+        ...(allocatedDiscount !== undefined
+          ? allocatedDiscount > 0 ? [`Rabatt: ${money(allocatedDiscount)}`] : []
+          : total.discountOre > 0 ? [`${wholeRow ? 'Rabatt' : 'Rabatt på referensraden'}: ${money(total.discountOre)}`] : []),
         `Gäst ${line.guest || 'gemensamt'}`,
         ...line.modifiers.map(modifier => `+ ${modifier.name}`),
       ],

@@ -47,7 +47,7 @@ export class SimulatorFiscalAdapter implements FiscalAdapter {
   constructor(private store: Store) {}
   async register(receipt: Receipt, simulation: 'confirmed' | 'unknown' = 'confirmed'): Promise<FiscalResult> {
     const existing = this.store.get<{ id: string; controlCode: string }>('fiscal-simulator', receipt.id);
-    const controlCode = existing?.controlCode ?? `TEST-${digest(JSON.stringify([receipt.number, receipt.payment.amountOre, receipt.createdAt])).slice(0, 20).toUpperCase()}`;
+    const controlCode = existing?.controlCode ?? `TEST-${digest(JSON.stringify([receipt.id, receipt.registerId, receipt.number, receipt.payment.amountOre, receipt.createdAt])).slice(0, 20).toUpperCase()}`;
     this.store.put('fiscal-simulator', { id: receipt.id, controlCode });
     return simulation === 'unknown' ? { status: 'unknown', controlCode: null } : { status: 'confirmed', controlCode };
   }

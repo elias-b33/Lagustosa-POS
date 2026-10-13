@@ -19,7 +19,7 @@ export function seedRestaurantMenu(store: Store, at: string): boolean {
     if (!store.get('menu-archive', migrationId)) store.put('menu-archive', { id: migrationId, at, previous });
     for (const item of items) store.put('menu', item);
     store.put('meta', { id: migrationId, at, source: restaurantMenuSource, itemCount: items.length });
-    store.audit('system', 'menu.catalog_imported', restaurantMenuSource.id, { source: restaurantMenuSource, itemCount: items.length, previousCount: previous.length, archiveId: migrationId }, at);
+    store.audit('system', 'menu.catalog_imported', restaurantMenuSource.id, { source: restaurantMenuSource, itemCount: items.length, previousCount: previous.length, archiveId: migrationId, registerId: null }, at);
     return true;
   });
 }

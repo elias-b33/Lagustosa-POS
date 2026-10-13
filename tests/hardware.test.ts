@@ -28,7 +28,11 @@ describe('Restaurangens åtta skärmar och tre skrivare', () => {
       { kind: 'kitchen', printerId: 'printer-kitchen' }, { kind: 'bar', printerId: 'printer-bar' },
       { kind: 'guest', printerId: 'printer-guest' }, { kind: 'closing', printerId: 'printer-guest' }, { kind: 'drawer', printerId: 'printer-guest' },
     ]));
-    expect(sent).toHaveLength(5); expect(f.store.verifyJournal()).toBe(true);
+    expect(sent).toHaveLength(10);
+    expect(sent.filter(job => job.kind === 'closing')).toHaveLength(6);
+    const closingJobs = jobs.filter(job => job.kind === 'closing');
+    for (const register of f.service.bootstrap(f.admin).registers!) expect(closingJobs.some(job => job.text.includes(register.id))).toBe(true);
+    expect(f.store.verifyJournal()).toBe(true);
   });
 
   it('behåller köade jobb på avstängd skrivare och kräver ett journalfört byte till rätt station', async () => {

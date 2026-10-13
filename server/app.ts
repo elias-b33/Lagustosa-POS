@@ -10,7 +10,9 @@ import { AppError, demand } from './errors';
 import { KassaService } from './service';
 import type { Actor, BusinessDay } from '../shared/types';
 import * as schema from './validation';
-import { exportCsv, exportXml, exportJournalJson, validJournalDate } from './export';
+import { exportCsv, exportXml, exportJournalJson, journalExportCoverage, validJournalDate } from './export';
+
+const journalQuery = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), registerId: z.string().min(1).max(72).optional() }).strict();
 
 export interface AppOptions {
   database: string; backupDir?: string; webDir?: string;
@@ -139,6 +141,14 @@ export async function createApp(options: AppOptions) {
     return day;
   });
   app.get('/api/v1/business-days/:id/report', async request => service.takeReport(actor(request), paramId(request)));
+  app.get('/api/v1/business-days/:id/register-reports.json', async (request, reply) => {
+    const query = z.object({ registerId: z.string().min(1).max(72).optional() }).strict().parse(request.query);
+    const report = service.takeReport(actor(request), paramId(request));
+    const reports = (report.registers ?? []).filter(entry => !query.registerId || entry.registerId === query.registerId || entry.legacyRegisterId === query.registerId);
+    demand(!query.registerId || reports.length > 0, 'Kassan finns inte i denna dagsrapport.', 404);
+    reply.type('application/json; charset=utf-8').header('Content-Disposition', 'attachment; filename="lagustosa-register-reports-test.json"');
+    return { mode: 'training', dayId: report.dayId, reports };
+  });
   app.get('/api/v1/business-days/:id/report.csv', async (request, reply) => {
     service.require(actor(request), ['admin', 'cashier']);
     const day = store.get<BusinessDay>('day', paramId(request));
@@ -149,22 +159,27 @@ export async function createApp(options: AppOptions) {
   app.get('/api/v1/journal.xml', async (request, reply) => {
     const identity = actor(request);
     service.require(identity, ['admin', 'cashier']);
-    const query = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional() }).strict().parse(request.query);
-    const xml = exportXml(store, identity.staff.name, service.timestamp(), query.from, query.to);
+    const query = journalQuery.parse(request.query);
+    const xml = exportXml(store, identity.staff.name, service.timestamp(), query.from, query.to, query.registerId, service.registerFor(identity).id);
     reply.type('application/xml; charset=utf-8').header('Content-Disposition', 'attachment; filename="lagustosa-journal-test.xml"');
-    service.log(identity, 'journal.export', 'journal', query);
+    service.log(identity, 'journal.export', 'journal', { from: query.from, to: query.to, selectedRegisterId: query.registerId ?? null });
     return xml;
   });
   app.get('/api/v1/journal.json', async (request, reply) => {
     const identity = actor(request);
     service.require(identity, ['admin']);
-    const query = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional() }).strict().parse(request.query);
-    const json = exportJournalJson(store, identity.staff.name, service.timestamp(), query.from, query.to);
+    const query = journalQuery.parse(request.query);
+    const json = exportJournalJson(store, identity.staff.name, service.timestamp(), query.from, query.to, query.registerId, service.registerFor(identity).id);
     reply.type('application/json; charset=utf-8').header('Content-Disposition', 'attachment; filename="lagustosa-journal-test.json"');
-    service.log(identity, 'journal.export_json', 'journal', query);
+    service.log(identity, 'journal.export_json', 'journal', { from: query.from, to: query.to, selectedRegisterId: query.registerId ?? null });
     return json;
   });
   app.get('/api/v1/journal', async request => { service.require(actor(request), ['admin']); return { intact: store.verifyJournal(), entries: store.journal() }; });
+  app.get('/api/v1/journal/coverage', async request => {
+    service.require(actor(request), ['admin', 'cashier']);
+    const query = journalQuery.parse(request.query);
+    return journalExportCoverage(store, service.timestamp(), query.from, query.to, query.registerId);
+  });
   app.put('/api/v1/settings', async request => service.saveSettings(actor(request), schema.settingsSchema.parse(request.body)));
   app.put('/api/v1/staff/:id', async request => {
     const input = schema.staffSchema.parse(request.body);

@@ -4,16 +4,20 @@ import path from 'node:path';
 import type { Actor, Allocation, Bootstrap, BusinessDay, CashMovement, DayReport, Device, DeviceConnection, DiningTable, MenuItem, OrderLine, Payment, PaymentStatus, PrintJob, PrinterProfile, Receipt, Settings, Staff, Station, Tab, Ticket } from '../shared/types';
 import { cashMovementSchema, type CashMovementInput } from '../shared/cash-inputs';
 import { calculateTab, distribute, paidOre, roundRatio, taxRate } from '../shared/money';
+import { allocateAmount, allocateQuantity, allocationQuantity, compareQuantities, rationalQuantity, remainingAllocation } from '../shared/allocations';
 import { Store, digest, hashPin, verifyPin } from './db';
 import { AppError, demand } from './errors';
 import type { PaymentAdapter, FiscalAdapter, PrintAdapter } from './adapters';
 import { PreviewPrintAdapter, SimulatorFiscalAdapter, SimulatorPaymentAdapter } from './adapters';
 import { seed, seedPrinters, type StoredDevice, type StoredStaff } from './seed';
 import type { PaymentInput, RefundInput, TabCommand } from './validation';
-import { closingText, receiptText, ticketText } from './printing';
+import { closingText, receiptText, registerReportText, ticketText } from './printing';
 import { printerDestination } from '../shared/printers';
 import { orderedMenu, seedRestaurantMenu } from './menu-catalog';
-import { trainingReportDetails } from './reporting';
+import { buildRegisterReports, trainingReportDetails } from './reporting';
+import { enrolRegister, type RegisterIdentity } from './registers';
+import { sealBackup } from '../scripts/backup-manifest.mjs';
+import { isTabQuantitySettled } from '../shared/allocations';
 
 interface ServiceOptions {
   now?: () => Date; notify?: () => void; backupDir?: string;
@@ -23,12 +27,6 @@ interface SessionResult { actor: Actor; token: string; expiresAt: string }
 const workingRoles = ['admin', 'cashier', 'waiter'];
 const authorizedRoles = ['admin', 'cashier'];
 const reservedStatuses = ['approved', 'pending', 'unknown'];
-
-function allocateRemainingVat(totalGross: number, totalVat: number, usedGross: number, usedVat: number, gross: number): number {
-  // A declined earlier reservation can change the remaining VAT ratio. Allocate
-  // from the balance instead of subtracting an old cumulative rounding result.
-  return gross === 0 ? 0 : roundRatio((totalVat - usedVat) * gross, totalGross - usedGross);
-}
 
 export class KassaService {
   readonly paymentAdapter: PaymentAdapter;
@@ -52,7 +50,13 @@ export class KassaService {
     seed(store);
     seedPrinters(store);
     seedRestaurantMenu(store, this.timestamp());
+    const existingRegisters = store.all<RegisterIdentity>('register');
+    for (const device of this.publicDevices()) enrolRegister(store, device, this.timestamp());
     this.store.atomic(() => {
+      for (const register of existingRegisters) {
+        const device = this.store.get<Device>('device', register.deviceId);
+        if (device?.active && device.kind !== 'display') this.log('system', 'register.restart', register.id, { registerId: register.id, deviceId: register.deviceId });
+      }
       for (const job of this.store.all<PrintJob>('print').filter(entry => entry.printerId === undefined)) {
         const printer = job.status === 'queued' ? this.store.all<PrinterProfile>('printer').find(printer => printer.active && printer.destination === printerDestination(job.kind)) : undefined;
         this.store.put('print', { ...job, printerId: printer?.id ?? null, printerName: printer?.name ?? null });
@@ -60,11 +64,11 @@ export class KassaService {
       }
       for (const payment of this.store.all<Payment>('payment').filter(entry => entry.status === 'pending')) {
         this.store.put('payment', { ...payment, status: 'unknown', updatedAt: this.timestamp() });
-        this.log('system', 'payment.recovered_unknown', payment.id, {});
+        this.log('system', 'payment.recovered_unknown', payment.id, { registerId: payment.registerId ?? null });
       }
       for (const receipt of this.store.all<Receipt>('receipt').filter(entry => entry.fiscalStatus === 'pending')) {
         this.store.put('receipt', { ...receipt, fiscalStatus: 'unknown' });
-        this.log('system', 'fiscal.recovered_unknown', receipt.id, {});
+        this.log('system', 'fiscal.recovered_unknown', receipt.id, { registerId: receipt.registerId });
       }
       for (const job of this.store.all<PrintJob>('print').filter(entry => entry.status === 'printing')) {
         this.store.put('print', { ...job, status: 'uncertain' });
@@ -76,7 +80,19 @@ export class KassaService {
   timestamp(): string { return this.now().toISOString(); }
   date(): string { return this.now().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' }); }
   log(actor: Actor | string, action: string, entityId: string, details: unknown): void {
-    this.store.audit(typeof actor === 'string' ? actor : `${actor.staff.id}@${actor.device.id}`, action, entityId, details, this.timestamp());
+    const values = details && typeof details === 'object' && !Array.isArray(details) ? details as Record<string, unknown> : { value: details };
+    const snapshot = (values.receipt ?? values.payment) as { registerId?: string } | undefined;
+    const registerId = Object.hasOwn(values, 'registerId') ? values.registerId
+      : snapshot ? snapshot.registerId ?? null
+      : typeof actor !== 'string' && actor.device.kind !== 'display' ? this.registerFor(actor).id : null;
+    this.store.audit(typeof actor === 'string' ? actor : `${actor.staff.id}@${actor.device.id}`, action, entityId, { ...values, registerId }, this.timestamp());
+  }
+  registerFor(actor: Actor): RegisterIdentity {
+    const device = this.store.get<Device>('device', actor.device.id);
+    demand(device?.active && device.kind !== 'display', 'En aktiv försäljningsenhet krävs.', 403, 'REGISTER_REQUIRED');
+    const register = enrolRegister(this.store, device, this.timestamp());
+    demand(register, 'Kassans identitet saknas.', 409, 'REGISTER_REQUIRED');
+    return register;
   }
   settings(): Settings { return this.store.get<Settings>('settings', 'settings')!; }
   menu(): MenuItem[] { return orderedMenu(this.store); }
@@ -179,6 +195,7 @@ export class KassaService {
       report: currentDay && authorizedRoles.includes(actor.staff.role) && !station ? this.report(currentDay.id) : null,
       settings: this.settings(), staff: actor.staff.role === 'admin' ? this.publicStaff() : [actor.staff], devices: actor.staff.role === 'admin' ? this.publicDevices() : [actor.device],
       printers: authorizedRoles.includes(actor.staff.role) && !station ? this.store.all<PrinterProfile>('printer') : [], deviceConnections: actor.staff.role === 'admin' && !station ? this.deviceConnections() : [],
+      registers: station ? [] : this.store.all<RegisterIdentity>('register'),
       backup: { ...backup, external: path.parse(path.resolve(this.backupDir)).root.toLowerCase() !== path.parse(path.resolve(this.store.filename)).root.toLowerCase() },
     };
   }
@@ -231,7 +248,7 @@ export class KassaService {
         const modifiers = options.filter(option => chosenIds.includes(option.id));
         const baseUnitOre = tab.serviceMode === 'takeaway' ? item.takeawayPriceOre ?? item.priceOre : item.priceOre;
         const course = input.course ?? item.course;
-        const line: OrderLine = { id: randomUUID(), itemId: item.id, name: item.name, category: item.category, quantity: input.quantity ?? 1, guest, baseUnitOre, unitPriceOre: baseUnitOre + modifiers.reduce((sum, modifier) => sum + modifier.priceOre, 0), vatBps: taxRate(this.settings().taxRules, item.taxClass, tab.serviceMode, this.date()), course, station: item.station, modifiers: structuredClone(modifiers), notes: input.notes ?? '', status: input.hold ?? course === 'main' ? 'held' : 'draft', createdAt: this.timestamp() };
+        const line: OrderLine = { id: randomUUID(), itemId: item.id, name: item.name, category: item.category, itemKind: tab.serviceMode === 'takeaway' ? item.takeawayItemKind : item.itemKind, quantity: input.quantity ?? 1, guest, baseUnitOre, unitPriceOre: baseUnitOre + modifiers.reduce((sum, modifier) => sum + modifier.priceOre, 0), vatBps: taxRate(this.settings().taxRules, item.taxClass, tab.serviceMode, this.date()), course, station: item.station, modifiers: structuredClone(modifiers), notes: input.notes ?? '', status: input.hold ?? course === 'main' ? 'held' : 'draft', createdAt: this.timestamp() };
         tab.lines.push(line);
       } else if (input.action === 'remove') {
         const line = tab.lines.find(candidate => candidate.id === input.lineId);
@@ -370,34 +387,50 @@ export class KassaService {
     const reserved = this.store.all<Payment>('payment').filter(payment => payment.tabId === tab.id && payment.kind === 'sale' && reservedStatuses.includes(payment.status));
     if (input.lineIds) demand(input.lineIds.length > 0 && new Set(input.lineIds).size === input.lineIds.length && input.lineIds.every(lineId => totals.lines.some(line => line.lineId === lineId)), 'Välj giltiga orderrader.');
     if (input.guest !== undefined) demand(input.guest <= tab.guestCount, 'Gästen finns inte.');
-    const candidates = totals.lines.filter(line => (!input.lineIds || input.lineIds.includes(line.lineId)) && (input.guest === undefined || tab.lines.find(candidate => candidate.id === line.lineId)?.guest === input.guest)).map(line => {
-      const used = reserved.flatMap(payment => payment.allocations).filter(allocation => allocation.lineId === line.lineId);
-      return { line, usedGross: used.reduce((sum, allocation) => sum + allocation.grossOre, 0), usedVat: used.reduce((sum, allocation) => sum + allocation.vatOre, 0) };
+    demand(!input.items || !input.lineIds && input.guest === undefined, 'Artikelantal kan inte kombineras med ett annat artikelurval.');
+    const balances = totals.lines.map(total => {
+      const line = tab.lines.find(candidate => candidate.id === total.lineId)!;
+      const used = reserved.flatMap(payment => payment.allocations).filter(allocation => allocation.lineId === total.lineId);
+      const balance = remainingAllocation({ lineId: line.id, grossOre: total.grossOre, vatOre: total.vatOre, vatBps: total.vatBps, quantity: rationalQuantity(line.quantity), quantityBasis: 'items', discountOre: total.discountOre }, used);
+      const quantity = allocationQuantity(balance);
+      return { line, balance, availableZero: balance.grossOre === 0 && (quantity ? compareQuantities(quantity, rationalQuantity(0)) > 0 : used.length === 0) };
     });
-    const weights = candidates.map(candidate => candidate.line.grossOre - candidate.usedGross);
+    if (input.items) {
+      demand(input.items.length > 0 && new Set(input.items.map(item => item.lineId)).size === input.items.length, 'Välj varje artikelrad endast en gång.');
+      const allocations = input.items.map(item => {
+        const entry = balances.find(candidate => candidate.line.id === item.lineId);
+        demand(entry && Number.isSafeInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 100, 'Välj giltiga artiklar och antal.');
+        const available = allocationQuantity(entry.balance);
+        demand(available, 'Äldre betalningar saknar sparat artikelantal. Välj återstående belopp på raden.', 409, 'QUANTITY_HISTORY_MISSING');
+        const quantity = rationalQuantity(item.quantity);
+        demand(compareQuantities(quantity, available) <= 0, 'Antalet överstiger den obetalda eller oreserverade delen av artikeln.', 409, 'QUANTITY_EXCEEDED');
+        return allocateQuantity(entry.balance, quantity);
+      });
+      const amount = allocations.reduce((sum, allocation) => sum + allocation.grossOre, 0);
+      demand(input.amountOre === undefined || input.amountOre === amount, 'Beloppet stämmer inte med det valda artikelantalet.', 409, 'ITEM_AMOUNT_MISMATCH');
+      return allocations;
+    }
+    const candidates = balances.filter(entry => (!input.lineIds || input.lineIds.includes(entry.line.id)) && (input.guest === undefined || entry.line.guest === input.guest));
+    const weights = candidates.map(candidate => candidate.balance.grossOre);
     const maximum = weights.reduce((sum, value) => sum + value, 0);
     const amount = input.amountOre ?? maximum;
-    demand(amount <= maximum && amount >= 0, 'Beloppet överstiger den obetalda delen av notan.');
-    demand(amount > 0 || totals.grossOre === 0 && reserved.length === 0, 'Den valda delen är redan betald eller reserverad.', 409, 'NO_BALANCE');
+    demand(Number.isSafeInteger(amount) && amount <= maximum && amount >= 0, 'Beloppet överstiger den obetalda delen av notan.');
+    demand(amount > 0 || candidates.some(candidate => candidate.availableZero), 'Den valda delen är redan betald eller reserverad.', 409, 'NO_BALANCE');
     demand(candidates.length > 0, 'Det finns inga artiklar att betala.');
     if (amount === totals.grossOre - reserved.reduce((sum, payment) => sum + payment.amountOre, 0)) {
-      // The final selected guest/item payment also accounts for free rows
-      // outside that selection; otherwise a paid tab could omit them entirely.
-      for (const line of totals.lines) {
-        if (line.grossOre === 0 && !candidates.some(candidate => candidate.line.lineId === line.lineId) && !reserved.some(payment => payment.allocations.some(allocation => allocation.lineId === line.lineId))) {
-          candidates.push({ line, usedGross: 0, usedVat: 0 });
+      // Final amount/guest/row payments account for every remaining free item.
+      // Explicit item-count payments above preserve the requested selection.
+      for (const entry of balances) {
+        if (entry.availableZero && !candidates.includes(entry)) {
+          candidates.push(entry);
           weights.push(0);
         }
       }
     }
     const portions = distribute(amount, weights);
-    return candidates.flatMap(({ line, usedGross, usedVat }, index) => {
+    return candidates.flatMap(({ balance, availableZero }, index) => {
       const grossOre = portions[index];
-      // Free items still belong on one receipt. A pending/unknown payment
-      // reserves them too; a declined/cancelled attempt does not consume them.
-      const alreadyAllocated = reserved.some(payment => payment.allocations.some(allocation => allocation.lineId === line.lineId));
-      if (grossOre === 0 && (line.grossOre !== 0 || alreadyAllocated)) return [];
-      return [{ lineId: line.lineId, grossOre, vatOre: allocateRemainingVat(line.grossOre, line.vatOre, usedGross, usedVat, grossOre), vatBps: line.vatBps }];
+      return grossOre > 0 || availableZero ? [allocateAmount(balance, grossOre)] : [];
     });
   }
   async startPayment(actor: Actor, tabId: string, input: PaymentInput): Promise<Payment> {
@@ -418,7 +451,7 @@ export class KassaService {
       const allocations = this.allocations(tab, input);
       const amountOre = allocations.reduce((sum, allocation) => sum + allocation.grossOre, 0);
       if (input.method === 'cash') demand(input.tenderedOre !== undefined && input.tenderedOre >= amountOre + input.tipOre, 'Mottaget kontantbelopp är för litet.');
-      const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId, dayId: day.id, kind: 'sale', parentId: null, method: input.method, status: 'pending', amountOre, tipOre: input.tipOre, allocations, tenderedOre: input.method === 'cash' ? input.tenderedOre! : null, changeOre: input.method === 'cash' ? input.tenderedOre! - amountOre - input.tipOre : 0, reason: '', simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id };
+      const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId, dayId: day.id, kind: 'sale', parentId: null, method: input.method, status: 'pending', amountOre, tipOre: input.tipOre, allocations, tenderedOre: input.method === 'cash' ? input.tenderedOre! : null, changeOre: input.method === 'cash' ? input.tenderedOre! - amountOre - input.tipOre : 0, reason: '', simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id, registerId: this.registerFor(actor).id, cashierName: actor.staff.name };
       this.store.put('payment', payment);
       tab.version++;
       this.store.put('tab', tab);
@@ -439,7 +472,7 @@ export class KassaService {
       this.store.put('payment', payment);
       const tab = this.tab(payment.tabId);
       if (payment.kind === 'sale') {
-        if (status === 'approved' && paidOre(this.store.all<Payment>('payment'), tab.id) === calculateTab(tab).grossOre) tab.status = 'paid';
+        if (status === 'approved' && paidOre(this.store.all<Payment>('payment'), tab.id) === calculateTab(tab).grossOre && isTabQuantitySettled(tab, this.store.all<Payment>('payment'))) tab.status = 'paid';
         tab.version++;
         tab.updatedAt = this.timestamp();
         this.store.put('tab', tab);
@@ -447,7 +480,9 @@ export class KassaService {
       if (status === 'approved' && !this.store.all<Receipt>('receipt').some(receipt => receipt.paymentId === id)) {
         const settings = this.settings();
         const parent = payment.parentId ? this.store.all<Receipt>('receipt').find(receipt => receipt.paymentId === payment.parentId) : null;
-        const receipt: Receipt = { id: randomUUID(), paymentId: id, dayId: payment.dayId, number: this.store.next('receipt'), kind: payment.kind, createdAt: this.timestamp(), fiscalStatus: 'pending', controlCode: null, originalReceiptId: parent?.id ?? null, payment: structuredClone(payment), tab: structuredClone(tab), company: structuredClone(settings.company), cashier: actor.staff.name, registerId: settings.registerId };
+        const registerId = payment.registerId ?? settings.registerId;
+        const cashier = payment.cashierName ?? this.store.get<Staff>('staff', payment.staffId)?.name ?? payment.staffId;
+        const receipt: Receipt = { id: randomUUID(), paymentId: id, dayId: payment.dayId, number: this.store.next(payment.registerId ? `receipt:${registerId}` : 'receipt'), kind: payment.kind, createdAt: this.timestamp(), fiscalStatus: 'pending', controlCode: null, originalReceiptId: parent?.id ?? null, payment: structuredClone(payment), tab: structuredClone(tab), company: structuredClone(settings.company), cashier, registerId, ...(payment.registerId ? { zReportSequence: this.store.counter(`z:${registerId}`) + 1 } : {}) };
         this.store.put('receipt', receipt);
         this.log(actor, 'receipt.create', receipt.id, { receipt });
       }
@@ -467,7 +502,7 @@ export class KassaService {
           latest.controlCode = result.controlCode;
           this.store.put('receipt', latest);
           if (result.status === 'confirmed') this.queuePrint('guest', latest.id, receiptText(latest));
-          this.log(actor, `fiscal.${result.status}`, latest.id, result);
+          this.log(actor, `fiscal.${result.status}`, latest.id, { ...result, registerId: latest.registerId });
         });
       } finally { this.fiscalInFlight.delete(receipt.id); }
     }
@@ -503,7 +538,7 @@ export class KassaService {
         latest.controlCode = result.controlCode;
         this.store.put('receipt', latest);
         if (result.status === 'confirmed') this.queuePrint('guest', latest.id, receiptText(latest));
-        this.log(actor, 'fiscal.verify', id, result);
+        this.log(actor, 'fiscal.verify', id, { ...result, registerId: latest.registerId });
       });
     } finally { this.fiscalInFlight.delete(id); }
     this.notify();
@@ -521,15 +556,39 @@ export class KassaService {
       demand(parent?.kind === 'sale' && parent.status === 'approved', 'En godkänd försäljning måste väljas.');
       if (parent.method === 'cash') this.require(actor, authorizedRoles, true);
       const reserved = this.store.all<Payment>('payment').filter(payment => payment.parentId === parentId && reservedStatuses.includes(payment.status));
+      demand(!input.items || !input.lineIds, 'Välj artikelantal eller artikelrader.');
+      if (input.lineIds) demand(input.lineIds.length > 0 && new Set(input.lineIds).size === input.lineIds.length && input.lineIds.every(lineId => parent.allocations.some(row => row.lineId === lineId)), 'Välj giltiga artikelrader från originalkvittot.');
       const remaining = parent.allocations.map(allocation => {
         const used = reserved.flatMap(payment => payment.allocations).filter(candidate => candidate.lineId === allocation.lineId);
-        return { allocation, usedGross: used.reduce((sum, candidate) => sum + candidate.grossOre, 0), usedVat: used.reduce((sum, candidate) => sum + candidate.vatOre, 0) };
+        return remainingAllocation(allocation, used);
       });
-      const weights = remaining.map(entry => entry.allocation.grossOre - entry.usedGross);
-      demand(input.amountOre > 0 && input.amountOre <= weights.reduce((sum, amount) => sum + amount, 0), 'Returbeloppet överstiger vad som återstår att återbetala.');
-      const portions = distribute(input.amountOre, weights);
-      const allocations = remaining.flatMap(({ allocation, usedGross, usedVat }, index) => portions[index] ? [{ lineId: allocation.lineId, grossOre: portions[index], vatOre: allocateRemainingVat(allocation.grossOre, allocation.vatOre, usedGross, usedVat, portions[index]), vatBps: allocation.vatBps }] : []);
-      const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId: parent.tabId, dayId: day.id, kind: 'refund', parentId, method: parent.method, status: 'pending', amountOre: input.amountOre, tipOre: 0, allocations, tenderedOre: null, changeOre: 0, reason: input.reason, simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id };
+      let allocations: Allocation[];
+      if (input.items) {
+        demand(input.items.length > 0 && new Set(input.items.map(item => item.lineId)).size === input.items.length, 'Välj varje artikelrad endast en gång.');
+        allocations = input.items.map(item => {
+          const balance = remaining.find(candidate => candidate.lineId === item.lineId);
+          demand(balance && Number.isSafeInteger(item.quantity) && item.quantity >= 1 && item.quantity <= 100, 'Välj giltiga artiklar och antal från originalkvittot.');
+          const available = allocationQuantity(balance);
+          demand(available, 'Äldre returhistorik saknar sparat artikelantal. Välj återstående belopp på raden.', 409, 'QUANTITY_HISTORY_MISSING');
+          const quantity = rationalQuantity(item.quantity);
+          demand(compareQuantities(quantity, available) <= 0, 'Antalet överstiger vad som återstår att återbetala för artikeln.', 409, 'QUANTITY_EXCEEDED');
+          return allocateQuantity(balance, quantity);
+        });
+        demand(input.amountOre === undefined || input.amountOre === allocations.reduce((sum, row) => sum + row.grossOre, 0), 'Returbeloppet stämmer inte med det valda artikelantalet.', 409, 'ITEM_AMOUNT_MISMATCH');
+      } else {
+        const selected = remaining.filter(balance => !input.lineIds || input.lineIds.includes(balance.lineId));
+        const weights = selected.map(balance => balance.grossOre);
+        const amount = input.amountOre ?? (input.lineIds ? weights.reduce((sum, value) => sum + value, 0) : undefined);
+        const selectedFree = (balance: Allocation) => {
+          const quantity = allocationQuantity(balance);
+          return Boolean(input.lineIds && balance.grossOre === 0 && quantity && compareQuantities(quantity, rationalQuantity(0)) > 0);
+        };
+        demand(amount !== undefined && Number.isSafeInteger(amount) && amount >= 0 && amount <= weights.reduce((sum, value) => sum + value, 0) && (amount > 0 || selected.some(selectedFree)), 'Returbeloppet överstiger vad som återstår att återbetala.');
+        const portions = distribute(amount, weights);
+        allocations = selected.flatMap((balance, index) => portions[index] > 0 || selectedFree(balance) ? [allocateAmount(balance, portions[index])] : []);
+      }
+      const amountOre = allocations.reduce((sum, row) => sum + row.grossOre, 0);
+      const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId: parent.tabId, dayId: day.id, kind: 'refund', parentId, method: parent.method, status: 'pending', amountOre, tipOre: 0, allocations, tenderedOre: null, changeOre: 0, reason: input.reason, simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id, registerId: this.registerFor(actor).id, cashierName: actor.staff.name };
       this.store.put('payment', payment);
       this.log(actor, 'refund.start', payment.id, { payment });
       return payment;
@@ -677,14 +736,18 @@ export class KassaService {
     const tabs = this.store.all<Tab>('tab');
     const training = trainingReportDetails({ day, settings: this.settings(), generatedAt: this.timestamp(), payments: ledgerPayments, receipts: this.store.all<Receipt>('receipt'), tabs, journal: this.store.journal(), printJobs: this.store.all<PrintJob>('print') });
     const expectedCashOre = day.floatOre + cash.netOre + cash.tipsOre + training.cashDepositsOre - training.cashWithdrawalsOre;
-    return { dayId, salesOre, refundsOre, netOre: salesOre - refundsOre, tipsOre: sales.reduce((sum, payment) => sum + payment.tipOre, 0), vatOre: [...vatMap.values()].reduce((sum, total) => sum + total.vatOre, 0), receipts: sales.length, methods, vat: [...vatMap.values()].sort((left, right) => left.vatBps - right.vatBps), expectedCashOre, differenceOre: day.countedCashOre === null ? null : day.countedCashOre - expectedCashOre, unresolved: allPayments.filter(payment => ['pending', 'unknown'].includes(payment.status)).length + receipts.filter(receipt => receipt.fiscalStatus !== 'confirmed').length, openTabs: tabs.filter(tab => tab.dayId === dayId && tab.status === 'open').length, training };
+    const registers = buildRegisterReports({ day, settings: this.settings(), generatedAt: this.timestamp(), payments: ledgerPayments, receipts: this.store.all<Receipt>('receipt'), tabs, journal: this.store.journal(), printJobs: this.store.all<PrintJob>('print'), registers: this.store.all<RegisterIdentity>('register') });
+    return { dayId, salesOre, refundsOre, netOre: salesOre - refundsOre, tipsOre: sales.reduce((sum, payment) => sum + payment.tipOre, 0), vatOre: [...vatMap.values()].reduce((sum, total) => sum + total.vatOre, 0), receipts: sales.length, methods, vat: [...vatMap.values()].sort((left, right) => left.vatBps - right.vatBps), expectedCashOre, differenceOre: day.countedCashOre === null ? null : day.countedCashOre - expectedCashOre, unresolved: allPayments.filter(payment => ['pending', 'unknown'].includes(payment.status)).length + receipts.filter(receipt => receipt.fiscalStatus !== 'confirmed').length, openTabs: tabs.filter(tab => tab.dayId === dayId && tab.status === 'open').length, training, registers };
   }
   takeReport(actor: Actor, dayId: string): DayReport {
     this.require(actor, authorizedRoles);
     return this.store.atomic(() => {
       const report = this.report(dayId);
       const day = this.store.get<BusinessDay>('day', dayId)!;
-      this.log(actor, day.status === 'open' ? 'report.x' : 'report.z_read', dayId, { day, report });
+      if (day.status === 'open') for (const entry of report.registers ?? []) {
+        this.log(actor, 'report.register_x', dayId, { dayId, report: entry, registerId: entry.registerId });
+      }
+      this.log(actor, day.status === 'open' ? 'report.x' : 'report.z_read', dayId, { day, report, registerId: null });
       return report;
     });
   }
@@ -699,11 +762,16 @@ export class KassaService {
       day.countedCashOre = input.countedCashOre;
       day.closedAt = this.timestamp();
       day.closedBy = actor.staff.id;
-      day.report = { ...report, differenceOre: input.countedCashOre - report.expectedCashOre, training: { ...report.training!, kind: 'Z', generatedAt: day.closedAt, sequence: day.number } };
+      const registers = report.registers?.map(entry => ({ ...entry, kind: 'Z' as const, generatedAt: day.closedAt!, sequence: entry.scope === 'register' && entry.registerId ? this.store.next(`z:${entry.registerId}`) : null }));
+      day.report = { ...report, registers, differenceOre: input.countedCashOre - report.expectedCashOre, training: { ...report.training!, kind: 'Z', generatedAt: day.closedAt, sequence: day.number } };
       day.status = 'closed';
       this.store.put('day', day);
       this.queuePrint('closing', day.id, closingText(day, day.report));
-      this.log(actor, 'day.close', day.id, { day });
+      for (const entry of registers ?? []) {
+        this.queuePrint('closing', `${day.id}:${entry.registerId ?? entry.legacyRegisterId ?? 'legacy'}`, registerReportText(entry));
+        this.log(actor, 'report.register_z', dayId, { dayId, report: entry, registerId: entry.registerId });
+      }
+      this.log(actor, 'day.close', day.id, { day, registerId: null });
       return day;
     });
   }
@@ -747,13 +815,18 @@ export class KassaService {
   saveDevice(actor: Actor, input: Omit<Device, 'id'>, id?: string): Device & { code: string } {
     this.require(actor, ['admin']);
     demand(input.kind === 'display' ? input.station !== null : input.station === null, 'Bara orderskärmar ska tillhöra en station.');
-    if (id) demand(this.store.get('device', id), 'Enheten finns inte.', 404);
+    const previous = id ? this.publicDevices().find(device => device.id === id) : undefined;
+    if (id) demand(previous, 'Enheten finns inte.', 404);
+    if (previous && previous.kind !== input.kind) demand(!this.currentDay(), 'Avsluta verksamhetsdagen innan enhetens uppgift ändras.', 409, 'DAY_IDENTITY_LOCKED');
+    if (previous?.kind === 'main' && (!input.active || input.kind !== 'main')) demand(this.publicDevices().some(device => device.id !== id && device.kind === 'main' && device.active), 'Minst en huvudkassa måste vara aktiv.');
     const device: Device = { ...input, id: id ?? randomUUID() };
+    const auditRegisterId = actor.device.kind === 'display' ? null : this.registerFor(actor).id;
     const code = randomBytes(8).toString('hex').toUpperCase();
     this.store.atomic(() => {
       this.store.put('device', { ...device, codeHash: digest(code) });
+      enrolRegister(this.store, device, this.timestamp());
       this.store.db.prepare('DELETE FROM sessions WHERE device_id=?').run(device.id);
-      this.log(actor, 'device.save', device.id, { device });
+      this.log(actor, 'device.save', device.id, { previous: previous ?? null, device, registerId: auditRegisterId });
     });
     this.notify();
     return { ...device, code };
@@ -801,8 +874,9 @@ export class KassaService {
       const filename = path.join(this.backupDir, `lagustosa-training-${this.timestamp().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}.sqlite`);
       await this.store.db.backup(filename);
       const at = this.timestamp();
+      const manifest = sealBackup(filename, at);
       this.store.put('meta', { id: 'backup', lastAt: at, error: null });
-      this.log(actor, 'backup.created', 'backup', { filename, at });
+      this.log(actor, 'backup.created', 'backup', { filename, at, sha256: manifest.sha256, journalHead: manifest.journalHead });
       this.notify();
       return { filename, at };
     } catch (error) {

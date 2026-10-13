@@ -47,7 +47,7 @@ Planerad utrustning: **1 huvudkassa, 4 enheter för beställning och betalning, 
 | 7. Kvitto | Prova förlorat kontrollenhetssvar och verifiera registreringen. Betala sedan resterande del. | Testkvitton, betalsätt och dricks stämmer; notan blir betald. |
 | 8. Retur | Gå till **Dagsöversikt**, öppna ett kortköp och gör en liten retur med orsak. | En separat retur visas och originalkvittot bevaras. |
 | 9. Utskrift | Öppna **Utskrifter**. Förhandsvisa köks-, bar- och kvittotext. Prova osäkert utskriftssvar. | Rätt skrivare syns. Kontroll krävs före märkt återutskrift. |
-| 10. Dagsavslut | Kontrollera försäljning, retur, dricks och kassabehållning. Avsluta dagen när alla öppna notor är hanterade. | Rapporten stämmer; CSV, journal-XML och backup kan skapas. |
+| 10. Dagsavslut | Kontrollera försäljning, retur, dricks, kassabehållning och rapport per kassa. Avsluta dagen när alla öppna notor är hanterade. | Rapporten stämmer; CSV, JSON-underlag och verifierad backup kan skapas. XML kräver att exportkontrollen godkänner datainnehållet. |
 
 Byt **Utseende → Cotto / Professionell / Klassisk** medan en nota är öppen. Samma nota och belopp ska finnas kvar. Cotto är det nya grundutseendet; båda tidigare utseendena finns kvar i samma väljare. På smal skärm använder du **Visa nota / Till menyn** längst ned för att växla mellan beställning och nota.
 
@@ -94,7 +94,7 @@ Alla 15 bokningar öppnas i samma ankomstfas. Fyra serveringsklienter arbetar pa
 
 Rapporten `aw-report.json`, den separat beräknade planen `aw-expected.json` och anropsspåret `aw-http.json` sparas under vald mapp. Förväntade mängder, belopp, moms och kontantkassa beräknas från beställningsplanen och ursprungsmenyn, utan att använda serverns betalningsbelopp som facit. Varje aktiv rad kontrolleras mot station och slutlig betalning. Rapporten skiljer avsiktliga fel från oväntade HTTP-/transportfel och redovisar faktisk samtidighet samt svarstider.
 
-Körningen den 13 oktober 2026 med 90 gäster passerade: **1 552 HTTP-anrop, högst fyra samtidigt, inga oväntade fel, 90 betalningar, 90 kvitton och noll kassadifferens**. Försäljningen blev 40 109 kr, dricks 150 kr och moms 4 854,81 kr. Median/p95/max var 3/18/81 ms. Förloppet var komprimerat till 10,9 sekunder och bevisar inte uthållighet under ett helt arbetspass eller 99 procent tillgänglighet.
+Körningen den 13 oktober 2026 med 90 gäster passerade: **1 557 HTTP-anrop, högst fyra samtidigt, inga oväntade fel, 90 betalningar, 90 kvitton och noll kassadifferens**. Försäljningen blev 40 109 kr, dricks 150 kr och moms 4 854,81 kr. Fem separata Z-rapporter och deras grand totals stämdes av mot restaurangens totalsumma. Median/p95/max var 4/26/141 ms. Förloppet var komprimerat till 5,3 sekunder och bevisar inte uthållighet under ett helt arbetspass eller 99 procent tillgänglighet.
 
 För att lämna en separat demonstration **mitt i rusningen**:
 
@@ -135,7 +135,20 @@ Den här versionen stöder webbläsare. Om en kommande fysisk betalterminal ska 
 
 Startfönstret skriver den aktiva testomgångens `server.log` och datamapp. Spara felmeddelandet, vilket bord det gällde, vad du klickade på och vilken enhetsprofil du använde. Kontrollera befintligt betalningsresultat efter ett avbrott innan du försöker igen. Vid osäker utskrift används kökontrollen innan en kopia görs.
 
-Manuell backup finns under **Dagsöversikt**. Automatisk backup tas varje timme och efter dagsavslut. Varje testomgång har sin egen `backups`-mapp. Filerna ligger på denna dator; kopiera en verifierad backup till separat lagring för att också prova en extern kopia.
+Manuell backup finns under **Dagsöversikt**. Automatisk backup tas varje timme och efter dagsavslut. Varje testomgång har sin egen `backups`-mapp. Kopiera både `.sqlite` och den tillhörande `.sqlite.manifest.json` till separat lagring. Återläsning kontrollerar filens SHA-256, databas och journal, sparar en säkerhetskopia av föregående databas och avslutar gamla inloggningssessioner. Se återställningskommandot i README. Manifestet är ingen digital signatur eller skyddad arkivtjänst.
+
+## Prova kassaidentiteter, artikelantal och journalurval
+
+1. Kontrollera **Administration → Enheter**: huvudkassan och fyra serveringsenheter har olika permanenta kassaidentiteter. Orderskärmarna har ingen. Namnbyte eller ny enhetskod ska behålla identiteten.
+2. Skapa en nota med tre likadana artiklar. Under **Ta betalt → Artiklar → Välj antal av varje artikel**, betala en artikel. Testkvittot ska visa ett exemplar; två återstår. Ett för stort antal spärras.
+3. Betala resten från en annan serveringsenhet. Jämför kassaidentitet och kvittonummer på kvittona. Varje kassa har sin egen serie; samma nummer kan därför finnas på två olika kassor.
+4. Under **Dagsöversikt → Retur**, välj **Valda artiklar och antal**. Återför ett exemplar och kontrollera antal, belopp, moms och referensen till originalkvittot. Försök återföra för mycket; det ska avvisas.
+5. Prova en beloppsdelad nota med mat och vin. Välj **Valda kvittorader** vid retur och markera bara vinet. Endast vinets betalningsandel och moms ska återföras. En global beloppsretur fördelas däremot över alla återstående rader.
+6. Välj **Rapport per kassa** och jämför de olika kassorna. Avsluta dagen och kontrollera att de sparade Z-rapporterna har sina egna nummer. Följande dags aktivitet får inte ändra dem.
+7. Under **Exportera journal**, välj en kassa och datum. Läs eventuella XML-spärrorsaker. Prova JSON-utdraget som administratör. Saknat artikelantal, oklassificerade artiklar, övningskvittokopior, andelar med fler än två decimaler eller negativa träningsnetton kan spärra XML; det är ett redovisat implementationsgap, inte en lyckad juridisk export.
+8. För en positiv XML-kontroll, använd en ny isolerad testomgång, ange vara/tjänst för både servering och avhämtning på testartiklarna **före beställningen**, och prova hela artikelantal utan kopior. Verifiera exporterad fil med `python scripts/validate-journal-xml.py "journal.xml"`. Klassificeringen påverkar nya orderrader och får inte skriva om gamla kvitton.
+
+Alla dessa steg gäller träningsmodellen. Godkända resultat ersätter inte tillverkardeklaration, verifiering med certifierad kontrollösning eller kundens installationsanmälan.
 
 För teknisk verifiering från källkoden:
 

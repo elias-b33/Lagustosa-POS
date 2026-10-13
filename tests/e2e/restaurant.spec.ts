@@ -165,7 +165,8 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await expect(payment.locator('.receipt-paper')).toContainText('194,50');
   await expect(payment.locator('.receipt-paper')).toContainText('Moms 12 %');
   await expect(payment.locator('.receipt-paper')).toContainText('Moms 25 %');
-  await expect(payment.locator('.receipt-paper')).toContainText('Delbelopp av');
+  await expect(payment.locator('.receipt-paper')).toContainText('Delbelopp · 1/2 ×');
+  await expect(payment.locator('.receipt-paper')).toContainText('Antalet är en ekonomisk andel av artikelraden.');
   // Exercise the rendered typography contract across every loaded design and
   // the browser's print stylesheet. The production printer still needs its
   // own adapter/font validation; this checks the training preview only.
@@ -441,7 +442,7 @@ test('huvudkassan registrerar insättning och uttag med orsak och stämmer av da
     await open.getByLabel('Växelkassa i kronor').fill('1500');
     await open.getByRole('button', { name: 'Öppna dagen', exact: true }).click();
     await expect(open).toHaveCount(0);
-    const cashBalance = page.locator('.report-line').filter({ has: page.getByText('Förväntad kontantkassa', { exact: true }) });
+    const cashBalance = page.locator('.card').filter({ has: page.getByRole('heading', { name: 'Kontantavstämning', exact: true }) }).locator('.report-line').filter({ has: page.getByText('Förväntad kontantkassa', { exact: true }) });
     await expect(cashBalance).toContainText('1 500 kr');
     const cashKeys: string[] = [];
     await page.route('**/api/v1/cash-movements', async route => {

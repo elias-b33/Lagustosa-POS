@@ -23,7 +23,7 @@ describe('Spårbara rapporter för övningsläget', () => {
     expect(secondClosed.report?.training).toMatchObject({ sequence: 2, registerId: 'ANNAN-TESTKASSA', refundReceipts: 1, cumulativeSalesOre: sale.amountOre, cumulativeRefundsOre: sale.amountOre, cumulativeNetOre: 0 });
     expect(f.service.report(first.id)).toEqual(frozen);
     expect(f.service.takeReport(f.admin, first.id)).toEqual(frozen);
-    expect(closingText(closed, f.service.report(first.id))).toContain('ÖVNING · Z-DAGRAPPORT #1');
+    expect(closingText(closed, f.service.report(first.id))).toContain('ÖVNING · SAMLAD DAGSAVSTÄMNING');
     expect(closingText(closed, f.service.report(first.id))).not.toContain('Nytt namn');
     expect(f.store.journal().filter(entry => entry.action === 'day.close')).toHaveLength(2);
   });
@@ -131,6 +131,6 @@ describe('Spårbara rapporter för övningsläget', () => {
     const csv = exportCsv(day, report);
     expect(csv).toContain('"\' =SUM(1,1)"');
     expect(csv).toContain('"\'@SUM(1,1)"');
-    expect(csv).toContain('"ÖVNING · X-DAGRAPPORT"');
+    expect(csv).toContain('"ÖVNING · SAMLAD DAGSAVSTÄMNING"');
   });
 });

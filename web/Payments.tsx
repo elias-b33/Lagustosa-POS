@@ -3,6 +3,7 @@ import { CreditCard, Smartphone, Banknote, CircleCheck, CircleAlert, ReceiptText
 import type { Payment, PaymentMethod, Receipt, Simulation, Tab } from '../shared/types';
 import { calculateTab, distribute, money, parseMoney } from '../shared/money';
 import { receiptMethodNames, receiptRows, receiptVat, vatRateLabel } from '../shared/receipts';
+import { allocateQuantity, allocationQuantity, compareQuantities, quantityLabel, rationalQuantity, remainingAllocation } from '../shared/allocations';
 import { api, newKey } from './api';
 import { Action, Field, Modal, type WorkspaceProps } from './components';
 import { usePaymentAttempts } from './usePaymentAttempt';
@@ -39,6 +40,8 @@ export function PaymentModal({ tabId, onClose, ...props }: WorkspaceProps & { ta
   const [guest, setGuest] = useState(1);
   const [parts, setParts] = useState(tab.guestCount);
   const [lineIds, setLineIds] = useState<string[]>([]);
+  const [itemSelection, setItemSelection] = useState<'rows' | 'quantities'>('rows');
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [amount, setAmount] = useState('');
   const [tip, setTip] = useState('0');
   const [tendered, setTendered] = useState('');
@@ -60,23 +63,30 @@ export function PaymentModal({ tabId, onClose, ...props }: WorkspaceProps & { ta
   const reserved = data.payments.filter(payment => payment.tabId === tab.id && payment.kind === 'sale' && ['approved', 'unknown', 'pending'].includes(payment.status));
   const lines = totals.lines.map(line => {
     const orderLine = tab.lines.find(candidate => candidate.id === line.lineId)!;
-    const used = reserved.flatMap(payment => payment.allocations).filter(allocation => allocation.lineId === line.lineId).reduce((sum, allocation) => sum + allocation.grossOre, 0);
-    return { ...line, line: orderLine, remaining: line.grossOre - used };
+    const used = reserved.flatMap(payment => payment.allocations).filter(allocation => allocation.lineId === line.lineId);
+    const balance = remainingAllocation({ ...line, quantity: rationalQuantity(orderLine.quantity), quantityBasis: 'items' }, used);
+    const quantity = allocationQuantity(balance);
+    return { ...line, line: orderLine, balance, remaining: balance.grossOre, availableZero: balance.grossOre === 0 && (quantity ? compareQuantities(quantity, rationalQuantity(0)) > 0 : used.length === 0) };
   });
   const totalRemaining = lines.reduce((sum, line) => sum + line.remaining, 0);
-  const selectedAmount = mode === 'amount' ? parseMoney(amount) : mode === 'equal' ? (Number.isInteger(parts) && parts >= 1 && parts <= 100 ? distribute(totalRemaining, Array<number>(parts).fill(1))[0] : null) : lines.filter(line => mode === 'all' || mode === 'guest' && line.line.guest === guest || mode === 'items' && lineIds.includes(line.lineId)).reduce((sum, line) => sum + line.remaining, 0);
+  const quantityLines = lines.filter(line => line.balance.quantityBasis === 'items' && allocationQuantity(line.balance) && compareQuantities(allocationQuantity(line.balance)!, rationalQuantity(1)) >= 0);
+  const selectedItems = quantityLines.flatMap(line => quantities[line.lineId] > 0 ? [{ lineId: line.lineId, quantity: quantities[line.lineId] }] : []);
+  const itemsValid = selectedItems.length > 0 && selectedItems.every(item => Number.isSafeInteger(item.quantity) && item.quantity <= 100 && compareQuantities(rationalQuantity(item.quantity), allocationQuantity(quantityLines.find(line => line.lineId === item.lineId)!.balance)!) <= 0);
+  const byQuantity = mode === 'items' && itemSelection === 'quantities';
+  const selectedLines = lines.filter(line => ['all', 'amount', 'equal'].includes(mode) || mode === 'guest' && line.line.guest === guest || mode === 'items' && lineIds.includes(line.lineId));
+  const selectedAmount = byQuantity ? itemsValid ? selectedItems.reduce((sum, item) => sum + allocateQuantity(quantityLines.find(line => line.lineId === item.lineId)!.balance, rationalQuantity(item.quantity)).grossOre, 0) : null : mode === 'amount' ? parseMoney(amount) : mode === 'equal' ? (Number.isInteger(parts) && parts >= 1 && parts <= 100 ? distribute(totalRemaining, Array<number>(parts).fill(1))[0] : null) : selectedLines.reduce((sum, line) => sum + line.remaining, 0);
   const tipOre = parseMoney(tip);
   const result = data.payments.find(payment => payment.id === resultId);
   const receipt = data.receipts.find(receipt => receipt.paymentId === resultId);
   const uncertain = data.payments.filter(payment => payment.tabId === tab.id && payment.kind === 'sale' && ['unknown', 'pending'].includes(payment.status));
   const locked = busy || !!attempt || uncertain.length > 0 || !!storageError;
   const canCash = ['admin', 'cashier'].includes(data.actor.staff.role) && data.actor.device.kind === 'main';
-  const valid = selectedAmount !== null && selectedAmount >= 0 && selectedAmount <= totalRemaining && (selectedAmount > 0 || totals.grossOre === 0 && tab.status === 'open') && tipOre !== null && (method !== 'cash' || (parseMoney(tendered) ?? -1) >= selectedAmount + tipOre) && (method !== 'swish' || swishVerified) && (mode !== 'items' || lineIds.length > 0);
+  const valid = selectedAmount !== null && selectedAmount >= 0 && selectedAmount <= totalRemaining && (selectedAmount > 0 || tab.status === 'open' && (byQuantity ? itemsValid : selectedLines.some(line => line.availableZero))) && tipOre !== null && (method !== 'cash' || (parseMoney(tendered) ?? -1) >= selectedAmount + tipOre) && (method !== 'swish' || swishVerified) && (mode !== 'items' || (byQuantity ? itemsValid : lineIds.length > 0));
   const pay = async () => {
     if (!attempt && (selectedAmount === null || tipOre === null)) return;
     const saved: PaymentAttempt = attempt ?? {
       version: 1, kind: 'sale', targetId: tab.id, createdAt: new Date().toISOString(),
-      input: { key: newKey(), version: tab.version, method, amountOre: selectedAmount!, tipOre: tipOre!, ...(mode === 'guest' ? { guest } : mode === 'items' ? { lineIds } : {}), ...(method === 'cash' ? { tenderedOre: parseMoney(tendered)! } : {}), swishVerified, simulation, fiscalSimulation: fiscalUnknown ? 'unknown' : 'confirmed' },
+      input: { key: newKey(), version: tab.version, method, amountOre: selectedAmount!, tipOre: tipOre!, ...(mode === 'guest' ? { guest } : byQuantity ? { items: selectedItems } : mode === 'items' ? { lineIds } : {}), ...(method === 'cash' ? { tenderedOre: parseMoney(tendered)! } : {}), swishVerified, simulation, fiscalSimulation: fiscalUnknown ? 'unknown' : 'confirmed' },
     };
     const payment = await run(() => submitPaymentAttempt(saved, remember, forget));
     if (payment) setResultId(payment.id);
@@ -85,6 +95,7 @@ export function PaymentModal({ tabId, onClose, ...props }: WorkspaceProps & { ta
     setResultId(null);
     setTip('0');
     setLineIds([]);
+    setQuantities({});
     setAmount('');
     // A new guest's payment needs its own verification and cash tender.
     // Resuming a saved attempt continues to use its original input in pay().
@@ -101,7 +112,7 @@ export function PaymentModal({ tabId, onClose, ...props }: WorkspaceProps & { ta
       <div className="split-tabs">{([{ id: 'all', label: 'Hela notan', icon: ReceiptText }, { id: 'guest', label: 'Per gäst', icon: Users }, { id: 'items', label: 'Artiklar', icon: Split }, { id: 'amount', label: 'Delbelopp', icon: Banknote }, { id: 'equal', label: 'Dela lika', icon: Split }] as const).map(option => <button key={option.id} className={mode === option.id ? 'active' : ''} onClick={() => setMode(option.id)}><option.icon size={17} />{option.label}</button>)}</div>
       {mode === 'equal' && <Field label="Antal delar som återstår"><input type="number" min={1} max={100} value={parts} onChange={event => setParts(Number(event.target.value))} /><span>Sista delen tar hand om eventuell avrundning i öre.</span></Field>}
       {mode === 'guest' && <Field label="Betala för gäst"><select value={guest} onChange={event => setGuest(Number(event.target.value))}><option value={0}>Gemensamma artiklar</option>{Array.from({ length: tab.guestCount }, (_, index) => <option key={index} value={index + 1}>Gäst {index + 1}</option>)}</select></Field>}
-      {mode === 'items' && <div className="payment-items">{lines.filter(line => line.remaining > 0).map(line => <label key={line.lineId}><input type="checkbox" checked={lineIds.includes(line.lineId)} onChange={event => setLineIds(current => event.target.checked ? [...current, line.lineId] : current.filter(id => id !== line.lineId))} /><span>{line.line.name}<small>Gäst {line.line.guest || 'gemensamt'}</small></span><strong>{money(line.remaining)}</strong></label>)}</div>}
+      {mode === 'items' && <><Field label="Artikelurval"><select value={itemSelection} onChange={event => setItemSelection(event.target.value as 'rows' | 'quantities')}><option value="rows">Återstående belopp på valda rader</option><option value="quantities">Välj antal av varje artikel</option></select></Field>{byQuantity ? <div className="quantity-selection">{quantityLines.map(line => <Field key={line.lineId} label={line.line.name}><input aria-label={`Betala antal ${line.line.name}`} type="number" min={0} max={Math.min(100, Number(BigInt(line.balance.quantity!.numerator) / BigInt(line.balance.quantity!.denominator)))} step={1} value={quantities[line.lineId] ?? 0} onChange={event => setQuantities(current => ({ ...current, [line.lineId]: Number(event.target.value) }))} /><span>{quantityLabel(line.balance.quantity!)} st kvar · {money(line.remaining)}</span></Field>)}<p className="muted">Artiklar som redan delats med ett belopp hanteras under återstående belopp på valda rader.</p></div> : <div className="payment-items">{lines.filter(line => line.remaining > 0 || line.availableZero).map(line => <label key={line.lineId}><input type="checkbox" checked={lineIds.includes(line.lineId)} onChange={event => setLineIds(current => event.target.checked ? [...current, line.lineId] : current.filter(id => id !== line.lineId))} /><span>{line.line.name}<small>Gäst {line.line.guest || 'gemensamt'}</small></span><strong>{money(line.remaining)}</strong></label>)}</div>}</>}
       {mode === 'amount' && <Field label="Delbelopp i kronor"><input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0,00" /></Field>}
       <div className="pay-amount"><span>Att betala</span><strong>{selectedAmount === null ? '—' : money(selectedAmount)}</strong><small>Återstår totalt {money(totalRemaining)} · inklusive moms</small></div>
       <div className="payment-methods">{([{ id: 'card', label: 'Kort', icon: CreditCard }, { id: 'swish', label: 'Swish', icon: Smartphone }, { id: 'cash', label: 'Kontanter', icon: Banknote }] as const).map(option => <button className={method === option.id ? 'active' : ''} key={option.id} disabled={option.id === 'cash' && !canCash} onClick={() => setMethod(option.id)}><option.icon size={24} strokeWidth={1.3} />{option.label}</button>)}</div>

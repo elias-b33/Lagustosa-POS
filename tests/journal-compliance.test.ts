@@ -7,7 +7,15 @@ import { createApp } from '../server/app';
 import { exportXml, exportJournalJson, xmlTime } from '../server/export';
 import { digest } from '../server/db';
 import type { AuditEntry, MenuItem } from '../shared/types';
-import { fixture, key } from './helpers';
+import { fixture as baseFixture, key } from './helpers';
+
+// Classification is an explicit operator choice; production seed data must not
+// silently guess whether the restaurant supplies goods or services.
+function fixture(...args: Parameters<typeof baseFixture>) {
+  const f = baseFixture(...args);
+  for (const id of ['bread', 'redwine']) f.service.saveMenu(f.admin, { ...f.store.get<MenuItem>('menu', id)!, itemKind: 'goods' });
+  return f;
+}
 
 const at = '2026-10-13T22:00:00Z';
 function validate(xml: string) {
@@ -26,18 +34,19 @@ describe('Journalexport mot Skatteverkets oförändrade schema', () => {
     f.command(tab.id, { action: 'send' });
     f.service.takeReport(f.admin, day.id);
     const payment = await f.pay(tab.id);
-    await f.service.refund(f.admin, payment.id, { key: key(), amountOre: 1000, reason: 'Retur i test', simulation: 'approved', fiscalSimulation: 'confirmed' });
+    await f.service.refund(f.admin, payment.id, { key: key(), amountOre: payment.amountOre / 2, reason: 'Retur i test', simulation: 'approved', fiscalSimulation: 'confirmed' });
     f.service.closeDay(f.admin, day.id, { key: key(), countedCashOre: 150000 });
     const xml = exportXml(f.store, f.admin.staff.name, at);
     validate(xml);
     expect(xml).not.toContain('<k:Kassakvitto>');
     expect(xml).toContain('<k:TotalForsaljningssumma>0.00</k:TotalForsaljningssumma>');
-    expect(contents(xml, 'XDagrapport')).toHaveLength(1);
-    expect(contents(xml, 'ZDagrapport')).toHaveLength(1);
+    expect(contents(xml, 'XDagrapport')).toHaveLength(5);
+    expect(contents(xml, 'ZDagrapport')).toHaveLength(5);
     expect(contents(xml, 'Ovningskvitto')).toHaveLength(2);
     expect(contents(xml, 'StangaParkering')).toHaveLength(1);
     expect(contents(xml, 'Ovningskvitto')[0]).toContain('<k:Artikelnamn>Vitlöksbröd</k:Artikelnamn>');
-    expect(contents(xml, 'Ovningskvitto')[1]).toContain('Delbelopp av 1 × Vitlöksbröd');
+    expect(contents(xml, 'Ovningskvitto')[1]).toContain('<k:Artikelnamn>Vitlöksbröd</k:Artikelnamn>');
+    expect(contents(xml, 'Ovningskvitto')[1]).toContain('<k:AntalAvSaldArtikel>-0.50</k:AntalAvSaldArtikel>');
   });
 
   it('bevarar exakta före/efter-belopp för rabatt, prisändring och radering', () => {
@@ -65,17 +74,19 @@ describe('Journalexport mot Skatteverkets oförändrade schema', () => {
     f.command(tab.id, { action: 'send' }); await f.pay(tab.id);
     f.service.closeDay(f.admin, day.id, { key: key(), countedCashOre: 150000 });
     const original = f.service.settings();
+    const originalRegisterId = f.service.registerFor(f.admin).id;
     f.service.saveSettings(f.admin, { ...original, company: { ...original.company, name: 'Framtida namn' }, registerId: 'FRAMTIDA-KASSA' });
     const xml = exportXml(f.store, 'Ansvarig', at);
     validate(xml);
     const receipt = contents(xml, 'Ovningskvitto')[0];
     const zReport = contents(xml, 'ZDagrapport')[0];
     for (const old of [receipt, zReport]) {
-      expect(old).toContain(`<k:Kassabeteckning>${original.registerId}</k:Kassabeteckning>`);
+      expect(old).toContain(`<k:Kassabeteckning>${originalRegisterId}</k:Kassabeteckning>`);
       expect(old).not.toContain('Framtida namn');
     }
     expect(receipt).toContain('<k:AntalAvSaldArtikel>3</k:AntalAvSaldArtikel>');
-    expect(xml).toContain('<k:BeteckningPaValtKassaregisterForExportAvDataFranJournalminnet>FRAMTIDA-KASSA</k:BeteckningPaValtKassaregisterForExportAvDataFranJournalminnet>');
+    expect(contents(xml, 'BeteckningPaValtKassaregisterForExportAvDataFranJournalminnet')).toEqual(f.store.all<{ id: string }>('register').map(register => register.id));
+    expect(contents(xml, 'BeteckningPaValtKassaregisterForExportAvDataFranJournalminnet')).not.toContain('FRAMTIDA-KASSA');
   });
 
   it.each([['ny personal med UUID', key()], ['personal-ID som innehåller @', 'elin@lagustosa.se']])('exporterar inloggad användare separat från enhet för %s', (_label, staffId) => {

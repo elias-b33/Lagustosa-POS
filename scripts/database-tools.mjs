@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { acquireDatabaseLock } from './database-lock.mjs';
+import { sealBackup, verifyBackupManifest } from './backup-manifest.mjs';
 
 export function configuration(env = process.env) {
   if ((env.APP_MODE ?? 'training') !== 'training') throw new Error('Verktygen stöder endast träningsdatabasen.');
@@ -34,10 +35,11 @@ export async function backupDatabase(config = configuration()) {
   const db = new Database(config.database, { readonly: true, fileMustExist: true });
   try { await db.backup(filename); } finally { db.close(); }
   verifyDatabase(filename);
+  sealBackup(filename);
   return filename;
 }
 
-export async function restoreDatabase(source, config = configuration()) {
+export async function restoreDatabase(source, config = configuration(), options = {}) {
   if (!source) throw new Error('Ange säkerhetskopians sökväg: npm run restore -- <fil.sqlite>');
   const sourcePath = path.resolve(source);
   if (sourcePath === config.database) throw new Error('Säkerhetskopian får inte vara den aktiva databasen.');
@@ -45,9 +47,25 @@ export async function restoreDatabase(source, config = configuration()) {
   const staging = path.join(config.dataDir, `restore-${randomUUID()}.sqlite`);
   let safetyBackup = null;
   try {
+    const verified = verifyBackupManifest(sourcePath, options.allowLegacy === true);
     verifyDatabase(sourcePath);
     const sourceDb = new Database(sourcePath, { readonly: true, fileMustExist: true });
     try { await sourceDb.backup(staging); } finally { sourceDb.close(); }
+    verifyDatabase(staging);
+    const staged = new Database(staging, { fileMustExist: true });
+    try {
+      staged.transaction(() => {
+        // Restored sessions must not revive credentials already revoked on the
+        // original installation. Preserve financial history byte for byte.
+        staged.prepare('DELETE FROM sessions').run();
+        const previous = staged.prepare('SELECT hash FROM audit ORDER BY id DESC LIMIT 1').get()?.hash ?? '0'.repeat(64);
+        const at = new Date().toISOString();
+        const details = JSON.stringify({ sourceSha256: verified.sha256, sourceJournalHead: verified.journalHead, legacyManifest: verified.legacy, sessionsRevoked: true, registerId: null });
+        const hash = createHash('sha256').update(JSON.stringify([at, 'system', 'backup.restored', 'backup', details, previous])).digest('hex');
+        staged.prepare('INSERT INTO audit(at,actor,action,entity_id,details,hash,previous_hash) VALUES(?,?,?,?,?,?,?)').run(at, 'system', 'backup.restored', 'backup', details, hash, previous);
+      }).immediate();
+      staged.pragma('wal_checkpoint(TRUNCATE)');
+    } finally { staged.close(); }
     verifyDatabase(staging);
     if (existsSync(config.database)) {
       safetyBackup = await backupDatabase(config);
@@ -55,7 +73,7 @@ export async function restoreDatabase(source, config = configuration()) {
       try { previous.pragma('wal_checkpoint(TRUNCATE)'); } finally { previous.close(); }
     }
     renameSync(staging, config.database);
-    return { database: config.database, safetyBackup };
+    return { database: config.database, safetyBackup, sessionsRevoked: true, legacyManifest: verified.legacy };
   } finally {
     try { if (existsSync(staging)) unlinkSync(staging); }
     finally { releaseDatabaseLock(); }

@@ -1,9 +1,39 @@
 import type { BusinessDay, DayReport, Receipt, Ticket } from '../shared/types';
 import { money } from '../shared/money';
 import { receiptRows, receiptVat, vatRateLabel } from '../shared/receipts';
+import type { RegisterReport } from '../shared/register-reports';
+import { quantityLabel } from '../shared/allocations';
+import { reportCoverageExplanation } from '../shared/report-coverage';
 
 const divider = '────────────────────────────────';
 const methodNames = { card: 'Kort', swish: 'Swish', cash: 'Kontanter' };
+export function registerReportText(report: RegisterReport): string {
+  const data = report.training;
+  return ['ÖVNING', `${report.kind}-RAPPORT PER KASSA${report.sequence === null ? '' : ` #${report.sequence}`}`,
+    report.company.name, `Org.nr ${report.company.organizationNumber}`, `Kassa: ${report.registerId ?? report.legacyRegisterId ?? 'Äldre ospecificerad historik'}`,
+    new Date(report.generatedAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' }), divider,
+    `Försäljning ${money(data.salesOre)}`, `Returer ${money(data.refundsOre)}`, `Netto ${money(data.netOre)}`, `Dricks ${money(data.tipsOre)}`,
+    `Kvitton ${data.receiptCounts.sales} · returkvitton ${data.receiptCounts.refunds}`,
+    ...data.methods.map(method => `${methodNames[method.method]} · netto ${money(method.netOre)} · dricks ${money(method.tipsOre)}`),
+    ...data.vat.map(vat => `Moms ${vat.vatBps / 100} %: ${money(vat.netVatOre)} · brutto ${money(vat.netGrossOre)}`), divider,
+    `Artiklar ${quantityLabel(data.articleCounts.sold)} · returnerade ${quantityLabel(data.articleCounts.refunded)}`,
+    `Beloppsandelar ${quantityLabel(data.articleCounts.saleAmountShares)} · returandelar ${quantityLabel(data.articleCounts.refundAmountShares)}`,
+    `Rabatter ${money(data.discountsOre)}`, `Reduceringshändelser ${data.reductionsCount} · ${money(data.reductionsOre)}`,
+    `Kopior ${data.receiptCopies} · ${money(data.receiptCopiesOre)}`, `Lådöppningar ${data.drawerOpenings}`,
+    `Öppna notor ${data.openTabs} · ${money(data.openTabAmountOre)}`, `Växelkassa ${money(data.floatOre)}`,
+    `Insättningar ${money(data.cashDepositsOre)} · uttag ${money(data.cashWithdrawalsOre)}`, `Förväntad kontantkassa ${money(data.expectedCashOre)}`, divider,
+    ...data.categories.map(category => `${category.name}: ${money(category.salesOre)} · retur ${money(category.refundsOre)}`),
+    `Ackumulerad övningsförsäljning ${money(report.cumulative.training.salesOre)}`, `Ackumulerade övningsreturer ${money(report.cumulative.training.refundsOre)}`,
+    ...(report.grandTotals ? [
+      'Grand totals · registrerade övningskvitton',
+      `Försäljning ${money(report.grandTotals.training.salesOre)}`,
+      `Returer ${money(report.grandTotals.training.returnsOre)}`,
+      `Netto ${money(report.grandTotals.training.netOre)}`,
+      ...report.grandTotals.coverage.issues.map(issue => `BEGRÄNSNING: ${reportCoverageExplanation(issue)}`),
+    ] : []),
+    ...report.coverage.issues.map(issue => `BEGRÄNSNING: ${reportCoverageExplanation(issue)}`), divider, 'TRÄNING · ej bokföringsunderlag',
+  ].join('\n');
+}
 export function receiptText(receipt: Receipt): string {
   const payment = receipt.payment;
   const rows = receiptRows(receipt).map(row => `${row.label}\n  ${money(row.grossOre)}\n${row.details.map(detail => `  ${detail}`).join('\n')}`);
@@ -39,8 +69,8 @@ export function ticketText(ticket: Ticket): string {
 
 export function closingText(day: BusinessDay, report: DayReport): string {
   const details = report.training;
-  return ['TEST — inga riktiga betalningar', details ? `ÖVNING · Z-DAGRAPPORT #${details.sequence}` : 'TEST · DAGSAVSLUT',
-    ...(details ? [details.company.name, `Org.nr ${details.company.organizationNumber}`, `Kassa: ${details.registerId}`, new Date(details.generatedAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' })] : []),
+  return ['TEST — inga riktiga betalningar', report.registers?.length ? 'ÖVNING · SAMLAD DAGSAVSTÄMNING' : details ? `ÖVNING · Z-DAGRAPPORT #${details.sequence}` : 'TEST · DAGSAVSLUT',
+    ...(details ? [details.company.name, `Org.nr ${details.company.organizationNumber}`, report.registers?.length ? `Sammanställning för ${report.registers.length} kassaunderlag` : `Kassa: ${details.registerId}`, new Date(details.generatedAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' })] : []),
     `Verksamhetsdag ${day.date} · #${day.number}`, divider,
     `Övningsförsäljning ${money(report.salesOre)}`, `Testreturer ${money(report.refundsOre)}`, `Netto i övning ${money(report.netOre)}`,
     `Testdricks ${money(report.tipsOre)}`, `Övningsmoms ${money(report.vatOre)}`,

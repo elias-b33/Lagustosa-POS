@@ -1,28 +1,38 @@
 import type { AuditEntry, BusinessDay, CashMovement, Payment, PrintJob, Receipt, Settings, Tab, TrainingReportDetails } from '../shared/types';
 import { calculateTab, distribute, paidOre } from '../shared/money';
+import { historicalReportSettings, registerLedgerSnapshot } from './register-reporting';
+export { buildRegisterReports } from './register-reporting';
+export type { RegisterReportInputs } from './register-reporting';
 
 interface ReportInputs {
   day: BusinessDay; settings: Settings; generatedAt: string; payments: Payment[];
   receipts: Receipt[]; tabs: Tab[]; journal: AuditEntry[]; printJobs: PrintJob[];
+  throughJournalId?: number;
 }
 
 // These figures describe the simulator. They must not be substituted for real
 // fiscal sales, goods/services counts or grand totals in a certified register.
-export function trainingReportDetails({ day, settings, generatedAt, payments, receipts, tabs, journal, printJobs }: ReportInputs): TrainingReportDetails {
+export function trainingReportDetails({ day, settings, generatedAt, journal, printJobs, throughJournalId }: ReportInputs): TrainingReportDetails {
+  if (day.status === 'closed' && day.report?.training) return structuredClone(day.report.training);
+  const ledger = registerLedgerSnapshot({ day, journal, throughJournalId });
+  const payments = [...ledger.payments.values()].map(value => value.payment);
+  const receipts = [...ledger.receipts.values()].map(value => value.receipt);
+  const tabs = [...ledger.tabs.values()];
+  const historicalSettings = historicalReportSettings(settings, ledger.all, ledger.through);
   const approved = payments.filter(payment => payment.status === 'approved');
   const sales = approved.filter(payment => payment.dayId === day.id && payment.kind === 'sale');
   const dayReceipts = receipts.filter(receipt => receipt.dayId === day.id);
   const dayTabs = tabs.filter(tab => tab.dayId === day.id);
-  const openId = journal.find(entry => entry.action === 'day.open' && entry.entityId === day.id)?.id;
-  const closeId = journal.find(entry => entry.action === 'day.close' && entry.entityId === day.id)?.id;
   // Audit sequence, rather than wall clock, separates days closed and opened in
   // the same second and remains correct when the operating-system clock moves.
-  const dayEvents = openId === undefined ? [] : journal.filter(entry => entry.id > openId && (closeId === undefined || entry.id < closeId));
+  const dayEvents = !ledger.open ? [] : ledger.events.filter(entry => entry.id > ledger.from);
   const receiptMap = new Map(receipts.map(receipt => [receipt.id, receipt]));
   const printMap = new Map(printJobs.map(job => [job.id, job]));
   const copies = dayEvents.filter(entry => entry.action === 'print.reprint').flatMap(entry => {
+    const details = entry.details as { receiptId?: string; originalId?: string; kind?: string; sourceId?: string };
     const job = printMap.get(entry.entityId);
-    const receipt = job?.kind === 'guest' ? receiptMap.get(job.sourceId) : undefined;
+    const receiptId = details.receiptId ?? (details.kind === 'guest' ? details.sourceId : job?.kind === 'guest' ? job.sourceId : undefined);
+    const receipt = receiptId ? receiptMap.get(receiptId) : undefined;
     return receipt ? [receipt] : [];
   });
   const categories = new Map<string, number>();
@@ -38,6 +48,11 @@ export function trainingReportDetails({ day, settings, generatedAt, payments, re
   for (const tab of dayTabs) {
     const tabSales = sales.filter(payment => payment.tabId === tab.id);
     if (!tabSales.length) continue;
+    const allocations = tabSales.flatMap(payment => payment.allocations);
+    if (allocations.every(allocation => Number.isSafeInteger(allocation.discountOre) && allocation.discountOre! >= 0)) {
+      discountsOre += allocations.reduce((sum, allocation) => sum + allocation.discountOre!, 0);
+      continue;
+    }
     for (const line of calculateTab(tab).lines) {
       const paid = tabSales.flatMap(payment => payment.allocations).filter(allocation => allocation.lineId === line.lineId).reduce((sum, allocation) => sum + allocation.grossOre, 0);
       // Aggregate split payments first, so cent rounding never counts a rebate
@@ -55,7 +70,9 @@ export function trainingReportDetails({ day, settings, generatedAt, payments, re
   const cumulativeSalesOre = approved.filter(payment => payment.kind === 'sale').reduce((sum, payment) => sum + payment.amountOre, 0);
   const cumulativeRefundsOre = approved.filter(payment => payment.kind === 'refund').reduce((sum, payment) => sum + payment.amountOre, 0);
   return {
-    kind: 'X', generatedAt, sequence: null, company: structuredClone(settings.company), registerId: settings.registerId,
+    kind: 'X', generatedAt, sequence: null,
+    company: structuredClone(historicalSettings?.company ?? dayReceipts[0]?.company ?? { name: '', organizationNumber: '', address: '', city: '', phone: '' }),
+    registerId: historicalSettings?.registerId ?? dayReceipts[0]?.registerId ?? 'HISTORISK IDENTITET SAKNAS',
     trainingReceipts: dayReceipts.length, refundReceipts: dayReceipts.filter(receipt => receipt.kind === 'refund').length,
     drawerOpenings: dayEvents.filter(entry => entry.action === 'drawer.open').length,
     receiptCopies: copies.length, receiptCopiesOre: copies.reduce((sum, receipt) => sum + (receipt.kind === 'sale' ? 1 : -1) * receipt.payment.amountOre, 0),

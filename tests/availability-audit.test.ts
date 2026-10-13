@@ -180,8 +180,11 @@ describe('Verkliga serveravbrott och databasägarskap', () => {
     expect(existsSync(path.join(root, 'training.lock'))).toBe(false);
 
     const restarted = await launch(root); await restarted.ready();
-    expect((await request<Bootstrap>(restarted.base, '/bootstrap', cookie)).data.currentDay?.floatOre).toBe(10000);
-    expect((await request<{ intact: boolean }>(restarted.base, '/journal', cookie)).data.intact).toBe(true);
+    expect((await fetch(restarted.base + '/api/v1/bootstrap', { headers: { Cookie: cookie } })).status).toBe(401);
+    const relogin = await request(restarted.base, '/auth/login', undefined, { staffId: 'admin', pin: '1234', deviceCode: 'LAGUSTOSA-TEST' });
+    const freshCookie = relogin.response.headers.get('set-cookie')!.split(';')[0];
+    expect((await request<Bootstrap>(restarted.base, '/bootstrap', freshCookie)).data.currentDay?.floatOre).toBe(10000);
+    expect((await request<{ intact: boolean }>(restarted.base, '/journal', freshCookie)).data.intact).toBe(true);
   });
 
   it('kan starta efter en krasch även om det tidigare PID-numret återanvänds', async () => {

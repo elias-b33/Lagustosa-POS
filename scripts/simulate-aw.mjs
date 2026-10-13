@@ -311,9 +311,11 @@ try {
       assert.equal(sum(allocations, row => row.grossOre), line.unitPriceOre * line.quantity, `Exactly paid once in full: ${line.id}`);
     }
     assert.equal(new Set(state.receipts.map(receipt => receipt.paymentId)).size, guests);
-    const numbers = state.receipts.map(receipt => receipt.number).sort((a, b) => a - b);
-    assert.deepEqual(numbers, Array.from({ length: guests }, (_, index) => index + 1));
-    check(true, 'Every active row is paid exactly once in total; receipt payment identities and sequence are unique and unbroken');
+    for (const registerId of new Set(state.receipts.map(receipt => receipt.registerId))) {
+      const numbers = state.receipts.filter(receipt => receipt.registerId === registerId).map(receipt => receipt.number).sort((a, b) => a - b);
+      assert.deepEqual(numbers, Array.from({ length: numbers.length }, (_, index) => index + 1), `Receipt sequence for ${registerId}`);
+    }
+    check(true, 'Every active row is paid exactly once in total; receipt payment identities and each register sequence are unique and unbroken');
     const guestOriginal = state.printJobs.find(job => job.kind === 'guest');
     await api(admin, `/print-jobs/${guestOriginal.id}/actions`, { action: 'print', outcome: 'printed' });
     const guestCopy = await api(admin, `/print-jobs/${guestOriginal.id}/actions`, { action: 'reprint', reason: 'AW-test: gästen behöver sin tillåtna kvittokopia' });
@@ -333,6 +335,10 @@ try {
     check(state.report.training.receiptCopies === 1 && state.report.training.cashDepositsOre === expected.cashDepositOre && state.report.training.cashWithdrawalsOre === expected.cashWithdrawalOre, 'Day counters include one guest copy and exactly one deposit/withdrawal despite retries');
     const closing = await api(admin, `/business-days/${day.id}/close`, { key: key(), countedCashOre: expectedCashOre });
     check(closing.status === 'closed' && closing.report.differenceOre === 0, 'Business day closes with zero cash discrepancy');
+    const registerReports = closing.report.registers;
+    check(registerReports.length === 5 && new Set(registerReports.map(report => report.registerId)).size === 5 && registerReports.every(report => report.scope === 'register' && report.kind === 'Z' && report.sequence === 1), 'All five sales registers close with independent Z report number 1');
+    check(sum(registerReports, report => report.training.salesOre) === expectedSalesOre && sum(registerReports, report => report.training.tipsOre) === expected.final.tipsOre && sum(registerReports, report => sum(report.training.vat, row => row.netVatOre)) === expected.final.vatOre, 'Per-register sales, tips and VAT reconcile to the independently planned whole restaurant');
+    check(sum(registerReports, report => report.grandTotals.training.salesOre) === expectedSalesOre && sum(registerReports, report => report.grandTotals.training.saleReceipts) === guests && registerReports.every(report => report.grandTotals.coverage.complete && report.grandTotals.real.salesOre === 0 && report.grandTotals.real.returnsOre === 0), `Receipt-based grand totals include all ${guests} training receipts once and retain zero real fiscal activity`);
     state = await snapshot(admin);
     for (const job of state.printJobs.filter(job => job.status === 'queued')) await api(admin, `/print-jobs/${job.id}/actions`, { action: 'print', outcome: 'printed' });
     state = await snapshot(admin);

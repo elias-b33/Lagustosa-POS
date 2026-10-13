@@ -46,17 +46,17 @@ describe('Övningskvitton och kontrollerade kvittokopior', () => {
     expect(markup).toContain('ingen certifierad enhet');
   });
 
-  it('märker godtyckliga delbetalningar och delreturer som belopp av en referensrad', async () => {
+  it('visar det exakta ekonomiska artikelantalet vid beloppsdelning och delretur', async () => {
     const f = fixture(); f.open(); const tab = f.tab();
     f.command(tab.id, { action: 'add', itemId: 'bread', quantity: 2 });
     f.command(tab.id, { action: 'send' });
     const payment = await f.pay(tab.id, { amountOre: 100 });
     const receipt = f.store.all<Receipt>('receipt')[0];
-    expect(receiptRows(receipt)[0].label).toBe('Delbelopp av 2 × Vitlöksbröd');
+    expect(receiptRows(receipt)[0].label).toBe('Delbelopp · 1/79 × Vitlöksbröd');
     expect(receiptRows(receipt)[0].details[0]).toContain('Referens: hela raden');
     const refund = await f.service.refund(f.admin, payment.id, { key: key(), amountOre: 50, reason: 'Testretur', simulation: 'approved', fiscalSimulation: 'confirmed' });
     const returned = f.store.all<Receipt>('receipt').find(item => item.paymentId === refund.id)!;
-    expect(receiptRows(returned)[0].label).toBe('Delretur av 2 × Vitlöksbröd');
+    expect(receiptRows(returned)[0].label).toBe('Delretur · 1/158 × Vitlöksbröd');
     const text = receiptText(returned);
     expect(text.startsWith('ÖVNING\n')).toBe(true);
     expect(text).toContain('RETUR · ÖVNINGSKVITTO'); expect(text).toContain('Återförd moms:');

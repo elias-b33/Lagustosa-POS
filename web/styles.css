@@ -327,7 +327,13 @@ button.list-row:hover { background: #f9f6f0; }
 .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 23px; }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 25px; margin-bottom: 22px; }
 .report-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
-.report-line strong { margin-left: auto; font-weight: 500; }
+.report-line strong { margin-left: auto; font-weight: 500; overflow-wrap: anywhere; min-width: 0; }
+.register-report .field select { max-width: 100%; }
+.register-report .report-coverage { display: block; }
+.report-coverage summary { cursor: pointer; font-weight: 600; }
+.report-coverage li { margin: 9px 0; line-height: 1.5; }
+.quantity-selection { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+.quantity-selection > p { grid-column: 1 / -1; }
 .report-line small { width: 100%; font-size: 9px; color: var(--muted); }
 .report-line:last-child { border-bottom: 0; }
 .report-exports { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; }

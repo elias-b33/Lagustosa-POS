@@ -31,9 +31,11 @@ Granskningen avser en svensk restaurang med normal kassaregisterskyldighet. Någ
 
 Följande förbättringar ingår i träningsprogrammet. De är avgränsade programkontroller, inte en tillverkardeklaration:
 
-- Kvittot visar antal vid full betalning av en rad, moms per skattesats och tydlig märkning för övning, retur och delbelopp. Gratisrader tas med en gång. En delbetalning får inte framställas som en ny försäljning av hela antalet artiklar.
+- Huvudkassan och de fyra säljande enheterna har permanenta kassaidentiteter samt egna kvitto- och Z-rapportserier. De tre orderskärmarna har ingen försäljningsidentitet. Namnbyte, ny enhetskod och serveromstart behåller identiteten. Äldre gemensam historik flyttas inte till nya kassor. Betalningens ursprungliga kassa och kassör följer med även när ett osäkert svar kontrolleras från en annan enhet.
+- Betalning och retur stöder valda artiklar och antal samt valda kvittorader. Antal, rabatt, brutto och moms avräknas mot kvarvarande underlag, inklusive osäkra reservationer. Exakta rationella andelar bevaras vid beloppsdelning och visas som ekonomiska andelar. Gratisrader och avrundade nollbelopp behåller sina antal. Äldre kvitton utan antal får inga påhittade historiska uppgifter.
 - En gästkvittokopia kan bara skapas en gång per original, även när flera enheter försöker samtidigt. Kopiering av kopian avvisas. Kökets och barens bongar har separat återutskriftslogik. Den fysiska kvittotypografin och överföringen av kopior till kontrollösningen återstår.
-- Dagsavslut sparar sin rapport, identitet, tid, nummer och träningsräknare. Efterföljande dagar och menyändringar ska inte ändra gamla rapporter. Nya orderrader sparar sin kategori; gamla rader som saknar kategorin märks som historiskt ofullständiga.
+- Dagsavslut sparar separata rapporter per kassa med identitet, tid, nummer och träningsräknare. Rapporter byggs från journalens ögonblicksbilder och journalnummer; senare ändringar eller tillbakaflyttad systemklocka ändrar inte tidigare underlag. Försäljning/retur, moms, varugrupp, betalmedel, rabatt, rättelser, kopior, lådöppningar, kontanthändelser och antal redovisas. Vara/tjänst anges separat för servering och avhämtning i menyn och sparas i nya orderrader. Okänd historisk klassificering markeras.
+- XML-exporten har ett granskningsbart underlag per datum och kassa. Ekonomiska händelser som inte kan återges korrekt spärrar exporten med en förklaring. Tekniska händelser och historiska luckor redovisas uttryckligen; JSON bevarar originalposter, hashvärden och refererade originalkvitton.
 - Kontantinsättningar och uttag registreras vid huvudkassan med belopp, orsak, ansvarig och en bestämd verksamhetsdag. De påverkar förväntad kontantkassa utan att räknas som försäljning. Ett sparat försök behåller sin identifierare vid förlorat svar så att en omkontroll inte registrerar beloppet igen.
 - Databasregler skyddar kvittots innehåll, bekräftade kontrolluppgifter, avslutade dagar och journal mot omskrivning och radering via appens databasanslutning. Journalens hashkedja kontrolleras före serverstart. Dessa kontroller skyddar inte mot någon som har full kontroll över databasfilen eller operativsystemet; separat skyddad arkivering återstår.
 - Företagsuppgifter och kassabeteckning är låsta under en öppen verksamhetsdag. Inställningsändringar journalför både tidigare och nya värden. Momsdatum valideras utan att ogiltiga kalenderdatum blir serverfel.
@@ -44,14 +46,14 @@ Följande förbättringar ingår i träningsprogrammet. De är avgränsade progr
 | ID | Hinder | Konkret underlag som krävs för att stänga punkten |
 |---|---|---|
 | L01 | Endast simulerad kontrollösning | Valt certifierat fabrikat/version, leverantörens protokoll och testmiljö, implementerad överföring och prov av avbrott/återhämtning. Försäljning, retur, kopia och övningskvitto måste ingå. |
-| L02 | En gemensam kassabeteckning för flera klienter | Fastställd modell för huvudkassan och de fyra enheter som kan slutföra betalning: unika identiteter och åtskilda journaler, kvitton, X/Z-rapporter och kontrollregistreringar enligt vald kontrollösning. De tre iPads som endast visar order bedöms utifrån sin faktiska funktion. |
-| L03 | Delbetalningar fördelas i pengar | Fastställd och testad modell för artikelantal, delade notor, returer och kontrollösningens kvittodata. Tydlig text om delbelopp gör träningskvittot begripligt men bevisar inte laglig kvittomodell. |
-| L04 | Träningsrapporter är inte kompletta skarpa X/Z-rapporter | Kravvis provning av alla föreskrivna uppgifter och räknare, bland annat varor/tjänster, rabatter, andra reduceringar, kvittokopior, lådöppningar och grand totals per registreringsenhet. Dagens träningsbelopp får inte göras om till verklig omsättning. |
-| L05 | XML-struktur täcker inte ensam journalens betydelse | Jämförelse mellan samtliga funktioner, journalposter och officiella element; datumurval, historiska identiteter och export per registreringsenhet. JSON-utdraget är ett kompletterande revisionsunderlag och ersätter inte föreskriven XML. |
+| L02 | Separata kassaidentiteter och serier finns nu i träningsmodellen | Verifiera registreringsenheter, kvittoserier, journalurval och kontrollregistrering mot den valda certifierade lösningen. Äldre gemensam historik måste fortsatt kunna identifieras som äldre. |
+| L03 | Exakta artikelantal och avgränsade returer finns; beloppsandelar behöver fiskal verifiering | Fastställ godtagbar produktionsmodell för godtycklig beloppsdelning och de antal som kontrollösning och XML kan återge. Exempelvis 1/3 kan inte skrivas exakt i schemats två decimaler. |
+| L04 | X/Z-underlag per kassa finns; skarpa räknare är inte implementerade | Kravvis slutprovning av alla uppgifter och räknare, vald varu-/tjänstklassificering samt verklig kontrollösning. Träningsräknare får inte konverteras till verklig omsättning. |
+| L05 | XML granskas och spärras vid kända luckor | Slutlig mappning av bland annat övningskvittokopior, negativa träningssaldon och andelar över två decimaler. Äldre saknat underlag får inte gissas. JSON ersätter inte föreskriven XML. |
 | L06 | Ingen färdig tillverkardeklaration | Identifierad ansvarig tillverkare, modell/programversion, funktionsdokumentation, kravmatris, testprotokoll med vald certifierad kontrollösning och korrekt deklaration till Skatteverket. Reglerade versionsändringar behöver följas upp. |
 | L07 | Ingen anmäld skarp installation | Verifierade företagsuppgifter, lokal och identifierare för varje anmälningspliktig registreringsenhet och kontrollösning samt företagets anmälan före användning. |
 | L08 | Ingen verklig betalnings- eller skrivardrift | Inlösar-/betalningsavtal, leverantörens godkända integration, fysisk terminalprovning, korrekt kvitto på valda skrivare och säker hantering av osäkra svar. PCI-ansvaret måste fastställas med leverantören. |
-| L09 | Arkiv och dataskydd är inte driftsatta | Beslutad arkiv-/bevarandeplan, separat skyddad backup, provad återläsning, konton och behörigheter per person, informationsrutiner och dokumenterat ansvar för personuppgifter. |
+| L09 | Konton/roller och verifierbar backup/återläsning finns; skyddat arkiv saknas | Konfigurera personliga konton i den verkliga installationen, separat skyddad lagring, bevarandeplan, driftansvar och dataskyddsrutiner. Manifest och lokal hashkedja ersätter inte skydd mot en angripare som kan ändra både databas och kontrollfiler. |
 
 L02 är ett arkitekturkrav, inte bara en nätverksinställning. Skatteverkets vägledning behandlar funktioner per registreringsenhet (4 kap. 2 §), åtskillnad för tunna klienter (5 kap. 3 §), kontrollregistrering (5 kap. 7 §) samt kvitton och rapporter (7 kap. SKVFS 2021:17). [Krav på kassaregister och tillverkardeklaration](https://www4.skatteverket.se/rattsligvagledning/edition/2026.14/339829.html). De tre skrivarna är utmatningsenheter; att lägga till skrivarprofiler löser inte kraven för de fem enheter som kan avsluta en försäljning.
 
@@ -144,7 +146,7 @@ Den professionella designens lokala logotyp kommer från [Lagustosas egen webbpl
 5. Öppna **Ta betalt → Dela lika**. Prova först en nekad betalning.
 6. Välj förlorat betalningssvar. Kontrollera samma försök tills dess verkliga simulerade status visas.
 7. Prova ett förlorat kontrollenhetssvar och verifiera befintlig registrering. Slutför resterande delbetalning och visa testkvittot.
-8. Stäng dagen, kontrollera avstämningen och hämta CSV/journal-XML.
+8. Stäng dagen, kontrollera avstämning och rapport per kassa. Hämta CSV, registerrapport och journalunderlag; läs XML-kontrollens eventuella spärrorsaker.
 
 Betalnings- och returförsök sparas i webbläsaren innan anropet skickas. Om anslutningen bryts kan dialogen stängas och sidan laddas om. En avisering med **Återuppta betalning** eller **Återuppta retur** öppnar det sparade försöket för samma personal och enhet. Belopp och övriga uppgifter är låsta tills resultatet har kontrollerats. Servern söks först efter den befintliga registreringen; endast ett försök som ännu inte registrerats skickas igen, med samma identifierare.
 
@@ -160,7 +162,13 @@ python -m pip install -r scripts/requirements-test.txt
 
 XSD-filerna under `vendor/skatteverket/` är oförändrade från Skatteverkets publicerade schema. Provningen granskar exporter med försäljning i övningsläge, returer, artikeländringar och dagsrapporter. En XML-fil kan även kontrolleras med `python scripts/validate-journal-xml.py "sökväg-till-journal.xml"`. Strukturellt giltig XML innebär inte att alla föreskriftskrav är täckta.
 
-Administratören kan hämta `/api/v1/journal.json` som kompletterande journalunderlag med fullständiga originalposter och hashkedjans gränser. XML-exporten avvisar för långa eller otillåtna textvärden och äldre historik vars identitet inte går att fastställa, i stället för att korta text eller tilldela gamla poster dagens företagsuppgifter. Bevara originaldatabasen och använd JSON-underlaget för utredning; detta ersätter inte föreskriven XML-export. Datumurval kan anges med `?from=2026-10-13&to=2026-10-13` på båda exporterna.
+Administratören kan hämta `/api/v1/journal.json` som kompletterande journalunderlag med fullständiga originalposter och hashkedjans gränser. `/api/v1/journal/coverage` visar mappade, tekniska och blockerande poster innan export. Datum- och kassaurval kan anges med `?from=2026-10-13&to=2026-10-13&registerId=KASSANS-ID` på alla tre journalvägarna. En filtrerad JSON anger luckor mellan originalhasharna; den påstår inte att urvalet är en ny obruten hashkedja. Exportkassans identitet hålls åtskild från den valda urvalskassan.
+
+XML avvisar ekonomiska uppgifter som inte kan återges exakt: exempelvis okända äldre antal/varu- eller tjänsteklasser, andelar över två decimaler, kvittokopior utan verifierad kontrollmappning och negativa träningsnetton som strider mot schemats beloppsbegränsning. Långa eller otillåtna textvärden avvisas också. `fullComplianceVerified` är alltid `false`; en lyckad export är inget juridiskt efterlevnadsintyg. Bevara originaldatabasen och JSON för utredning.
+
+Rapporter per kassa kan hämtas med `/api/v1/business-days/DAGENS-ID/register-reports.json`, med valfritt `?registerId=KASSANS-ID`. Öppen dag ger journalfört X-underlag; avslutad dag ger de låsta Z-snapshots som sparades vid avslutet. `coverage.complete` avser bara det underlag som beräkningen använder. Parkerade notor hör till kassan där de öppnades; en betalning hör till kassan som startade betalningsförsöket. Explicit överföring av parkeringsansvar mellan kassor återstår.
+
+`grandTotals.training` är en separat träningsmodell som ackumulerar registrerade kvitton och returkvitton, inklusive moms och efterhandsrättelser av avslutade köp, men exklusive dricks. En kopia, växelkassa eller rättelse innan notan avslutas räknas inte som ytterligare försäljning/retur. Räknarna hålls åtskilda från ackumulerade betalningsbelopp och från `grandTotals.real`, som är noll. Äldre saknat underlag och osäkra kontrollregistreringar markeras i räknarens egen `coverage`. Den verkliga fiskala implementationen återstår.
 
 ```powershell
 npm test
@@ -206,7 +214,7 @@ På handterminaler och mindre skärmar ger **Visa nota** snabb åtkomst till akt
 
 Skrivarprofilerna är ännu ingen fysisk anslutning: de innehåller destination och pappersbredd, men inte IP-adress, USB-port eller modellprotokoll. En tillverkaradapter och en utskriftstjänst behöver kopplas till den beständiga kön. Möjliga vägar för kompatibla modeller är [Epson ePOS](https://download4.epson.biz/sec_pubs/pos/reference_en/technology/epson_epos_sdk.html) eller [Star CloudPRNT](https://star-m.jp/products/s_print/sdk/StarCloudPRNT/manual/en/protocol-guide.html); modellstöd måste verifieras innan utrustning väljs. Två köksskärmar visar samma kö; barens skärm visar en annan station.
 
-En reproducerbar **AW-simulering för 36 eller 90 gäster** finns i `scripts/simulate-aw.mjs`. Den använder en ny, isolerad testomgång med åtta virtuella anslutningar, fyra samtidiga serveringsklienter, tre skrivarrutter och delbetalningar. 90-gästprovet den 13 oktober 2026 passerade med 1 552 HTTP-anrop, 90 betalningar, 90 kvitton, inga oväntade fel och noll kassadifferens. Körningen tog 10,9 sekunder; detta styrker de provade flödena, inte 99 procent tillgänglighet eller fysisk utrustning. Se [testguiden](TEST-GUIDE.md#aw-med-36-eller-90-samtidiga-gäster) för full körning, separat förväntansberäkning och en interaktiv demonstration mitt i rusningen.
+En reproducerbar **AW-simulering för 36 eller 90 gäster** finns i `scripts/simulate-aw.mjs`. Den använder en ny, isolerad testomgång med åtta virtuella anslutningar, fyra samtidiga serveringsklienter, tre skrivarrutter och delbetalningar. 90-gästprovet den 13 oktober 2026 passerade med 1 557 HTTP-anrop, 90 betalningar, 90 kvitton, inga oväntade fel och noll kassadifferens. Körningen efter registeruppdelningen tog 5,3 sekunder och verifierade även fem separata Z-rapporter samt ackumulerade kvittobelopp; detta styrker de provade flödena, inte 99 procent tillgänglighet eller fysisk utrustning. Se [testguiden](TEST-GUIDE.md#aw-med-36-eller-90-samtidiga-gäster) för full körning, separat förväntansberäkning och en interaktiv demonstration mitt i rusningen.
 
 Använd en lokal installationsmapp på restaurangens laptop, exempelvis `C:\Lagustosa-Kassa`. Den aktiva SQLite-databasen ska ligga på datorns egen disk, utanför OneDrive eller en annan synkroniserad mapp. Säkerhetskopior kan däremot flyttas till separat lagring.
 
@@ -232,7 +240,7 @@ Servern tar backup varje timme och efter dagsavslut. Manuell kopia finns vid huv
 npm run backup
 ```
 
-SQLite-backupen inkluderar bekräftade ändringar även när WAL används. CLI-verktyget kontrollerar databasens integritet och journalens kontrollsummor.
+SQLite-backupen inkluderar bekräftade ändringar även när WAL används. Både servern och CLI-verktyget kontrollerar databasens integritet, databasversion, träningsidentitet och journalens hashkedja. Varje ny kopia får en fil med samma namn och suffixet `.manifest.json`, med filstorlek, SHA-256, journalantal och journalens sista hash. Kopiera **både `.sqlite` och `.manifest.json`** till separat skyddad lagring. Manifestet är en integritetskontroll, inte en digital signatur, kryptering eller ett arkiv med skrivskydd.
 
 Stoppa servern innan återställning:
 
@@ -240,7 +248,9 @@ Stoppa servern innan återställning:
 npm run restore -- "E:\Backups\lagustosa-training-EXEMPEL.sqlite"
 ```
 
-Återställning avvisas medan servern körs. Den tidigare databasen säkerhetskopieras före ersättningen. Prova återställning till en separat testinstallation innan rutinen används i restaurangen.
+Återställning avvisas medan servern körs. Felaktig fil, journal eller manifest stoppar återläsningen innan den aktiva databasen ersätts. Den tidigare databasen får en verifierad säkerhetskopia. Efter återställning avslutas samtliga gamla inloggningssessioner och en återställningshändelse läggs till i journalen; alla måste logga in igen. Prova rutinen i en separat testinstallation.
+
+Äldre kopior utan manifest kräver ett uttryckligt undantag efter granskning: `npm run restore -- "E:\Backups\aldre.sqlite" --allow-legacy`. Databas och journal kontrolleras fortfarande, och undantaget sparas i återställningsjournalen. Återställning kan förlora registreringar efter kopians tidpunkt; i framtida skarp drift måste kvitton, terminaler och kontrollösning stämmas av före återupptagen försäljning. Träningsverktyget löser inte den leverantörsspecifika avstämningen.
 
 Serverstart och återställning håller ett gemensamt processlås i `training-owner.sqlite` under hela användningen. Operativsystemet släpper låset vid processkrasch. Låsfilen är inte en försäljningsdatabas och ska inte återställas, raderas eller bytas medan någon process använder datamappen. Uppgraderingar kräver att gamla serverprocesser stoppas först; parallell start av äldre PID-baserade versioner och den nya versionen stöds inte.
 
