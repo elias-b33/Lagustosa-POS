@@ -7,5 +7,7 @@ import './design-controls.css';
 import './styles-professional.css';
 import './mobile-service.css';
 import './menu.css';
+import './styles-cotto.css';
+import './styles-cotto-operations.css';
 
 createRoot(document.getElementById('root')!).render(<App />);

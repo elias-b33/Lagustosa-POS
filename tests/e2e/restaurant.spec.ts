@@ -89,11 +89,13 @@ test('inloggningen har synlig startknapp på en mindre datorskärm och mobil', a
   await page.goto('/');
   await expect(page.getByLabel('Personal', { exact: true })).toBeVisible();
   await expect(page.getByText('SÄKER TESTMILJÖ', { exact: true })).toBeVisible();
-  for (const design of ['professional', 'classic'] as const) {
+  for (const design of ['cotto', 'professional', 'classic'] as const) {
     await page.getByLabel('Utseende', { exact: true }).selectOption(design);
     for (const [name, width, height] of [['compact', 1280, 720], ['phone', 390, 844], ['small-phone', 320, 812]] as const) {
       await page.setViewportSize({ width, height });
       await expect(page.getByRole('button', { name: 'Börja servicen', exact: true })).toBeInViewport();
+      const startButton = await page.getByRole('button', { name: 'Börja servicen', exact: true }).boundingBox();
+      expect(startButton && startButton.y >= 0 && startButton.y + startButton.height <= height, `${design} login ${name}: the entire start button must fit`).toBe(true);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${design} login ${name}`).toBe(true);
       await page.screenshot({ path: `artifacts/lagustosa-${design}-login-${name}.png` });
     }
@@ -128,7 +130,7 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   await page.getByRole('button', { name: 'Fram huvudrätt', exact: true }).click();
   await mkdir('artifacts', { recursive: true });
   const selectedTab = await page.getByLabel('Öppna notor', { exact: true }).inputValue();
-  for (const design of ['classic', 'professional'] as const) {
+  for (const design of ['classic', 'professional', 'cotto'] as const) {
     await page.getByLabel('Utseende', { exact: true }).selectOption(design);
     await expect(page.getByLabel('Öppna notor', { exact: true })).toHaveValue(selectedTab);
     await expect(page.locator('.order-line')).toHaveCount(3);
@@ -139,7 +141,7 @@ test('hel service: kök/bar, framkallning, osäkra svar, delad nota och dagsavsl
   const payment = page.getByRole('dialog', { name: 'Ta betalt' });
   await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
   await payment.getByRole('button', { name: 'Dela lika', exact: true }).click();
-  await page.screenshot({ path: 'artifacts/lagustosa-professional-payment.png' });
+  await page.screenshot({ path: 'artifacts/lagustosa-cotto-payment.png' });
   await payment.getByText('Välj testscenario', { exact: true }).click();
   await payment.getByLabel('Betalningens resultat').selectOption('declined');
   await payment.getByRole('button', { name: /^Simulera betalning/ }).click();
@@ -189,7 +191,7 @@ test('två servitörer kan lägga beställningar på samma bord utan förlust', 
     await Promise.all([login(a, 'waiter', '3456', 'SERVERING-1'), login(b, 'waiter', '3456', 'SERVERING-2')]);
     await a.getByLabel('Utseende', { exact: true }).selectOption('classic');
     await expect(a.locator('html')).toHaveAttribute('data-design', 'classic');
-    await expect(b.locator('html')).toHaveAttribute('data-design', 'professional');
+    await expect(b.locator('html')).toHaveAttribute('data-design', 'cotto');
     await Promise.all([a.getByRole('button', { name: /^Bord 02 / }).click(), b.getByRole('button', { name: /^Bord 02 / }).click()]);
     await Promise.all([
       a.locator('.product-card').filter({ has: a.getByText('Vitlöksbröd', { exact: true }) }).click(),
@@ -204,10 +206,10 @@ test('två servitörer kan lägga beställningar på samma bord utan förlust', 
   } finally { await first.close(); await second.close(); }
 });
 
-test('båda utseendena fungerar på skrivbord, platta och mobil och valet sparas', async ({ page }) => {
+test('alla utseenden fungerar på skrivbord, platta och mobil och valet sparas', async ({ page }) => {
   await login(page);
   await mkdir('artifacts', { recursive: true });
-  for (const design of ['professional', 'classic'] as const) {
+  for (const design of ['cotto', 'professional', 'classic'] as const) {
     await page.getByLabel('Utseende', { exact: true }).selectOption(design);
     await page.reload();
     await expect(page.getByLabel('Utseende', { exact: true })).toHaveValue(design);
@@ -369,7 +371,7 @@ test('visar anslutna enheter och flyttar en väntande bong med kontrollerad åte
 test('handterminalens notaknapp bevarar menyposition och använder samma skicka/betala-flöde', async ({ page }) => {
   await login(page); const tab = await sentTab(page);
   await page.getByRole('dialog').getByRole('button', { name: 'Stäng', exact: true }).click();
-  for (const design of ['classic', 'professional'] as const) {
+  for (const design of ['classic', 'professional', 'cotto'] as const) {
     await page.getByLabel('Utseende', { exact: true }).selectOption(design);
     for (const width of [320, 390, 600]) {
       await page.setViewportSize({ width, height: 844 });

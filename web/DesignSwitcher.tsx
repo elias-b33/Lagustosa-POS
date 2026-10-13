@@ -1,16 +1,18 @@
 import { useId, useSyncExternalStore } from 'react';
 import { Palette } from 'lucide-react';
 
-export type Design = 'professional' | 'classic';
+export type Design = 'cotto' | 'professional' | 'classic';
 const preferenceKey = 'lagustosa-ui-design';
 const changedEvent = 'lagustosa-design-change';
 
 function savedDesign(): Design {
-  try { return localStorage.getItem(preferenceKey) === 'classic' ? 'classic' : 'professional'; }
-  catch { return 'professional'; }
+  try {
+    const saved = localStorage.getItem(preferenceKey);
+    return saved === 'classic' || saved === 'professional' ? saved : 'cotto';
+  } catch { return 'cotto'; }
 }
 
-let currentDesign: Design = typeof window === 'undefined' ? 'professional' : savedDesign();
+let currentDesign: Design = typeof window === 'undefined' ? 'cotto' : savedDesign();
 if (typeof document !== 'undefined') document.documentElement.dataset.design = currentDesign;
 
 export function setDesign(design: Design) {
@@ -36,13 +38,18 @@ function subscribe(onChange: () => void) {
   };
 }
 
+export function useDesign(): Design {
+  return useSyncExternalStore(subscribe, () => currentDesign, () => 'cotto');
+}
+
 export function DesignSwitcher() {
   const id = useId();
-  const design = useSyncExternalStore(subscribe, () => currentDesign, () => 'professional');
+  const design = useDesign();
   return <label className="design-switcher" htmlFor={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0, fontSize: 11 }}>
     <Palette size={15} aria-hidden="true" />
     <span>Utseende</span>
     <select id={id} aria-label="Utseende" value={design} onChange={event => setDesign(event.target.value as Design)} style={{ width: 'auto', minHeight: 36, maxWidth: 136, padding: '7px 10px' }}>
+      <option value="cotto">Cotto</option>
       <option value="professional">Professionell</option>
       <option value="classic">Klassisk</option>
     </select>

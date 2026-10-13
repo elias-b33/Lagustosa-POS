@@ -1,0 +1,328 @@
+/* Cotto: the same paper, ink and rules carry through the whole service. */
+
+/* Personal sign-in: a restaurant title page beside a practical keypad. */
+html[data-design="cotto"] .login-page {
+  min-height: 100dvh;
+  grid-template-columns: minmax(320px, 1fr) minmax(440px, 1fr);
+  background: var(--paper);
+}
+html[data-design="cotto"] .login-story {
+  padding: clamp(36px, 5vw, 80px);
+  background: #a34731;
+  color: #fff8ea;
+}
+html[data-design="cotto"] .login-story .wordmark {
+  font-family: var(--font-editorial);
+  font-size: clamp(44px, 5vw, 68px);
+  line-height: 1;
+  letter-spacing: -2.8px;
+}
+html[data-design="cotto"] .login-story .wordmark span {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #fff8ea55;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 2.4px;
+  color: #fae1d2;
+}
+html[data-design="cotto"] .login-art { display: none; }
+html[data-design="cotto"] .story-copy { margin: 100px 0 60px; }
+html[data-design="cotto"] .story-copy .eyebrow {
+  color: #fae1d2;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  margin-bottom: 24px;
+}
+html[data-design="cotto"] .story-copy h1 {
+  font-family: var(--font-editorial);
+  font-size: clamp(56px, 6.4vw, 90px);
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -3px;
+  margin-bottom: 30px;
+}
+html[data-design="cotto"] .story-copy p { color: #fae1d2; font-size: 16px; line-height: 1.8; }
+html[data-design="cotto"] .story-footer {
+  border-top: 1px solid #fff8ea55;
+  padding-top: 24px;
+  margin-top: 0;
+  color: #fae1d2;
+  font-size: 10px;
+  letter-spacing: 1.8px;
+}
+html[data-design="cotto"] .login-form { padding: 54px 48px; }
+html[data-design="cotto"] .login-box { width: 364px; }
+html[data-design="cotto"] .login-box h2 {
+  font-family: var(--font-editorial);
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -1.1px;
+  line-height: 1.2;
+  margin-top: 28px;
+}
+html[data-design="cotto"] .login-box > p { font-size: 13px; margin-bottom: 26px; }
+html[data-design="cotto"] .training-tag {
+  color: #72572a;
+  background: #eee6d5;
+  border: 1px solid #d8cbaa;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+html[data-design="cotto"] .login-box input[aria-label="PIN-kod"] { font-size: 20px; letter-spacing: 6px; }
+html[data-design="cotto"] .pin-pad { gap: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+html[data-design="cotto"] .pin-pad button {
+  height: 54px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 21px;
+  font-weight: 500;
+}
+html[data-design="cotto"] .pin-pad button:nth-child(3n) { border-right: 0; }
+html[data-design="cotto"] .pin-pad button:nth-last-child(-n+3) { border-bottom: 0; }
+html[data-design="cotto"] .pin-pad button:nth-last-child(3) { font-size: 12px; }
+html[data-design="cotto"] .pin-pad button:hover { background: var(--wine-pale); color: var(--wine-dark); }
+html[data-design="cotto"] .pin-pad button:focus-visible { outline-offset: -4px; }
+html[data-design="cotto"] .device-details { font-size: 12px; margin-bottom: 18px; }
+html[data-design="cotto"] .device-details summary { min-height: 44px; padding: 12px 0; }
+html[data-design="cotto"] .device-details[open] { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+html[data-design="cotto"] .device-details p { line-height: 1.7; }
+html[data-design="cotto"] .login-box .button { min-height: 50px; font-size: 14px; }
+html[data-design="cotto"] .login-box .login-test-note { font-size: 11px; line-height: 1.7; margin: 22px 0 0; }
+
+/* Kitchen and bar: a clear ticket rail with status in both colour and words. */
+html[data-design="cotto"] .operations,
+html[data-design="cotto"] .station-view { max-width: 1440px; }
+html[data-design="cotto"] .station-summary {
+  gap: 16px 26px;
+  padding: 15px 0;
+  margin: -3px 0 26px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  align-items: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+html[data-design="cotto"] .station-summary > span:not(:last-child) { font-weight: 500; }
+html[data-design="cotto"] .station-summary > span:last-child { font-size: 11px; }
+html[data-design="cotto"] .ticket-grid { gap: 18px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+html[data-design="cotto"] .ticket {
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--wine);
+  border-radius: 4px;
+  background: var(--paper);
+  box-shadow: 0 2px 0 #29272208;
+}
+html[data-design="cotto"] .ticket.started { border-top-color: #9a7128; }
+html[data-design="cotto"] .ticket.ready { border-top-color: var(--green); }
+html[data-design="cotto"] .ticket.served { border-top-color: #aaa397; }
+html[data-design="cotto"] .ticket.cancel-ticket { border-color: #c58e83; border-top-color: var(--danger); background: #fff1ea; }
+html[data-design="cotto"] .ticket > header { padding: 20px 20px 12px; color: var(--ink); }
+html[data-design="cotto"] .ticket > header > svg { color: var(--muted); width: 22px; height: 22px; }
+html[data-design="cotto"] .ticket .eyebrow { font-size: 10px; margin-bottom: 7px; letter-spacing: 1.5px; }
+html[data-design="cotto"] .ticket h3 { font-family: var(--font-ui); font-size: 28px; font-weight: 600; line-height: 1.2; letter-spacing: -.6px; }
+html[data-design="cotto"] .ticket-meta { gap: 12px; padding: 0 20px 17px; font-size: 11px; font-variant-numeric: tabular-nums; }
+html[data-design="cotto"] .ticket-meta > span:first-child { color: var(--wine-dark); font-weight: 600; }
+html[data-design="cotto"] .ticket-meta svg { margin-right: 4px; }
+html[data-design="cotto"] .ticket-lines { padding: 0 20px; }
+html[data-design="cotto"] .ticket-lines > div { padding: 18px 0; border-bottom: 1px solid var(--line); }
+html[data-design="cotto"] .ticket-lines > div:last-child { border: 0; }
+html[data-design="cotto"] .ticket-lines strong { font-size: 16px; font-weight: 600; line-height: 1.45; }
+html[data-design="cotto"] .ticket-lines span,
+html[data-design="cotto"] .ticket-lines small { font-size: 12px; margin-top: 5px; }
+html[data-design="cotto"] .ticket-lines small { color: #4c463d; font-weight: 500; }
+html[data-design="cotto"] .kitchen-note { border: 0; border-left: 3px solid #a77b31; border-radius: 0 3px 3px 0; padding: 10px 12px; background: #f3e8cd; color: #604719; font-size: 13px; line-height: 1.5; }
+html[data-design="cotto"] .ticket > .kitchen-note { margin: 0 20px 14px; }
+html[data-design="cotto"] .ticket-footer { padding: 14px 20px; gap: 10px; background: #eeeae1; }
+html[data-design="cotto"] .ticket-footer .button { min-height: 46px; padding: 10px 14px; font-size: 13px; }
+html[data-design="cotto"] .ticket.ready .ticket-footer .button { background: var(--green); border-color: var(--green); }
+
+/* Daily accounts: one ledger with dividers, rather than a collection of tiles. */
+html[data-design="cotto"] .report-metrics {
+  gap: 0;
+  padding: 25px 0;
+  margin: 26px 0 30px;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+html[data-design="cotto"] .report-metrics > div { background: transparent; border: 0; border-right: 1px solid var(--line); border-radius: 0; padding: 0 24px; }
+html[data-design="cotto"] .report-metrics > div:first-child { padding-left: 0; }
+html[data-design="cotto"] .report-metrics > div:last-child { border: 0; }
+html[data-design="cotto"] .report-metrics span { font-size: 12px; font-weight: 500; color: var(--ink); }
+html[data-design="cotto"] .report-metrics strong { font-family: var(--font-ui); font-size: clamp(25px, 2.5vw, 36px); font-weight: 500; letter-spacing: -1.3px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; margin: 10px 0; }
+html[data-design="cotto"] .report-metrics small { font-size: 11px; line-height: 1.6; }
+html[data-design="cotto"] .report-grid { gap: 28px; }
+html[data-design="cotto"] .operations .card { padding: 24px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); box-shadow: none; }
+html[data-design="cotto"] .report-grid .card { padding: 0; border: 0; background: transparent; }
+html[data-design="cotto"] .report-grid .card h3 { border-bottom: 1px solid var(--ink); padding-bottom: 14px; margin-bottom: 0; font-size: 15px; }
+html[data-design="cotto"] .report-line { padding: 15px 0; font-size: 13px; }
+html[data-design="cotto"] .report-line strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+html[data-design="cotto"] .report-line small { font-size: 11px; }
+html[data-design="cotto"] .report-exports { gap: 10px; padding-top: 6px; }
+html[data-design="cotto"] .report-exports .button { min-height: 44px; font-size: 12px; }
+html[data-design="cotto"] .report-exports > span { font-size: 11px; }
+html[data-design="cotto"] .backup-card { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; padding: 22px 0 0; margin-top: 32px; gap: 16px; }
+html[data-design="cotto"] .backup-card strong { font-size: 13px; font-weight: 600; }
+html[data-design="cotto"] .backup-card > div > span { font-size: 11px; line-height: 1.6; }
+html[data-design="cotto"] .backup-card .button { font-size: 12px; }
+
+/* The administrative lists use the same quiet ruled-paper structure. */
+html[data-design="cotto"] .list-card { border: 1px solid var(--line); border-radius: 4px; background: var(--paper); box-shadow: none; }
+html[data-design="cotto"] .list-row { padding: 17px 20px; min-height: 82px; gap: 18px; font-size: 13px; }
+html[data-design="cotto"] .list-row > div { min-width: 0; }
+html[data-design="cotto"] .list-row > div > strong { font-weight: 600; font-size: 13px; }
+html[data-design="cotto"] .list-row > div > span { font-size: 11px; line-height: 1.5; margin-top: 5px; }
+html[data-design="cotto"] .list-row > strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+html[data-design="cotto"] button.list-row:hover { background: #f5eee3; }
+html[data-design="cotto"] .list-icon { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; width: 38px; height: 38px; }
+html[data-design="cotto"] .list-row > .icon-button { min-height: 44px; min-width: 44px; border: 1px solid var(--line); border-radius: 3px; }
+html[data-design="cotto"] .receipt-link { min-width: 0; min-height: 44px; }
+html[data-design="cotto"] .receipt-link strong { font-size: 13px; font-weight: 600; }
+html[data-design="cotto"] .receipt-link span { font-size: 11px; overflow-wrap: anywhere; }
+html[data-design="cotto"] .admin-tabs { gap: 10px 22px; margin-bottom: 27px; border-bottom: 1px solid var(--line); }
+html[data-design="cotto"] .admin-tabs > button { padding: 13px 0; min-height: 48px; font-size: 13px; border-radius: 0; border-bottom-width: 3px; }
+html[data-design="cotto"] .admin-tabs > button.active { color: var(--wine-dark); border-bottom-color: var(--wine); font-weight: 600; }
+html[data-design="cotto"] .admin-tabs > button:hover { color: var(--ink); }
+html[data-design="cotto"] .availability { min-height: 44px; font-size: 12px; gap: 10px; }
+html[data-design="cotto"] .device-status { font-size: 11px; }
+html[data-design="cotto"] .device-status.online { font-weight: 500; }
+html[data-design="cotto"] .device-code { border: 1px solid var(--line); border-radius: 3px; padding: 24px 12px; background: #eeeae1; color: var(--wine-dark); font-size: 24px; }
+html[data-design="cotto"] .modifier-editor { border: 1px solid var(--line); border-radius: 4px; padding: 18px; background: #f5f1e8; }
+html[data-design="cotto"] .modifier-editor-head { grid-template-columns: minmax(0, 1fr) 65px 65px 44px; gap: 10px; }
+html[data-design="cotto"] .modifier-editor-option { grid-template-columns: minmax(0, 1fr) 100px 44px; gap: 10px; }
+html[data-design="cotto"] .modifier-editor .icon-button { min-height: 44px; min-width: 44px; }
+html[data-design="cotto"] .tax-rule { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) 82px 44px; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+html[data-design="cotto"] .tax-rule:last-child { border: 0; }
+html[data-design="cotto"] .tax-rule .field { margin-bottom: 0; }
+html[data-design="cotto"] .tax-rule input,
+html[data-design="cotto"] .tax-rule select { font-size: 12px; padding: 10px; }
+html[data-design="cotto"] .tax-rule > .icon-button { align-self: end; min-height: 44px; min-width: 44px; }
+html[data-design="cotto"] .journal-list { border: 1px solid var(--line); border-radius: 4px; background: var(--paper); }
+html[data-design="cotto"] .journal-list details { padding: 4px 20px; }
+html[data-design="cotto"] .journal-list details:last-child { border: 0; }
+html[data-design="cotto"] .journal-list summary { min-height: 50px; align-items: center; font-size: 12px; }
+html[data-design="cotto"] .journal-list pre { padding: 16px; background: #eeeae1; border-left: 2px solid var(--line); font-size: 11px; line-height: 1.7; }
+
+/* Payment amounts remain unambiguous, with tabular figures and generous controls. */
+html[data-design="cotto"] .split-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding: 0; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+html[data-design="cotto"] .split-tabs > button { min-height: 46px; padding: 9px 6px; border: 0; border-right: 1px solid var(--line); border-radius: 0; font-size: 12px; background: transparent; white-space: normal; }
+html[data-design="cotto"] .split-tabs > button > svg { display: none; }
+html[data-design="cotto"] .split-tabs > button:last-child { border-right: 0; }
+html[data-design="cotto"] .split-tabs > button.active { background: var(--wine-pale); color: var(--wine-dark); box-shadow: inset 0 -3px 0 var(--wine); font-weight: 600; }
+html[data-design="cotto"] .split-tabs > button:focus-visible { outline-offset: -4px; }
+html[data-design="cotto"] .pay-amount { padding: 22px 0 25px; margin: 0 0 24px; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+html[data-design="cotto"] .pay-amount > span { color: var(--ink); font-size: 12px; font-weight: 500; }
+html[data-design="cotto"] .pay-amount > strong { font-family: var(--font-ui); font-size: clamp(38px, 5vw, 48px); font-weight: 500; letter-spacing: -1.8px; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.3; margin: 7px 0; }
+html[data-design="cotto"] .pay-amount > small { font-size: 12px; }
+html[data-design="cotto"] .payment-methods { gap: 10px; margin-bottom: 24px; }
+html[data-design="cotto"] .payment-methods > button { min-height: 88px; border: 1px solid var(--line); border-radius: 4px; font-size: 13px; gap: 10px; padding: 16px 12px; }
+html[data-design="cotto"] .payment-methods > button.active { background: var(--wine-pale); color: var(--wine-dark); border-color: var(--wine); box-shadow: inset 0 0 0 1px var(--wine); }
+html[data-design="cotto"] .payment-items { max-height: 280px; border-top: 1px solid var(--line); margin-bottom: 18px; }
+html[data-design="cotto"] .payment-items > label { min-height: 60px; padding: 14px 8px; font-size: 13px; }
+html[data-design="cotto"] .payment-items > label:has(:checked) { background: var(--wine-pale); }
+html[data-design="cotto"] .payment-items small { font-size: 11px; margin-top: 4px; }
+html[data-design="cotto"] .payment-items strong { font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; font-weight: 600; }
+html[data-design="cotto"] .simulation-controls summary { min-height: 44px; padding: 12px 0; font-size: 12px; }
+html[data-design="cotto"] .payment-success { padding: 22px 0 14px; }
+html[data-design="cotto"] .payment-success > span { width: 60px; height: 60px; margin-bottom: 24px; border-radius: 50%; background: #e5ecdf; color: var(--green); }
+html[data-design="cotto"] .payment-success h3 { font-family: var(--font-editorial); font-size: 30px; font-weight: 400; letter-spacing: -.6px; }
+html[data-design="cotto"] .payment-success > strong { font-family: var(--font-ui); font-size: 44px; font-weight: 500; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+html[data-design="cotto"] .payment-success > p { font-size: 13px; }
+html[data-design="cotto"] .payment-recovery,
+html[data-design="cotto"] .recovery-banner { border-left: 3px solid #9a7128; border-radius: 3px; }
+html[data-design="cotto"] .receipt-paper { border-color: var(--line); background: #fffef9; padding: 28px 24px; box-shadow: none; font-size: 11px; }
+html[data-design="cotto"] .receipt-brand { color: var(--ink); }
+html[data-design="cotto"] .receipt-line { font-variant-numeric: tabular-nums; }
+html[data-design="cotto"] .receipt-line > strong { white-space: nowrap; }
+html[data-design="cotto"] .print-paper { padding: 24px 20px; border: 1px solid var(--line); border-radius: 0; background: #fffef9; font-size: 12px; line-height: 1.7; }
+
+@media (max-width: 1250px) {
+  html[data-design="cotto"] .ticket-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-design="cotto"] .tax-rule { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  html[data-design="cotto"] .tax-rule > .icon-button { justify-self: start; }
+}
+@media (max-width: 1050px) {
+  html[data-design="cotto"] .login-page { grid-template-columns: minmax(280px, .9fr) minmax(390px, 1.1fr); }
+  html[data-design="cotto"] .login-story { padding: 40px 32px; }
+  html[data-design="cotto"] .login-form { padding: 40px 30px; }
+  html[data-design="cotto"] .story-copy h1 { font-size: 60px; letter-spacing: -2px; }
+  html[data-design="cotto"] .report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 0; }
+  html[data-design="cotto"] .report-metrics > div:nth-child(2n) { border: 0; }
+  html[data-design="cotto"] .report-metrics > div:nth-child(2n+1) { padding-left: 0; }
+  html[data-design="cotto"] .report-metrics strong { font-size: 30px; }
+}
+@media (max-width: 760px) {
+  html[data-design="cotto"] .login-page { grid-template-columns: 1fr; }
+  html[data-design="cotto"] .login-story { display: none; }
+  html[data-design="cotto"] .login-form { min-height: 100dvh; padding: 52px 24px 32px; }
+  html[data-design="cotto"] .login-box::before { content: 'la gustosa'; display: block; font-family: var(--font-editorial); font-size: 40px; letter-spacing: -2px; color: var(--wine-dark); padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+  html[data-design="cotto"] .login-box h2 { font-size: 31px; margin-top: 22px; }
+  html[data-design="cotto"] .station-summary { gap: 10px 20px; margin-bottom: 20px; font-size: 12px; }
+  html[data-design="cotto"] .station-summary > span:last-child { margin-left: 0; width: 100%; }
+  html[data-design="cotto"] .ticket-grid { grid-template-columns: 1fr; }
+  html[data-design="cotto"] .report-grid { grid-template-columns: 1fr; gap: 8px; }
+  html[data-design="cotto"] .report-metrics { padding: 20px 0; gap: 22px 0; }
+  html[data-design="cotto"] .report-metrics > div { padding: 0 16px; }
+  html[data-design="cotto"] .report-metrics strong { font-size: 27px; letter-spacing: -1px; }
+  html[data-design="cotto"] .list-row { flex-wrap: wrap; gap: 12px; padding: 15px; }
+  html[data-design="cotto"] .list-row > div { min-width: 140px; }
+  html[data-design="cotto"] .list-row .availability { margin-left: 50px; }
+  html[data-design="cotto"] .receipt-link { flex-basis: calc(100% - 52px); }
+  html[data-design="cotto"] .operations .card { padding: 18px; }
+  html[data-design="cotto"] .report-grid .card { padding: 0; }
+  html[data-design="cotto"] .admin-tabs { gap: 0 18px; }
+  html[data-design="cotto"] .admin-tabs > button { font-size: 12px; }
+  html[data-design="cotto"] .tax-rule { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0; }
+  html[data-design="cotto"] .journal-list details { padding: 4px 14px; }
+  html[data-design="cotto"] .journal-list summary { align-items: flex-start; flex-direction: column; gap: 4px; padding: 12px 0; overflow-wrap: anywhere; }
+  html[data-design="cotto"] .modifier-editor { padding: 13px; }
+  html[data-design="cotto"] .modifier-editor-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; }
+  html[data-design="cotto"] .modifier-editor-head > .field:first-child { grid-column: 1 / -1; }
+  html[data-design="cotto"] .modifier-editor-option { grid-template-columns: minmax(0, 1fr) 84px 44px; gap: 7px; }
+  html[data-design="cotto"] .split-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-design="cotto"] .split-tabs > button { white-space: normal; padding: 9px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  html[data-design="cotto"] .split-tabs > button:nth-child(2n) { border-right: 0; }
+  html[data-design="cotto"] .split-tabs > button:last-child,
+  html[data-design="cotto"] .split-tabs > button:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+  html[data-design="cotto"] .split-tabs > button:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: 0; }
+  html[data-design="cotto"] .payment-items > label { gap: 9px; font-size: 12px; }
+  html[data-design="cotto"] .payment-items strong { font-size: 12px; }
+}
+/* Short register displays keep the sign-in action on screen with a touch-size keypad. */
+@media (min-width: 761px) and (max-height: 800px) {
+  html[data-design="cotto"] .login-story { padding: 36px 48px; }
+  html[data-design="cotto"] .login-story .wordmark { font-size: 52px; }
+  html[data-design="cotto"] .story-copy { margin: 50px 0 30px; }
+  html[data-design="cotto"] .story-copy .eyebrow { margin-bottom: 18px; }
+  html[data-design="cotto"] .story-copy h1 { font-size: 64px; margin-bottom: 22px; }
+  html[data-design="cotto"] .story-footer { padding-top: 18px; }
+  html[data-design="cotto"] .login-form { padding: 30px 40px; }
+  html[data-design="cotto"] .login-box h2 { font-size: 32px; margin-top: 20px; }
+  html[data-design="cotto"] .login-box > p { margin-bottom: 18px; }
+  html[data-design="cotto"] .login-box .field { margin-bottom: 12px; }
+  html[data-design="cotto"] .pin-pad { margin-bottom: 8px; }
+  html[data-design="cotto"] .pin-pad button { height: 46px; }
+  html[data-design="cotto"] .device-details { margin-bottom: 10px; }
+  html[data-design="cotto"] .login-box .login-test-note { margin-top: 12px; }
+}
+@media (max-width: 760px) and (max-height: 900px) {
+  html[data-design="cotto"] .login-form { padding: 54px 24px 24px; }
+  html[data-design="cotto"] .login-box::before { font-size: 34px; padding-bottom: 10px; margin-bottom: 14px; }
+  html[data-design="cotto"] .login-box h2 { font-size: 28px; margin-top: 18px; }
+  html[data-design="cotto"] .login-box > p { margin-bottom: 20px; }
+  html[data-design="cotto"] .login-box .field { margin-bottom: 12px; }
+  html[data-design="cotto"] .pin-pad { margin-bottom: 8px; }
+  html[data-design="cotto"] .pin-pad button { height: 46px; }
+  html[data-design="cotto"] .device-details { margin-bottom: 10px; }
+  html[data-design="cotto"] .login-box .login-test-note { margin-top: 12px; }
+}
+@media print {
+  html[data-design="cotto"] .receipt-paper { border: 0; }
+}

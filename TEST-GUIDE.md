@@ -49,7 +49,7 @@ Planerad utrustning: **1 huvudkassa, 4 enheter för beställning och betalning, 
 | 9. Utskrift | Öppna **Utskrifter**. Förhandsvisa köks-, bar- och kvittotext. Prova osäkert utskriftssvar. | Rätt skrivare syns. Kontroll krävs före märkt återutskrift. |
 | 10. Dagsavslut | Kontrollera försäljning, retur, dricks och kassabehållning. Avsluta dagen när alla öppna notor är hanterade. | Rapporten stämmer; CSV, journal-XML och backup kan skapas. |
 
-Byt **Utseende → Professionell / Klassisk** medan en nota är öppen. Samma nota och belopp ska finnas kvar. På smal skärm använder du **Visa nota / Till menyn** längst ned för att växla mellan beställning och nota.
+Byt **Utseende → Cotto / Professionell / Klassisk** medan en nota är öppen. Samma nota och belopp ska finnas kvar. Cotto är det nya grundutseendet; båda tidigare utseendena finns kvar i samma väljare. På smal skärm använder du **Visa nota / Till menyn** längst ned för att växla mellan beställning och nota.
 
 Prova också en liten kontantnota från huvudkassan och kontrollera växel. Serveringsenheterna tillåter inte kontantförsäljning.
 

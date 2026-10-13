@@ -43,9 +43,11 @@ Vid första starten med denna version uppdateras matartiklarna i en transaktion 
 
 ## Välj utseende
 
-Välj **Utseende → Professionell / Klassisk** i sidhuvudet eller på inloggningssidan. Bytet sker direkt utan att ändra notor, betalningar eller vald arbetsvy. Valet sparas i webbläsaren och synkroniseras mellan öppna flikar på samma adress. Nya installationer öppnar den professionella designen.
+Välj **Utseende → Cotto / Professionell / Klassisk** i sidhuvudet eller på inloggningssidan. Bytet sker direkt utan att ändra notor, betalningar eller vald arbetsvy. Valet sparas i webbläsaren och synkroniseras mellan öppna flikar på samma adress. Nya webbläsare öppnar Cotto; ett tidigare aktivt val av Professionell eller Klassisk respekteras.
 
-Det klassiska utseendets `web/styles.css` och `web/tokens.css` är bevarade. Den professionella designen ligger separat i `web/styles-professional.css` och aktiveras endast när den väljs. Git-taggen `ui-classic-v1` bevarar också appens version före UI-ombyggnaden, inklusive betalningsåterhämtningen.
+Det klassiska utseendets `web/styles.css` och `web/tokens.css` är bevarade. Den professionella designen ligger separat i `web/styles-professional.css`. Cotto ligger i `web/styles-cotto.css` och `web/styles-cotto-operations.css`, med varm pappersbakgrund, terrakotta, tydligare menykategorier och en kompakt nota. Git-taggarna `ui-classic-v1` och `ui-professional-v1` bevarar de tidigare versionerna.
+
+Cotto utgår från restaurangens meny och studier av [Lightspeeds registervy](https://k-series-support.lightspeedhq.com/hc/en-us/articles/360050328394-Understanding-the-Register-screen), [Toasts Open View](https://support.toasttab.com/en/article/Get-Started-Open-View) och [TouchBistros bordsarbete](https://www.touchbistro.com/features/tableside-order-management/). Vi använder fasta kategorier, lättlästa priser, synliga obligatoriska val och en tillgänglig nota under beställning. Utformningen och tillgångarna är våra egna. IBM Plex Sans levereras lokalt, utan typsnittsanrop till externa servrar; licensen finns i `web/assets/fonts/OFL.txt` och följer den byggda appen under `/licenses/ibm-plex-sans-OFL.txt`.
 
 Den professionella designens lokala logotyp kommer från [Lagustosas egen webbplats](https://www.lagustosa.se/). Färgerna bygger på restaurangens salviafärgade interiör, mörka ramar och vinröda detaljer. Meny, aktuell nota och stationernas status har tydliga hierarkier för restaurangservice. Logotyp och typsnitt kräver ingen Internetanslutning när appen körs.
 
@@ -86,7 +88,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, sparade betalningsförsök, skrivarroutning, åtta anslutna SSE-klienter med rätt order/station, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer, båda utseendena, handterminalens notaflöde, enhetsstatus, skrivarbyte och förlorade svar före och efter registrering av betalning/retur. Browser-tester använder en separat tillfällig databas på port 4183.
+Vitest verifierar belopp, datumstyrd moms, samtidiga order, delbetalningar, returer, sparade betalningsförsök, skrivarroutning, åtta anslutna SSE-klienter med rätt order/station, omstart, backup och TLS-kedja. Playwright provar restaurangflödet i webbläsaren, två samtidiga servitörer, alla tre utseenden, handterminalens notaflöde, enhetsstatus, skrivarbyte och förlorade svar före och efter registrering av betalning/retur. Browser-tester använder en separat tillfällig databas på port 4183.
 
 GitHub Actions kör tester och bygge på Windows och Linux. Testbilder sparas lokalt i `artifacts/`; de är inte versionshanterade.
 
