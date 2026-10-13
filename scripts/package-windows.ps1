@@ -43,7 +43,10 @@ try {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $zipPath = Join-Path $releaseRoot ($releaseName + '.zip')
   [System.IO.Compression.ZipFile]::CreateFromDirectory($packagePath, $zipPath)
-  $sha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $hasher = [System.Security.Cryptography.SHA256]::Create()
+  $zipStream = [System.IO.File]::OpenRead($zipPath)
+  try { $sha256 = [System.BitConverter]::ToString($hasher.ComputeHash($zipStream)).Replace('-', '').ToLowerInvariant() }
+  finally { $zipStream.Dispose(); $hasher.Dispose() }
   [System.IO.File]::WriteAllText(($zipPath + '.sha256'), ($sha256 + '  ' + [System.IO.Path]::GetFileName($zipPath) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
   Write-Output ('Windows-paket skapat: ' + $zipPath)
   Write-Output ('SHA-256: ' + $sha256)
