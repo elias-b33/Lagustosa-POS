@@ -118,6 +118,10 @@ De åtta kassorna/skärmarna arbetar mot samma lokala server. Testprofilerna har
 
 På handterminaler och mindre skärmar ger **Visa nota** snabb åtkomst till aktuell order. **Till menyn** återgår till samma menyposition. Tillåtna skicka- och betalningsåtgärder använder samma serverflöde som huvudkassan.
 
+Skrivarprofilerna är ännu ingen fysisk anslutning: de innehåller destination och pappersbredd, men inte IP-adress, USB-port eller modellprotokoll. En tillverkaradapter och en utskriftstjänst behöver kopplas till den beständiga kön. Möjliga vägar för kompatibla modeller är [Epson ePOS](https://download4.epson.biz/sec_pubs/pos/reference_en/technology/epson_epos_sdk.html) eller [Star CloudPRNT](https://star-m.jp/products/s_print/sdk/StarCloudPRNT/manual/en/protocol-guide.html); modellstöd måste verifieras innan utrustning väljs. Två köksskärmar visar samma kö; barens skärm visar en annan station.
+
+En reproducerbar **AW-simulering för 36 gäster** finns i `scripts/simulate-aw.mjs`. Den använder en ny, isolerad testomgång med åtta virtuella anslutningar, samtidiga order, tre skrivarrutter och delbetalningar. Se [testguiden](TEST-GUIDE.md#aw-med-36-samtidiga-gäster) för full körning och en interaktiv demonstration mitt i rusningen.
+
 Använd en lokal installationsmapp på restaurangens laptop, exempelvis `C:\Lagustosa-Kassa`. Den aktiva SQLite-databasen ska ligga på datorns egen disk, utanför OneDrive eller en annan synkroniserad mapp. Säkerhetskopior kan däremot flyttas till separat lagring.
 
 Kopiera `.env.example` till `.env`, ange `DATA_DIR=C:/Lagustosa-Data` och en separat `BACKUP_DIR`, exempelvis en USB-disk. Behåll `APP_MODE=training`.

@@ -69,6 +69,35 @@ Prova de uppdaterade beställnings- och betalningsflödena:
 
 Automatiserade tester provar även ett förlorat svar *efter* att en betalning eller retur har registrerats, och kontrollerar att samma köp/retur hämtas utan en dubbel registrering.
 
+## AW med 36 samtidiga gäster
+
+`scripts/simulate-aw.mjs` kör en reproducerbar AW mot appens riktiga HTTP-API med simulatorer. Den kräver en **ny tom datamapp** och en separat port; befintliga testomgångar ändras inte. Sex tillfälliga AW-bord får sex platser vardera enbart i denna databas.
+
+Scenariot använder huvudkassa, fyra serveringsprofiler och tre virtuella orderskärmsanslutningar. Det lägger 54 drycker, 12 delningsfat och 36 huvudrätter, framkallar väntande huvudrätter, byter en pizza och provar samtidiga ändringar på samma nota. Två köksskärmar ska få samma kö, baren en separat kö. Varje aktiv orderrad kontrolleras mot exakt en stationsrad, inklusive gäst, val och anteckning.
+
+Efter `npm run build` kan en full körning startas så här:
+
+```powershell
+$awRoot = Join-Path $env:LOCALAPPDATA ('LagustosaPOS\aw-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+node scripts/simulate-aw.mjs --root "$awRoot\full" --port 4383 --mode full
+```
+
+Den fulla körningen lägger även 12 desserter och 12 kaffe, gör 36 lika delbetalningar (sex per bord) med kort, verifierad Swish och kontanter, provar nekat/osäkert svar, kvittoåterhämtning och en osäker utskrift med märkt kopia. Försäljning och kassabehållning jämförs med separat beräknade förväntade belopp. Dagen stängs, journalen kontrolleras och backup skapas. Servern stoppas efteråt; resultatet finns i `aw-report.json` under den valda mappen.
+
+För att lämna en separat demonstration **mitt i rusningen**:
+
+```powershell
+node scripts/simulate-aw.mjs --root "$awRoot\preview" --port 4373 --mode rush
+```
+
+Öppna `http://127.0.0.1:4373/#kitchen` och logga in som **Ansvarig / 1234 / LAGUSTOSA-TEST**. Gå mellan **Bord**, **Kök**, **Bar** och **Utskrifter**. Använd statusknapparna för att själv fortsätta serveringen. För att stoppa just demonstrationen utan att ta bort data:
+
+```powershell
+node scripts/safe-test.mjs stop --root "$awRoot\preview" --port 4373 --no-browser
+```
+
+Detta är ett komprimerat lokalt arbetsflödestest. Åtta virtuella anslutningar motsvarar inte ett verifierat test på åtta fysiska enheter. Mätta HTTP-tider är inte iPad-skärmarnas uppdateringstid eller kökets kapacitet. Dryckernas exempelpriser är kvar, så omsättningen är ingen AW-offert. Utskrifter hanteras genom testadaptern; ingen fysisk skrivare eller automatisk utskriftsbrygga är ansluten.
+
 ## Prova iPads på ett privat testnät
 
 Den snabba starten ovan är begränsad till denna dator. För enhetstest på restaurangens privata nät använder testverktyget HTTPS och en egen lokal certifikatutfärdare.
