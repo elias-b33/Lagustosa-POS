@@ -1,0 +1,15 @@
+:root {
+  color-scheme: light;
+  --canvas: #f5f2ed;
+  --paper: #fffcf8;
+  --ink: #382e28;
+  --muted: #7b7066;
+  --line: #e6ded4;
+  --wine: #733344;
+  --wine-dark: #502535;
+  --wine-pale: #f3e8e8;
+  --gold: #c9ac77;
+  --green: #53734f;
+  --danger: #a54636;
+  --focus: #c19a59;
+}
