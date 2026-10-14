@@ -60,6 +60,10 @@ export function TerminalProgress({ payment, onResult, ...props }: WorkspaceProps
       if (result) onResult(result);
     } finally { inFlight.current = false; setChecking(false); }
   };
+  const simulate = async (action: string) => {
+    const result = await props.run(() => api('/contract-test/transaction', { paymentId: payment.id, action }));
+    if (result) await check.current();
+  };
   const uncertain = payment.status === 'unknown' || Boolean(info?.issue);
   return <section className="terminal-progress" aria-label="Kortterminalens betalningsstatus">
     <div className="terminal-progress-top"><span className="terminal-icon"><Smartphone size={28} /></span><span className="tag">{props.data.paymentIntegration?.contractTest ? 'Lokalt integrationstest' : 'Softpay · sandbox'}</span></div>
@@ -69,7 +73,7 @@ export function TerminalProgress({ payment, onResult, ...props }: WorkspaceProps
     {info && <dl className="terminal-reference"><dt>Testenhet</dt><dd>{info.appId}</dd>{info.requestId && <><dt>Betalningsreferens</dt><dd>{info.requestId}</dd></>}</dl>}
     <div className="terminal-check-state" role="status"><RefreshCw size={15} />{message || (paused ? 'Automatisk kontroll är pausad. Kontrollera igen när enheten är redo.' : checking ? 'Kontrollerar betalningsresultatet…' : 'Resultatet kontrolleras automatiskt.')}</div>
     <div className="action-row"><Action secondary disabled={checking || props.busy} onClick={() => void check.current()}>Kontrollera nu</Action><button className="text-button" disabled={checking || props.busy} onClick={() => void cancel()}>Avbryt försöket</button></div>
-    {props.data.paymentIntegration?.contractTest && <div className="terminal-lab"><strong>Lokal terminalsimulator</strong><p>Dessa knappar ersätter testkortet. Ingen anslutning till Softpay eller en bank görs.</p><div className="action-row">{([{ action: 'approve', label: 'Simulera blipp' }, { action: 'decline', label: 'Neka testköpet' }, { action: 'approve-lose-response', label: 'Blippa och förlora svaret' }, { action: 'restore-connection', label: 'Återställ förbindelsen' }] as const).map(option => <button key={option.action} disabled={props.busy} className="button secondary" onClick={() => void props.run(() => api('/contract-test/transaction', { paymentId: payment.id, action: option.action }))}>{option.label}</button>)}</div></div>}
+    {props.data.paymentIntegration?.contractTest && <div className="terminal-lab"><strong>Lokal terminalsimulator</strong><p>Dessa knappar ersätter testkortet. Ingen anslutning till Softpay eller en bank görs.</p><div className="action-row">{([{ action: 'approve', label: 'Simulera blipp' }, { action: 'decline', label: 'Neka testköpet' }, { action: 'approve-lose-response', label: 'Blippa och förlora svaret' }, { action: 'restore-connection', label: 'Återställ förbindelsen' }] as const).map(option => <button key={option.action} disabled={props.busy} className="button secondary" onClick={() => void simulate(option.action)}>{option.label}</button>)}</div></div>}
     <small>{props.data.paymentIntegration?.contractTest ? 'Test av integrationskod med lokalt simulerade API-svar.' : 'Endast testkort. Ingen riktig debitering.'} Kontrollkoppling och kassakvitto är fortfarande simulerade.</small>
   </section>;
 }
