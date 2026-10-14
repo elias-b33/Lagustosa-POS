@@ -10,6 +10,8 @@
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:softpay:e2e": "playwright test --config playwright.softpay.config.ts",
+    "demo:softpay": "tsx tests/fixtures/softpay-server.ts",
     "test:safe-env": "node scripts/smoke-safe-test.mjs",
     "measure:availability": "node scripts/measure-availability.mjs",
     "start:safe-test": "node scripts/safe-test.mjs start",

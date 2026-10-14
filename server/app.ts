@@ -11,6 +11,9 @@ import { KassaService } from './service';
 import type { Actor, BusinessDay } from '../shared/types';
 import * as schema from './validation';
 import { exportCsv, exportXml, exportJournalJson, journalExportCoverage, validJournalDate } from './export';
+import type { PaymentAdapter } from './adapters';
+import { SoftpaySandboxAdapter } from './softpay-adapter';
+import { readSoftpaySandboxConfig } from './softpay-config';
 
 const journalQuery = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), registerId: z.string().min(1).max(72).optional() }).strict();
 
@@ -19,12 +22,14 @@ export interface AppOptions {
   https?: { key: Buffer; cert: Buffer }; now?: () => Date; logger?: boolean; development?: boolean;
   sessionCookieName?: string;
   safeTest?: { instanceId: string; launchId: string; sessionId: string };
+  paymentFactory?: (store: Store) => PaymentAdapter;
 }
 
 export function assertTrainingMode(env: NodeJS.ProcessEnv): void {
   const mode = env.APP_MODE ?? 'training';
   demand(mode === 'training', 'Produktionsläget är spärrat. Riktiga betalnings-, kontrollenhets- och skrivarkopplingar samt tillverkardeklaration krävs först.', 500, 'PRODUCTION_BLOCKED');
-  demand((env.PAYMENT_ADAPTER ?? 'simulator') === 'simulator' && (env.FISCAL_ADAPTER ?? 'simulator') === 'simulator' && (env.PRINT_ADAPTER ?? 'preview') === 'preview', 'Denna version stöder bara simulatorer och utskriftsförhandsvisning.', 500, 'ADAPTER_UNAVAILABLE');
+  demand(['simulator', 'softpay-sandbox'].includes(env.PAYMENT_ADAPTER ?? 'simulator') && (env.FISCAL_ADAPTER ?? 'simulator') === 'simulator' && (env.PRINT_ADAPTER ?? 'preview') === 'preview', 'Välj simulator eller Softpay sandbox. Riktiga betalningar och kontrollenhetskopplingar är spärrade.', 500, 'ADAPTER_UNAVAILABLE');
+  demand(env.TEST_ENVIRONMENT !== 'safe-test' || (env.PAYMENT_ADAPTER ?? 'simulator') === 'simulator', 'Den säkra övningsmiljön använder bara lokala simulatorer.', 500, 'SAFE_TEST_ADAPTER');
 }
 
 export async function createApp(options: AppOptions) {
@@ -38,7 +43,13 @@ export async function createApp(options: AppOptions) {
   const events = new EventEmitter();
   events.setMaxListeners(100);
   let service: KassaService;
-  try { service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change') }); }
+  try {
+    const payment = options.paymentFactory?.(store) ?? (process.env.PAYMENT_ADAPTER === 'softpay-sandbox' ? new SoftpaySandboxAdapter(store, readSoftpaySandboxConfig(process.env)) : undefined);
+    demand(!payment || payment.kind !== 'live', 'Riktiga betalningar är spärrade i träningsversionen.', 500, 'PRODUCTION_BLOCKED');
+    demand(!options.safeTest || !payment || payment.kind === 'simulator', 'Den säkra övningsmiljön använder bara lokala simulatorer.', 500, 'SAFE_TEST_ADAPTER');
+    demand(payment?.kind === 'sandbox' || !store.get('meta', 'payment-profile'), 'Den här databasen tillhör Softpay sandbox. Starta med samma koppling.', 500, 'PAYMENT_PROFILE_MISMATCH');
+    service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change'), payment });
+  }
   catch (error) { store.close(); throw error; }
   await app.register(cookie);
   app.setErrorHandler((error, _request, reply) => {
@@ -66,7 +77,7 @@ export async function createApp(options: AppOptions) {
   const actor = (request: FastifyRequest): Actor => service.session(request.cookies[sessionCookieName]);
   const paramId = (request: FastifyRequest): string => z.object({ id: z.string().min(1).max(100) }).parse(request.params).id;
 
-  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: 'simulator', fiscal: 'simulator', print: 'preview' } }));
+  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: service.paymentAdapter.integration?.().provider ?? 'simulator', fiscal: 'simulator', print: 'preview' } }));
   // Liveness above identifies the process. Readiness also exercises the database;
   // it does not attest to bank connectivity, physical printers or a completed sale.
   app.get('/api/v1/ready', async (_request, reply) => {
@@ -124,6 +135,7 @@ export async function createApp(options: AppOptions) {
   app.post('/api/v1/tickets/:id/status', async request => service.updateTicket(actor(request), paramId(request), schema.ticketSchema.parse(request.body).status));
   app.post('/api/v1/tabs/:id/payments', async request => service.startPayment(actor(request), paramId(request), schema.paymentSchema.parse(request.body)));
   app.get('/api/v1/payment-attempts/:id', async request => service.paymentAttempt(actor(request), paramId(request)));
+  app.get('/api/v1/payments/:id/terminal', async request => service.terminalPaymentInfo(actor(request), paramId(request)));
   app.post('/api/v1/payments/:id/check', async request => { z.object({}).strict().parse(request.body); return service.checkPayment(actor(request), paramId(request)); });
   app.post('/api/v1/payments/:id/cancel', async request => { z.object({}).strict().parse(request.body); return service.checkPayment(actor(request), paramId(request), true); });
   app.post('/api/v1/payments/:id/refunds', async request => service.refund(actor(request), paramId(request), schema.refundSchema.parse(request.body)));

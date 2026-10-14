@@ -105,6 +105,7 @@ export interface Company { name: string; organizationNumber: string; address: st
 export interface Settings { company: Company; registerId: string; taxRules: TaxRule[] }
 export interface AuditEntry { id: number; at: string; actor: string; action: string; entityId: string; details: unknown; hash: string; previousHash: string }
 export interface Bootstrap {
+  paymentIntegration?: import('./payment-integration').PaymentIntegration;
   mode: 'training'; actor: Actor; menu: MenuItem[]; tables: DiningTable[]; tabs: Tab[];
   testEnvironment?: 'safe-test';
   testRoundId?: string;

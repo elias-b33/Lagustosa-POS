@@ -196,6 +196,10 @@ export class KassaService {
       settings: this.settings(), staff: actor.staff.role === 'admin' ? this.publicStaff() : [actor.staff], devices: actor.staff.role === 'admin' ? this.publicDevices() : [actor.device],
       printers: authorizedRoles.includes(actor.staff.role) && !station ? this.store.all<PrinterProfile>('printer') : [], deviceConnections: actor.staff.role === 'admin' && !station ? this.deviceConnections() : [],
       registers: station ? [] : this.store.all<RegisterIdentity>('register'),
+      paymentIntegration: station ? undefined : (() => {
+        const integration = this.paymentAdapter.integration?.() ?? { provider: 'simulator' as const, supportsTips: true, terminals: [] };
+        return { ...integration, terminals: integration.terminals.filter(terminal => actor.staff.role === 'admin' || terminal.deviceId === actor.device.id) };
+      })(),
       backup: { ...backup, external: path.parse(path.resolve(this.backupDir)).root.toLowerCase() !== path.parse(path.resolve(this.store.filename)).root.toLowerCase() },
     };
   }
@@ -382,6 +386,14 @@ export class KassaService {
     if (payment?.kind === 'refund') this.require(actor, authorizedRoles);
     return payment ?? null;
   }
+  terminalPaymentInfo(actor: Actor, id: string) {
+    this.require(actor, workingRoles);
+    demand(actor.device.kind !== 'display', 'Använd en försäljningsenhet.', 403);
+    const payment = this.store.get<Payment>('payment', id);
+    demand(payment, 'Betalningen finns inte.', 404);
+    if (payment.kind === 'refund') this.require(actor, authorizedRoles);
+    return this.paymentAdapter.terminalInfo?.(id) ?? null;
+  }
   allocations(tab: Tab, input: PaymentInput): Allocation[] {
     const totals = calculateTab(tab);
     const reserved = this.store.all<Payment>('payment').filter(payment => payment.tabId === tab.id && payment.kind === 'sale' && reservedStatuses.includes(payment.status));
@@ -452,6 +464,7 @@ export class KassaService {
       const amountOre = allocations.reduce((sum, allocation) => sum + allocation.grossOre, 0);
       if (input.method === 'cash') demand(input.tenderedOre !== undefined && input.tenderedOre >= amountOre + input.tipOre, 'Mottaget kontantbelopp är för litet.');
       const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId, dayId: day.id, kind: 'sale', parentId: null, method: input.method, status: 'pending', amountOre, tipOre: input.tipOre, allocations, tenderedOre: input.method === 'cash' ? input.tenderedOre! : null, changeOre: input.method === 'cash' ? input.tenderedOre! - amountOre - input.tipOre : 0, reason: '', simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id, registerId: this.registerFor(actor).id, cashierName: actor.staff.name };
+      this.paymentAdapter.prepare?.(payment);
       this.store.put('payment', payment);
       tab.version++;
       this.store.put('tab', tab);
@@ -466,7 +479,7 @@ export class KassaService {
   async finishPayment(actor: Actor, id: string, status: PaymentStatus): Promise<Payment> {
     const payment = this.store.atomic(() => {
       const payment = this.store.get<Payment>('payment', id)!;
-      if (['approved', 'declined', 'cancelled'].includes(payment.status)) return payment;
+      if (['approved', 'declined', 'cancelled'].includes(payment.status) || payment.status === status) return payment;
       payment.status = status;
       payment.updatedAt = this.timestamp();
       this.store.put('payment', payment);
@@ -589,6 +602,7 @@ export class KassaService {
       }
       const amountOre = allocations.reduce((sum, row) => sum + row.grossOre, 0);
       const payment: Payment = { id: randomUUID(), key: input.key, fingerprint, tabId: parent.tabId, dayId: day.id, kind: 'refund', parentId, method: parent.method, status: 'pending', amountOre, tipOre: 0, allocations, tenderedOre: null, changeOre: 0, reason: input.reason, simulation: input.simulation, fiscalSimulation: input.fiscalSimulation, createdAt: this.timestamp(), updatedAt: this.timestamp(), staffId: actor.staff.id, deviceId: actor.device.id, registerId: this.registerFor(actor).id, cashierName: actor.staff.name };
+      this.paymentAdapter.prepare?.(payment);
       this.store.put('payment', payment);
       this.log(actor, 'refund.start', payment.id, { payment });
       return payment;

@@ -1,0 +1,18 @@
+.terminal-progress { padding: 24px; margin: 0 0 24px; border: 1px solid var(--border, #ded9cf); background: var(--paper, #fcfaf5); border-radius: 14px; }
+.terminal-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.terminal-icon { display: inline-flex; padding: 14px; background: #e9eee6; color: #405a42; border-radius: 12px; }
+.terminal-progress h3 { margin: 0 0 12px; font-size: 22px; line-height: 1.25; }
+.terminal-amount { display: block; font-size: clamp(32px, 8vw, 46px); font-weight: 500; letter-spacing: -.04em; line-height: 1.15; overflow-wrap: anywhere; }
+.terminal-progress p { line-height: 1.6; margin: 16px 0; }
+.terminal-progress > small { display: block; margin-top: 20px; line-height: 1.6; opacity: .75; }
+.terminal-reference { margin: 20px 0; padding-top: 16px; border-top: 1px solid var(--border, #ded9cf); font-size: 12px; line-height: 1.6; }
+.terminal-reference dt { opacity: .7; }
+.terminal-reference dd { margin: 0 0 10px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.terminal-check-state { display: flex; align-items: center; gap: 9px; min-height: 40px; font-size: 12px; margin-bottom: 16px; }
+.terminal-check-state svg { flex-shrink: 0; }
+.terminal-progress .action-row { flex-wrap: wrap; }
+.payment-connections { display: grid; gap: 20px; }
+.payment-connections p { line-height: 1.6; }
+.terminal-lab { border-top: 1px dashed var(--border, #ded9cf); margin-top: 22px; padding-top: 18px; font-size: 12px; }
+.terminal-lab .button { font-size: 12px; }
+@media (max-width: 520px) { .terminal-progress { padding: 18px; } .terminal-progress h3 { font-size: 20px; } .terminal-progress .action-row > * { flex: 1 1 auto; min-height: 44px; } }

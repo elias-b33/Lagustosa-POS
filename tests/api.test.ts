@@ -35,7 +35,7 @@ describe('API och flera enheter', () => {
   it('har ett tydligt träningsläge och spärrar produktionsinställningar', () => {
     expect(() => assertTrainingMode({ APP_MODE: 'training' })).not.toThrow();
     expect(() => assertTrainingMode({ APP_MODE: 'production' })).toThrow('Produktionsläget är spärrat');
-    expect(() => assertTrainingMode({ PAYMENT_ADAPTER: 'live' })).toThrow('simulatorer');
+    expect(() => assertTrainingMode({ PAYMENT_ADAPTER: 'live' })).toThrow(expect.objectContaining({ code: 'ADAPTER_UNAVAILABLE' }));
   });
 
   it('kräver inloggning och validerar ändringar på servern', async () => {

@@ -1,0 +1,7 @@
+[
+  { "deviceId": "main", "appId": "ABC0000000001", "storeId": 1234 },
+  { "deviceId": "serving-1", "appId": "ABC0000000002", "storeId": 1234 },
+  { "deviceId": "serving-2", "appId": "ABC0000000003", "storeId": 1234 },
+  { "deviceId": "serving-3", "appId": "ABC0000000004", "storeId": 1234 },
+  { "deviceId": "serving-4", "appId": "ABC0000000005", "storeId": 1234 }
+]

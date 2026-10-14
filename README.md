@@ -2,7 +2,9 @@
 
 Restaurangens egen lokala webbapp för huvudkassa, bordsservering, kök och bar. Servern körs på en Windows-laptop; personalens enheter använder webbläsaren.
 
-**Den här versionen är en träningskassa.** Betalningar, kontrollenhet och skrivare är simulatorer. Gränssnitt, kvitton och rapporter är märkta `TEST — inga riktiga betalningar`. Produktionsläge är spärrat i servern.
+**Den här versionen är en träningskassa.** Standardmiljön använder lokala simulatorer. En separat Softpay Cloud-koppling för sandbox finns, verifierad med lokala kontraktstester; externt prov med utvecklarkonto och Android-enhet återstår. Kontrollenhet och skrivare är fortfarande simulator/förhandsvisning. Gränssnitt, kvitton och rapporter är märkta `TEST — inga riktiga betalningar`. Produktionsläge är spärrat i servern.
+
+En närmare integrationsbeskrivning, startbart lokalt handterminaldemo och instruktioner för leverantörens testmiljö finns i [PAYMENT-INTEGRATION.md](PAYMENT-INTEGRATION.md). Demot kan startas med `npm run demo:softpay` efter bygge och öppnas på port 4793.
 
 ### Status inför verklig försäljning — kontrollerad 13 oktober 2026
 
@@ -16,7 +18,7 @@ Skatteverkets normala modell är ett tillverkardeklarerat kassaregister tillsamm
 | Kassaregistrets föreskriftskrav | Förstärkt träningsjournal, kvitton och rapporter | Fullständig kravtäckning per registreringsenhet, testprotokoll för verklig integration, versionsidentifiering och tillverkardeklaration |
 | Journal-XML | Träningsimplementation med automatiska tester mot officiellt XSD | Fullständig semantisk täckning, samtliga gränsfall och verklig kontrollösning; schemavalidering är inte ett efterlevnadsintyg |
 | Installation | Lokala testomgångar | Anmäla kassaregister och kontrollenhet/kontrollsystem för företaget |
-| Betalning och utskrift | Simulator/förhandsvisning | Leverantörens integration, fysisk utrustning och verifierade fel-/återställningsflöden |
+| Betalning och utskrift | Lokal simulator samt Softpay Cloud sandbox-adapter; utskriftsförhandsvisning | Externt sandboxprov, Android-appväxling, återstående betalningsfunktioner, fysisk utrustning och verifierade fel-/återställningsflöden |
 | Tillgänglighet | Tester, databaslås och mätverktyg | Installation, mätning under öppettider, återställningsövning och reservrutiner |
 
 Från **1 januari 2027** ska kassaregister uppfylla SKVFS 2021:17; journalminnen ska kunna exportera registreringar i XML. Att appen kan generera en XML-fil är inte bevis på att hela kravet uppfylls. [Skatteverkets aktuella information](https://www.skatteverket.se/foretag/drivaforetag/kassaregister). Installationen ska anmälas innan användning: [så anmäler du kassaregister](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/saharanmalerdukassaregister.4.69ef368911e1304a62580008748.html).

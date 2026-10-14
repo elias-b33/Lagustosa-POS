@@ -1,3 +1,4 @@
+import { TerminalProgress } from './TerminalPayments';
 import { useState, useEffect } from 'react';
 import { ChefHat, Wine, Clock3, Check, ArrowRight, Download, Banknote, ShieldCheck, FolderClock, CircleAlert, ReceiptText, Undo2 } from 'lucide-react';
 import type { BusinessDay, DayReport, Payment, Station, Ticket } from '../shared/types';
@@ -114,6 +115,7 @@ export function ReportsView(props: WorkspaceProps) {
   </section>;
 }
 export function RefundModal({ payment, onClose, ...props }: WorkspaceProps & { payment: Payment; onClose: () => void }) {
+  const sandboxCard = payment.method === 'card' && props.data.paymentIntegration?.provider === 'softpay-sandbox';
   const reserved = props.data.payments.filter(candidate => candidate.parentId === payment.id && ['approved', 'pending', 'unknown'].includes(candidate.status)).reduce((sum, candidate) => sum + candidate.amountOre, 0);
   const remaining = payment.amountOre - reserved;
   const [amount, setAmount] = useState(String(remaining / 100));
@@ -159,7 +161,7 @@ export function RefundModal({ payment, onClose, ...props }: WorkspaceProps & { p
     {result?.status === 'approved' ? <div className="payment-success"><ShieldCheck size={40} /><h3>Returen är godkänd</h3><strong>{money(result.amountOre)}</strong><p>Originalkvittot är bevarat. Returen har ett eget testkvitto.</p>{receipt?.fiscalStatus === 'confirmed' && <ReceiptPaper receipt={receipt} />}<Action onClick={onClose}>Klart</Action></div> : <>
       {storageError && <p className="form-error" role="alert">{storageError}</p>}
       {attempt && !recovered && <div className="notice warning payment-recovery"><CircleAlert size={18} /><div><strong>Returförsöket är sparat på enheten</strong><span>{attempt.input.amountOre === undefined ? "Valda artiklar" : money(attempt.input.amountOre)} · {attempt.input.reason}</span><span>Återuppta samma försök innan du gör en ny retur.</span></div></div>}
-      {uncertain.map(candidate => <div className="notice warning" key={candidate.id}><CircleAlert size={18} /><div><strong>Osäker retur · {money(candidate.amountOre)}</strong><span>Kontrollera samma registrering.</span></div><Action secondary disabled={props.busy} onClick={async () => { const checked = await props.run(() => api<Payment>(`/payments/${candidate.id}/check`, {})); if (checked) setResultId(checked.id); }}>Kontrollera retur</Action><button disabled={props.busy} onClick={async () => { const checked = await props.run(() => api<Payment>(`/payments/${candidate.id}/cancel`, {})); if (checked) setResultId(checked.id); }}>Avbryt</button></div>)}
+      {uncertain.map(candidate => sandboxCard ? <TerminalProgress key={candidate.id} {...props} payment={candidate} onResult={checked => setResultId(checked.id)} /> : <div className="notice warning" key={candidate.id}><CircleAlert size={18} /><div><strong>Osäker retur · {money(candidate.amountOre)}</strong><span>Kontrollera samma registrering.</span></div><Action secondary disabled={props.busy} onClick={async () => { const checked = await props.run(() => api<Payment>(`/payments/${candidate.id}/check`, {})); if (checked) setResultId(checked.id); }}>Kontrollera retur</Action><button disabled={props.busy} onClick={async () => { const checked = await props.run(() => api<Payment>(`/payments/${candidate.id}/cancel`, {})); if (checked) setResultId(checked.id); }}>Avbryt</button></div>)}
       <fieldset className="payment-fields" disabled={props.busy || !!attempt || uncertain.length > 0 || !!storageError}>
         <Field label="Retursätt"><select value={selectionMode} onChange={event => setSelectionMode(event.target.value as typeof selectionMode)}><option value="amount">Belopp från hela betalningen</option><option value="items" disabled={itemBalances.length === 0}>Valda artiklar och antal</option><option value="rows" disabled={availableRows.length === 0}>Valda kvittorader</option></select></Field>
         {selectionMode === 'amount' ? <><Field label="Returbelopp i kronor"><input value={amount} inputMode="decimal" onChange={event => setAmount(event.target.value)} /></Field><p className="muted">En beloppsretur fördelas över betalningens återstående rader. Välj artiklar eller kvittorader för att avgränsa vad som returneras.</p></> : selectionMode === 'rows' ? <>
@@ -170,10 +172,11 @@ export function RefundModal({ payment, onClose, ...props }: WorkspaceProps & { p
           <p>Returbelopp: <strong>{refundAmountOre === null ? 'Välj antal' : money(refundAmountOre)}</strong></p>
         </>}
         <Field label="Orsak till returen"><textarea value={reason} onChange={event => setReason(event.target.value)} /></Field>
-        <Field label="Testscenario"><select value={simulation} onChange={event => setSimulation(event.target.value as typeof simulation)}><option value="approved">Godkänd</option><option value="declined">Nekad</option><option value="unknown">Okänd status</option></select></Field>
+        {!sandboxCard && <Field label="Testscenario"><select value={simulation} onChange={event => setSimulation(event.target.value as typeof simulation)}><option value="approved">Godkänd</option><option value="declined">Nekad</option><option value="unknown">Okänd status</option></select></Field>}
+        {sandboxCard && <p className="muted">Testreturen kräver ett testkort vid den kopplade enheten. Returer utan närvarande kort är inte aktiverade.</p>}
       </fieldset>
       {result && ['declined', 'cancelled'].includes(result.status) && <p className="form-error" role="alert">{result.status === 'declined' ? 'Testreturen nekades.' : 'Testreturen avbröts.'} Inget belopp har återbetalats.</p>}
-      <Action disabled={props.busy || !!storageError || (!!attempt ? !!recovered : uncertain.length > 0 || reason.trim().length < 3 || refundAmountOre === null || refundAmountOre > remaining || (selectionMode === 'amount' ? refundAmountOre <= 0 : selectionMode === 'rows' ? !rowsValid : !itemsValid))} onClick={() => void submit()}><Undo2 size={17} />{attempt ? 'Återuppta samma returförsök' : 'Simulera retur'}</Action>
+      <Action disabled={props.busy || !!storageError || (!!attempt ? !!recovered : uncertain.length > 0 || reason.trim().length < 3 || refundAmountOre === null || refundAmountOre > remaining || (selectionMode === 'amount' ? refundAmountOre <= 0 : selectionMode === 'rows' ? !rowsValid : !itemsValid))} onClick={() => void submit()}><Undo2 size={17} />{attempt ? 'Återuppta samma returförsök' : sandboxCard ? 'Skicka retur till testterminal' : 'Simulera retur'}</Action>
       <p className="receipt-footnote">Returen skapar en ny registrering. Originalkvittot bevaras.</p>
     </>}
   </Modal>;

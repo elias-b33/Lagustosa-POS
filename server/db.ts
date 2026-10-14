@@ -33,6 +33,13 @@ export class Store {
       CREATE INDEX IF NOT EXISTS entity_tab ON entities(kind,json_extract(body,'$.tabId'));
       CREATE UNIQUE INDEX IF NOT EXISTS receipt_register_number ON entities(json_extract(body,'$.registerId'),json_extract(body,'$.number')) WHERE kind='receipt';
       CREATE UNIQUE INDEX IF NOT EXISTS register_device_identity ON entities(json_extract(body,'$.deviceId')) WHERE kind='register';
+      CREATE UNIQUE INDEX IF NOT EXISTS softpay_request_identity ON entities(json_extract(body,'$.requestId')) WHERE kind='softpay-attempt' AND json_extract(body,'$.requestId') IS NOT NULL;
+      CREATE TRIGGER IF NOT EXISTS softpay_attempt_identity BEFORE UPDATE ON entities
+        WHEN OLD.kind='softpay-attempt' AND (NEW.kind IS NOT OLD.kind OR NEW.id IS NOT OLD.id OR
+          json_remove(NEW.body,'$.requestId','$.phase','$.status','$.state','$.issue','$.transactionId','$.updatedAt') IS NOT json_remove(OLD.body,'$.requestId','$.phase','$.status','$.state','$.issue','$.transactionId','$.updatedAt') OR
+          json_extract(OLD.body,'$.requestId') IS NOT NULL AND json_extract(NEW.body,'$.requestId') IS NOT json_extract(OLD.body,'$.requestId'))
+        BEGIN SELECT RAISE(ABORT,'Terminalförsökets belopp, destination och referens är låsta'); END;
+      CREATE TRIGGER IF NOT EXISTS softpay_attempt_no_delete BEFORE DELETE ON entities WHEN OLD.kind='softpay-attempt' BEGIN SELECT RAISE(ABORT,'Terminalförsök får inte raderas'); END;
       CREATE TABLE IF NOT EXISTS commands (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, staff_id TEXT NOT NULL, device_id TEXT NOT NULL, expires_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS login_attempts (key TEXT PRIMARY KEY, attempts INTEGER NOT NULL, blocked_until TEXT NOT NULL);

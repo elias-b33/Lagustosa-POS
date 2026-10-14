@@ -1,8 +1,12 @@
 import type { Payment, PaymentStatus, Receipt, PrintJob, PrinterProfile } from '../shared/types';
 import { Store, digest } from './db';
+import type { PaymentIntegration, TerminalPaymentInfo } from '../shared/payment-integration';
 
 export interface PaymentAdapter {
-  readonly kind: 'simulator' | 'live';
+  readonly kind: 'simulator' | 'sandbox' | 'live';
+  prepare?(payment: Payment): void;
+  integration?(): PaymentIntegration;
+  terminalInfo?(id: string): TerminalPaymentInfo | null;
   start(payment: Payment): Promise<PaymentStatus>;
   status(id: string): Promise<PaymentStatus>;
   cancel(id: string): Promise<PaymentStatus>;
