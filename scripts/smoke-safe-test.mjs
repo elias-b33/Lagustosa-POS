@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, X509Certificate } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import https from 'node:https';
 import net from 'node:net';
@@ -133,6 +133,9 @@ try {
     const lan = await cli('start', ['--lan', privateAddress]); assert.equal(lan.code, 0, lan.output);
     const lanState = readRuntime(); assert.equal(lanState.host, privateAddress);
     const caFile = path.join(root, 'certificates', lanState.caDirectory, 'root-ca.pem'); const ca = readFileSync(caFile);
+    const serverCertificate = new X509Certificate(readFileSync(path.join(path.dirname(caFile), 'server.pem')));
+    assert.ok(serverCertificate.subject, 'Browser TLS requires a subject or a critical SAN extension.');
+    assert.equal(serverCertificate.checkIP(privateAddress), privateAddress);
     assert.equal((await secureRequest(`https://${privateAddress}:${port}/api/v1/health`, ca)).data.instanceId, current.instanceId);
     await assert.rejects(secureRequest(`https://${privateAddress}:${port}/api/v1/health`), error => ['SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'].includes(error.code));
     console.log('LAN check passed: private address, verified local CA and HTTPS; CA trust was not installed.');

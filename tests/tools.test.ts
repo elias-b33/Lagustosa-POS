@@ -37,6 +37,8 @@ describe('Installation och återställning', () => {
     const leaf = new X509Certificate(readFileSync(path.join(directory, 'server.pem')));
     expect(root.ca).toBe(true);
     expect(leaf.ca).toBe(false);
+    expect(leaf.subject).toBeTruthy();
+    expect(leaf.issuer).toBe(root.subject);
     expect(leaf.verify(root.publicKey)).toBe(true);
     expect(leaf.checkHost('lagustosa.local')).toBe('lagustosa.local');
     expect(leaf.checkIP('192.168.1.20')).toBe('192.168.1.20');

@@ -153,6 +153,8 @@ async function certificates(root, address) {
   for (const file of ['root-ca.pem', 'server.pem', 'server-key.pem', 'Lagustosa-Test-CA.cer']) {
     if (!existsSync(contained(root, 'certificates', caDirectory, file))) throw new Error('Testmiljöns certifikat är ofullständiga. Återskapa dem i en ny certifikatmapp.');
   }
+  const { repairLegacyServerCertificate } = await import('./create-certs.mjs');
+  if (await repairLegacyServerCertificate(directory)) console.log('Ett äldre servercertifikat har rättats. Samma rotcertifikat och testdata används.');
   return { caDirectory, directory };
 }
 

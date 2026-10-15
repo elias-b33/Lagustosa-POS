@@ -129,6 +129,10 @@ Den snabba starten ovan är begränsad till denna dator. För enhetstest på res
 
 Startverktyget ändrar inte certifikatförtroende eller brandvägg automatiskt. Den automatiserade LAN-kontrollen verifierar servercertifikatets kedja och adresser utan att installera rotcertifikatet. Själva nätverket och iPad-installationen provas på plats.
 
+Om Chrome visar **ERR_CERT_INVALID** med en äldre testmiljö: uppdatera koden/paketet, stoppa testservern och starta den igen med samma testmapp, port och LAN-adress. Startverktyget rättar det äldre servercertifikatets tomma subject-fält enligt [RFC 5280, avsnitt 4.1.2.6](https://www.rfc-editor.org/rfc/rfc5280.html#section-4.1.2.6). Rotcertifikatet, nycklarna och testomgången bevaras, och det tidigare servercertifikatet sparas som `server.legacy-empty-subject.pem`. En redan installerad rot behöver inte installeras om.
+
+Om Windows sedan visar **ERR_CERT_AUTHORITY_INVALID** saknas vanligen förtroendet för den lokala utfärdaren. Öppna den aktuella testmiljöns `Lagustosa-Test-CA.cer`, kontrollera fingeravtrycket och välj **Installera certifikat → Aktuell användare → Placera alla certifikat i följande arkiv → Betrodda rotcertifikatutfärdare**. Stäng och öppna Chrome igen efter installationen. Installera endast den offentliga rotcertifikatfilen från den egna testmiljön; servercertifikat och privata nycklar ska inte importeras. Detta ändrar certifikatförtroendet för Windows-användaren och görs manuellt. För att ta bort förtroendet efter testet används `certmgr.msc` och samma certifikatarkiv; identifiera roten med fingeravtrycket så att andra certifikat lämnas orörda.
+
 Den här versionen stöder webbläsare. Om en kommande fysisk betalterminal ska köra vår beställningsapp måste modellen även stödja en sådan app eller ha en kompatibel integration.
 
 ## Om något behöver kontrolleras
