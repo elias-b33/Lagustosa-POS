@@ -9,5 +9,6 @@ import './mobile-service.css';
 import './menu.css';
 import './styles-cotto.css';
 import './styles-cotto-operations.css';
+import './open-tabs.css';
 
 createRoot(document.getElementById('root')!).render(<App />);

@@ -21,6 +21,17 @@ Menyuppdateringen gäller nya orderrader. Äldre notor, bongar och kvitton behå
 
 Sparade betalnings- och returförsök i webbläsaren hör till respektive testomgång. En ny omgång visar inte gamla försök och raderar inte deras lagring.
 
+## Hitta notor inför dagsavslut
+
+Öppna **Dagsöversikt → Oavslutade notor**. Här visas dagens öppna bords- och disknotor, kvarvarande belopp efter delbetalningar och vad som behöver hanteras. Sök på bord, disk eller notanummer och filtrera på **Kan betalas**, **Tomma** eller **Behöver hanteras**.
+
+- **Ta betalt** öppnar betalningen direkt i dagsöversikten. Listan uppdateras när notan är betald.
+- **Öppna nota** tar dig till beställningen, till exempel för att skicka väntande rader eller makulera en felbeställning med befintliga behörigheter och orsaker.
+- **Avsluta tom nota** och **Avsluta alla tomma** visar vilka notor som ska avslutas före bekräftelse. Endast notor utan aktiva orderrader och utan låsande betalningar kan avslutas så. Ändras en nota från en annan enhet stoppas avslutet för den notan och ett meddelande visas. Avsluten sparas i journalen.
+- **Kontrollera status** följer upp ett befintligt osäkert betalningsförsök. Notor med aktiva nollprisrader räknas som beställningar och hanteras genom betalningsflödet.
+
+Om du väljer **Avsluta dagen** medan notor finns kvar får du en knapp till listan. Dagsavslutet kan bekräftas när alla notor och osäkra registreringar är hanterade.
+
 ## Profiler och enheter
 
 | Testprofil | PIN | Enhetskod | Syfte |

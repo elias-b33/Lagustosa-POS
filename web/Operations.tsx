@@ -1,7 +1,7 @@
 import { TerminalProgress } from './TerminalPayments';
 import { useState, useEffect } from 'react';
 import { ChefHat, Wine, Clock3, Check, ArrowRight, Download, Banknote, ShieldCheck, FolderClock, CircleAlert, ReceiptText, Undo2 } from 'lucide-react';
-import type { BusinessDay, DayReport, Payment, Station, Ticket } from '../shared/types';
+import type { BusinessDay, DayReport, Payment, Station, Tab, Ticket } from '../shared/types';
 import { money, parseMoney } from '../shared/money';
 import { api, newKey } from './api';
 import { Action, Empty, Field, Modal, printStatusNames, type WorkspaceProps } from './components';
@@ -12,6 +12,7 @@ import type { PaymentAttempt } from './payment-attempts';
 import { CashMovementModal } from './CashMovement';
 import { RegisterReports } from './RegisterReports';
 import { JournalExport } from './JournalExport';
+import { OpenTabs } from './OpenTabs';
 import { allocateQuantity, allocationQuantity, compareQuantities, rationalQuantity, remainingAllocation } from '../shared/allocations';
 
 export function StationView({ station, ...props }: WorkspaceProps & { station: Station }) {
@@ -79,7 +80,7 @@ function TrainingReportSummary({ report }: { report: DayReport }) {
   </>;
 }
 
-export function ReportsView(props: WorkspaceProps) {
+export function ReportsView(props: WorkspaceProps & { onOpenTab: (tab: Tab) => void; onPayTab: (tab: Tab) => void }) {
   const { data, busy, run } = props;
   const [selectedDay, setSelectedDay] = useState('');
   const day = data.days.find(day => day.id === selectedDay) ?? data.currentDay ?? data.days.at(-1);
@@ -98,8 +99,20 @@ export function ReportsView(props: WorkspaceProps) {
   const receipts = [...data.receipts].reverse().filter(receipt => !day || receipt.dayId === day.id);
   const selectedReceipt = data.receipts.find(receipt => receipt.id === receiptId);
   const refundPayment = data.payments.find(payment => payment.id === refundId);
+  const openTabCount = data.tabs.filter(tab => tab.dayId === data.currentDay?.id && tab.status === 'open').length;
+  const closeBlocked = openTabCount > 0 || (data.report?.unresolved ?? 0) > 0;
+  const showOpenTabs = () => {
+    setDayModal(null);
+    setSelectedDay(data.currentDay?.id ?? '');
+    requestAnimationFrame(() => {
+      const panel = document.getElementById('open-tabs-panel');
+      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      panel?.focus({ preventScroll: true });
+    });
+  };
   return <section className="operations"><div className="section-heading"><div><span className="eyebrow">EN TYDLIG AVSTÄMNING FÖR VARJE KVÄLL</span><h2>Dagsöversikt</h2></div><div className="action-row compact"><select aria-label="Verksamhetsdag" value={day?.id ?? ''} onChange={async event => { setSelectedDay(event.target.value); setReportOverride(null); const result = await run(() => api<DayReport>(`/business-days/${event.target.value}/report`)); if (result) setReportOverride(result); }}>{[...data.days].reverse().map(day => <option key={day.id} value={day.id}>{day.date} · #{day.number} · {day.status === 'open' ? 'Öppen' : 'Avslutad'}</option>)}</select>{main && <Action onClick={() => { setCashAmount(data.currentDay ? String((data.report?.expectedCashOre ?? 0) / 100) : '1500'); setDayModal(data.currentDay ? 'close' : 'open'); }} disabled={busy}>{data.currentDay ? 'Avsluta dagen' : 'Öppna dagen'}<ArrowRight size={17} /></Action>}</div></div>
-    {uncertain.map(payment => <div className="notice warning" key={payment.id}><CircleAlert size={20} /><div><strong>Osäker {payment.kind === 'refund' ? 'retur' : 'betalning'} · {money(payment.amountOre)}</strong><span>Beloppet är reserverat tills samma betalning har kontrollerats.</span></div><Action secondary disabled={busy} onClick={() => void run(() => api(`/payments/${payment.id}/check`, {}))}>Kontrollera status</Action></div>)}
+    {day?.status === 'open' && <OpenTabs key={day.id} {...props} dayId={day.id} onOpen={props.onOpenTab} onPay={props.onPayTab} />}
+    {uncertain.map(payment => <div className="notice warning" key={payment.id}><CircleAlert size={20} /><div><strong>Osäker {payment.kind === 'refund' ? 'retur' : 'betalning'} · {data.tabs.find(tab => tab.id === payment.tabId)?.label} · {money(payment.amountOre)}</strong><span>Beloppet är reserverat tills samma betalning har kontrollerats.</span></div><Action secondary disabled={busy} onClick={() => void run(() => api(`/payments/${payment.id}/check`, {}))}>Kontrollera status</Action></div>)}
     {fiscalUncertain.map(receipt => <div className="notice warning" key={receipt.id}><CircleAlert size={20} /><div><strong>Osäker kontrollkod · kvitto {receipt.number}</strong><span>Fråga efter befintlig registrering innan dagsavslut.</span></div><Action secondary disabled={busy} onClick={() => void run(() => api(`/receipts/${receipt.id}/verify`, {}))}>Kontrollera registrering</Action></div>)}
     {report && day ? <><div className="report-metrics"><div><span>Försäljning</span><strong>{money(report.salesOre)}</strong><small>{report.receipts} testkvitton</small></div><div><span>Netto efter returer</span><strong>{money(report.netOre)}</strong><small>Returer {money(report.refundsOre)}</small></div><div><span>Dricks</span><strong>{money(report.tipsOre)}</strong><small>Redovisas separat</small></div><div><span>Moms</span><strong>{money(report.vatOre)}</strong><small>Datumstyrda momssatser</small></div></div><div className="report-grid"><article className="card"><h3>Betalsätt</h3>{report.methods.map(method => <div className="report-line" key={method.method}><span>{method.method === 'card' ? 'Kort' : method.method === 'swish' ? 'Swish' : 'Kontanter'}</span><strong>{money(method.netOre)}</strong><small>Dricks {money(method.tipsOre)}</small></div>)}</article><article className="card"><h3>Kontantavstämning</h3><div className="report-line"><span>Växelkassa</span><strong>{money(day.floatOre)}</strong></div><div className="report-line"><span>Förväntad kontantkassa</span><strong>{money(report.expectedCashOre)}</strong></div>{day.countedCashOre !== null && <><div className="report-line"><span>Räknad kassa</span><strong>{money(day.countedCashOre)}</strong></div><div className="report-line"><span>Differens</span><strong>{money(report.differenceOre ?? 0)}</strong></div></>}{main && <button className="text-button" onClick={() => { setReason(''); setDrawer(true); }}><Banknote size={17} />Simulera kassalådsöppning</button>}</article></div><div className="report-exports"><a className="button secondary" href={`/api/v1/business-days/${day.id}/report.csv`}><Download size={17} />Hämta CSV</a><span>{report.openTabs} öppna notor · {report.unresolved} osäkra registreringar</span></div></> : <Empty title="Redo för en ny verksamhetsdag" text="Öppna dagen och ange växelkassan innan första beställningen." />}
     {report && <><RegisterReports report={report} /><TrainingReportSummary report={report} /></>}
@@ -107,7 +120,19 @@ export function ReportsView(props: WorkspaceProps) {
     {main && <button className="button secondary" disabled={busy} onClick={() => setCashMovement(true)}><Banknote size={17} />Insättning eller uttag</button>}
     <div className="section-heading secondary-heading"><h3>Kvitton & returer</h3><span className="muted">Historiken sparas även efter dagsavslut</span></div>{receipts.length ? <div className="list-card">{receipts.map(receipt => <div className="list-row" key={receipt.id}><span className="list-icon"><ReceiptText size={19} /></span><button className="receipt-link" onClick={() => setReceiptId(receipt.id)}><strong>#{receipt.number} · {receipt.tab.label}</strong><span>{receipt.registerId} · {receipt.kind === 'refund' ? 'Retur' : 'Försäljning'} · {new Date(receipt.createdAt).toLocaleTimeString('sv-SE')} · {receipt.payment.method}</span></button><strong>{receipt.kind === 'refund' ? '−' : ''}{money(receipt.payment.amountOre)}</strong>{receipt.kind === 'sale' && <button className="text-button" disabled={busy || !data.currentDay} onClick={() => setRefundId(receipt.paymentId)}><Undo2 size={16} />Retur</button>}</div>)}</div> : <p className="muted">Testkvitton visas här när den första betalningen registreras.</p>}
     <div className="backup-card"><span className="list-icon"><FolderClock size={22} /></span><div><strong>Säkerhetskopiering</strong><span>{data.backup.lastAt ? `Senaste kopian ${new Date(data.backup.lastAt).toLocaleString('sv-SE')}` : 'Ingen säkerhetskopia skapad ännu.'}{data.backup.external ? ' · Separat disk' : ' · Lokal testkopia; ange separat disk vid installation'}</span>{data.backup.error && <span className="form-error">{data.backup.error}</span>}</div>{main && <Action secondary disabled={busy} onClick={() => void run(() => api('/backups', {}), 'Säkerhetskopian är sparad.')}><ShieldCheck size={17} />Skapa kopia</Action>}</div>
-    {dayModal && <Modal title={dayModal === 'open' ? 'Öppna verksamhetsdagen' : 'Avsluta verksamhetsdagen'} subtitle={dayModal === 'close' ? 'Kontrollera betalningar, returer och kontantkassa.' : 'Dagen avslutas uttryckligen, även om servicen fortsätter efter midnatt.'} onClose={() => setDayModal(null)}><form onSubmit={event => { event.preventDefault(); void (async () => { const result = await run(() => api<BusinessDay>(dayModal === 'open' ? '/business-days' : `/business-days/${data.currentDay!.id}/close`, { key: newKey(), ...(dayModal === 'open' ? { floatOre: parseMoney(cashAmount) } : { countedCashOre: parseMoney(cashAmount) }) })); if (result) { setDayModal(null); setSelectedDay(result.id); setReportOverride(null); } })(); }}><Field label={dayModal === 'open' ? 'Växelkassa i kronor' : 'Räknad kontantkassa i kronor'}><input value={cashAmount} inputMode="decimal" onChange={event => setCashAmount(event.target.value)} /></Field>{dayModal === 'close' && <p className="muted">Förväntat: {money(data.report?.expectedCashOre ?? 0)}<br />Öppna notor: {data.report?.openTabs ?? 0}<br />Osäkra registreringar: {data.report?.unresolved ?? 0}</p>}<Action type="submit" disabled={busy || parseMoney(cashAmount) === null}>{dayModal === 'open' ? 'Öppna dagen' : 'Bekräfta dagsavslut'}<Check size={17} /></Action></form></Modal>}
+    {dayModal && <Modal title={dayModal === 'open' ? 'Öppna verksamhetsdagen' : 'Avsluta verksamhetsdagen'} subtitle={dayModal === 'close' ? 'Kontrollera betalningar, returer och kontantkassa.' : 'Dagen avslutas uttryckligen, även om servicen fortsätter efter midnatt.'} onClose={() => setDayModal(null)}>
+      {dayModal === 'close' && closeBlocked && <div className="day-close-blockers" role="status"><strong>Det finns saker kvar att avsluta</strong>
+        {openTabCount > 0 && <><p>{openTabCount} {openTabCount === 1 ? 'nota är fortfarande öppen' : 'notor är fortfarande öppna'}. Listan visar vilka som behöver betalas och vilka som är tomma.</p><Action secondary onClick={showOpenTabs}>Visa {openTabCount} öppna {openTabCount === 1 ? 'nota' : 'notor'}<ArrowRight size={17} /></Action></>}
+        {(data.report?.unresolved ?? 0) > 0 && <p>Kontrollera också {data.report?.unresolved} osäkra betalningar eller kontrollkoder i dagsöversikten.</p>}
+      </div>}
+      <form onSubmit={event => { event.preventDefault(); if (dayModal === 'close' && (closeBlocked || !data.currentDay)) return; void (async () => {
+        const result = await run(() => api<BusinessDay>(dayModal === 'open' ? '/business-days' : `/business-days/${data.currentDay!.id}/close`, { key: newKey(), ...(dayModal === 'open' ? { floatOre: parseMoney(cashAmount) } : { countedCashOre: parseMoney(cashAmount) }) }));
+        if (result) { setDayModal(null); setSelectedDay(result.id); setReportOverride(null); }
+      })(); }}><Field label={dayModal === 'open' ? 'Växelkassa i kronor' : 'Räknad kontantkassa i kronor'}><input value={cashAmount} inputMode="decimal" onChange={event => setCashAmount(event.target.value)} /></Field>
+        {dayModal === 'close' && <p className="muted">Förväntat: {money(data.report?.expectedCashOre ?? 0)}<br />Öppna notor: {openTabCount}<br />Osäkra registreringar: {data.report?.unresolved ?? 0}</p>}
+        <Action type="submit" disabled={busy || parseMoney(cashAmount) === null || dayModal === 'close' && (closeBlocked || !data.currentDay)}>{dayModal === 'open' ? 'Öppna dagen' : 'Bekräfta dagsavslut'}<Check size={17} /></Action>
+      </form>
+    </Modal>}
     {selectedReceipt && <Modal title={`Testkvitto #${selectedReceipt.number}`} onClose={() => setReceiptId(null)}><ReceiptPaper receipt={selectedReceipt} /></Modal>}
     {cashMovement && <CashMovementModal {...props} onClose={() => setCashMovement(false)} />}
     {refundPayment && <RefundModal payment={refundPayment} data={data} busy={busy} run={run} refresh={props.refresh} onClose={() => setRefundId(null)} />}

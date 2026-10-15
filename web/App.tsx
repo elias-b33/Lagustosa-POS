@@ -98,7 +98,7 @@ export function App() {
     {activeView === 'kitchen' && <StationView {...common} station="kitchen" />}
     {activeView === 'bar' && <StationView {...common} station="bar" />}
     {activeView === 'prints' && <PrintsView {...common} />}
-    {activeView === 'reports' && <ReportsView {...common} />}
+    {activeView === 'reports' && <ReportsView {...common} onOpenTab={tab => { setTabId(tab.id); navigate('pos'); }} onPayTab={tab => setPaymentTab(tab.id)} />}
     {activeView === 'admin' && <Admin {...common} />}
   </main><footer className="app-footer"><span>LA GUSTOSA · BORÅS</span><span>En god kväll, från första beställningen till sista kvittot.</span><i /> <span>Träning</span></footer></div>
   {toast && <div className={`toast ${toast.error ? 'toast-error' : ''}`} role={toast.error ? 'alert' : 'status'}>{toast.error ? <CircleAlert size={20} /> : <Check size={20} />}<span>{toast.text}</span><button className="icon-button" onClick={() => setToast(null)} aria-label="Stäng meddelande"><X size={17} /></button></div>}
