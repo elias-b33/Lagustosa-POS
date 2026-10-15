@@ -1,0 +1,58 @@
+LA GUSTOSA / ELEVA POS – TESTA HEMMA
+Windows, 64-bitars x64
+
+KOM IGÅNG
+
+1. Högerklicka på ZIP-filen och välj Extrahera alla.
+   Lägg gärna den uppackade mappen på Skrivbordet.
+   Starta inte programmet direkt inifrån ZIP-filen.
+
+2. Öppna den uppackade mappen och dubbelklicka på Start-Testmiljo.cmd.
+   Webbläsaren öppnas när testkassan är redo.
+   Om den inte öppnas: gå till http://127.0.0.1:4273/
+
+3. Logga in:
+   Personal: Ansvarig
+   PIN: 1234
+   Enhetskod: LAGUSTOSA-TEST
+   Enhetskoden finns under Enhet och testprofiler.
+
+4. Välj Dagsöversikt, sedan Öppna dagen.
+   Växelkassan är ett testbelopp. Du kan börja med 0 kr.
+
+PROVA EN BESTÄLLNING
+
+Öppna Bord 01, lägg till Vitlöksbröd och tryck Skicka till kök & bar.
+Titta under Kök för att se beställningen.
+Återgå till bordet och välj Ta betalt, sedan Simulera betalning.
+Öppna testkvittot och titta under Utskrifter för förhandsvisningarna.
+
+INGEN INSTALLATION AV UTVECKLARVERKTYG
+
+ChatGPT, Node.js och programmeringsverktyg behöver inte installeras.
+Programmotorn och menyn följer med i paketet. Testet körs lokalt på din dator.
+Ingen prenumeration eller betalningstjänst behövs för detta test.
+
+FORTSÄTTA, STOPPA OCH BÖRJA OM
+
+Start-Testmiljo.cmd öppnar samma testomgång igen.
+Du kan stänga startfönstret; servern fortsätter i bakgrunden.
+Stoppa-Testmiljo.cmd stoppar testservern och behåller dina testdata.
+Ny-Testomgang.cmd börjar en ny tom omgång och sparar tidigare omgångar.
+Testdata lagras under %LOCALAPPDATA%\LagustosaPOS\safe-test\sessions\
+Stoppa testservern innan du flyttar programmappen eller byter version.
+
+SKRIVARE OCH FLERA ENHETER
+
+Ingen fysisk skrivare är aktiverad från början. Bongar och kvitton visas i appen.
+En Epson TM-m30II och andra skärmar kan kopplas in på ditt eget hemnätverk.
+Adresserna måste då anpassas till dina enheter; läs TEST-GUIDE.md.
+
+OM DET INTE STARTAR
+
+Kontrollera att hela ZIP-filen är uppackad och att mapparna runtime, scripts,
+dist och node_modules ligger kvar bredvid Start-Testmiljo.cmd.
+Spara det felmeddelande som står i startfönstret och skicka det till Elias.
+
+Detta är en provversion. Alla betalningar är simulerade och kvittona är märkta
+ÖVNING. Använd påhittade beställningar. Inga pengar dras.

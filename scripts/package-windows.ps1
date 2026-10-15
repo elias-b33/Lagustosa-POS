@@ -10,7 +10,7 @@ try {
   & npm.cmd run build
   if ($LASTEXITCODE -ne 0) { throw 'Bygget misslyckades.' }
   New-Item -ItemType Directory -Path $packagePath -Force | Out-Null
-  foreach ($item in @('dist','vendor','scripts','package.json','package-lock.json','README.md','TEST-GUIDE.md','LICENSE-NOTES.md','.env.example','Start-Lagustosa.cmd','Start-Testmiljo.cmd','Stoppa-Testmiljo.cmd','Ny-Testomgang.cmd')) {
+  foreach ($item in @('dist','vendor','scripts','package.json','package-lock.json','README.md','LAS-MIG-FORST.txt','TEST-GUIDE.md','LICENSE-NOTES.md','.env.example','Start-Lagustosa.cmd','Start-Testmiljo.cmd','Stoppa-Testmiljo.cmd','Ny-Testomgang.cmd')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $item) -Destination $packagePath -Recurse
   }
   New-Item -ItemType Directory -Path (Join-Path $packagePath 'runtime') | Out-Null

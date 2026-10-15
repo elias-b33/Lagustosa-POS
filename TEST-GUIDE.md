@@ -4,6 +4,8 @@ Denna provversion använder **simulerade betalningar, simulerad kontrollenhet oc
 
 ## Start på denna dator
 
+Om du fått Windows-paketet som en ZIP-fil: välj **Extrahera alla** och öppna den uppackade mappen först. **LAS-MIG-FORST.txt** innehåller en kort startguide. Paketet har en egen programmotor och kräver varken ChatGPT eller en separat installation av Node.js. Varje Windows-användare får egna lokala testdata; inga beställningar eller skrivarkopplingar från avsändarens hemtest följer med.
+
 1. Dubbelklicka på **Start-Testmiljo.cmd** i projektmappen eller det uppackade Windows-paketet.
 2. Verktyget väntar tills rätt testserver svarar, skriver adressen och öppnar webbläsaren: **http://127.0.0.1:4273/**.
 3. Kontrollera texten **SÄKER TESTMILJÖ** på inloggningen. Välj **Ansvarig**, PIN **1234**. Enhetskod: **LAGUSTOSA-TEST**.
