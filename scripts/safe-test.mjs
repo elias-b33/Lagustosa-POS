@@ -14,11 +14,12 @@ const defaultRoot = path.join(process.env.LOCALAPPDATA || path.join(homedir(), '
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function argumentsFor(args) {
-  const options = { action: args[0] && !args[0].startsWith('--') ? args.shift() : 'start', root: defaultRoot, port: 4273, lan: null, httpLan: false, epson: null, 'epson-profile': 'printer-kitchen', noBrowser: false };
+  const options = { action: args[0] && !args[0].startsWith('--') ? args.shift() : 'start', root: defaultRoot, port: 4273, lan: null, httpLan: false, epson: null, epsonAuto: false, 'epson-profile': 'printer-kitchen', noBrowser: false };
   while (args.length) {
     const flag = args.shift();
     if (flag === '--no-browser') options.noBrowser = true;
     else if (flag === '--http-lan') options.httpLan = true;
+    else if (flag === '--epson-auto') options.epsonAuto = true;
     else if (['--root', '--port', '--lan', '--epson', '--epson-profile'].includes(flag)) {
       const value = args.shift();
       if (!value || value.startsWith('--')) throw new Error(`Ett värde saknas för ${flag}.`);
@@ -28,7 +29,8 @@ function argumentsFor(args) {
   if (!['start', 'status', 'stop', 'new-session'].includes(options.action)) throw new Error('Använd start, status, stop eller new-session.');
   if (!Number.isInteger(options.port) || options.port < 1024 || options.port > 65535) throw new Error('Porten måste vara 1024–65535.');
   if (options.httpLan && !options.lan) throw new Error('--http-lan kräver --lan med datorns egen privata IPv4-adress.');
-  if (options.epson && (!privateIPv4(options.epson) || !/^[a-zA-Z0-9_-]{1,100}$/.test(options['epson-profile']))) throw new Error('Ange en privat IPv4-adress och en giltig skrivarprofil för Epson-testet.');
+  if (options.epsonAuto && !options.epson) throw new Error('--epson-auto kräver --epson med skrivarens adress.');
+  if (options.epson && (!privateIPv4(options.epson) || !validPrinterIds(options['epson-profile'].split(',')))) throw new Error('Ange en privat IPv4-adress och giltiga kommaseparerade skrivarprofiler för Epson-testet.');
   options.root = path.resolve(options.root);
   return options;
 }
@@ -96,7 +98,7 @@ function runtimeFor(root, config) {
   const filename = contained(root, 'server.json');
   if (!existsSync(filename)) return null;
   const state = JSON.parse(readFileSync(filename, 'utf8'));
-  if (state.epson && (!privateIPv4(state.epson.host) || !/^[a-zA-Z0-9_-]{1,100}$/.test(state.epson.printerId))) throw new Error('Ogiltig Epson-testkonfiguration.');
+  if (state.epson && (!privateIPv4(state.epson.host) || !validPrinterIds(printerIds(state.epson)))) throw new Error('Ogiltig Epson-testkonfiguration.');
   if (state.instanceId !== config.instanceId || !uuidPattern.test(state.launchId) || state.sessionId !== config.sessionId || !Number.isInteger(state.port) || state.port < 1024 || state.port > 65535 || (state.caDirectory && !/^lan-\d{1,3}-\d{1,3}-\d{1,3}-\d{1,3}$/.test(state.caDirectory))) throw new Error('Serverinformationen stämmer inte med testomgången.');
   const protocol = state.caDirectory ? 'https' : 'http';
   const host = state.host ?? '127.0.0.1';
@@ -123,8 +125,11 @@ function health(state) {
 }
 
 function matches(result, config, state) {
-  return result?.ok === true && result.mode === 'training' && result.environment === 'safe-test' && Boolean(result.httpLan) === Boolean(state.httpLan) && result.instanceId === config.instanceId && result.launchId === state.launchId && result.testRoundId === config.sessionId && result.processId === state.pid && result.adapters?.payment === 'simulator' && result.adapters?.fiscal === 'simulator' && result.adapters?.print === (state.epson ? 'epson-test' : 'preview') && (!state.epson || (result.testPrinter?.host === state.epson.host && result.testPrinter?.printerId === state.epson.printerId));
+  return result?.ok === true && result.mode === 'training' && result.environment === 'safe-test' && Boolean(result.httpLan) === Boolean(state.httpLan) && result.instanceId === config.instanceId && result.launchId === state.launchId && result.testRoundId === config.sessionId && result.processId === state.pid && result.adapters?.payment === 'simulator' && result.adapters?.fiscal === 'simulator' && result.adapters?.print === (state.epson ? 'epson-test' : 'preview') && (!state.epson || (result.testPrinter?.host === state.epson.host && printerIds(result.testPrinter).join(',') === printerIds(state.epson).join(',') && Boolean(result.testPrinter.automatic) === Boolean(state.epson.automatic)));
 }
+
+function printerIds(config) { return config?.printerIds ?? (config?.printerId ? [config.printerId] : []); }
+function validPrinterIds(ids) { return Array.isArray(ids) && ids.length > 0 && ids.length <= 3 && new Set(ids).size === ids.length && ids.every(id => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(id)); }
 
 async function stop(root, config) {
   const state = runtimeFor(root, config);
@@ -177,7 +182,7 @@ function openBrowser(url) {
 function printReady(root, config, state) {
   console.log(`${state.httpLan ? 'HEMTEST UTAN CERTIFIKAT' : 'SÄKER TESTMILJÖ'} redo: ${state.baseUrl}/`);
   if (state.httpLan) console.log('Okrypterad HTTP på det privata testnätet. Använd endast testuppgifter.');
-  console.log(state.epson ? `Simulerade betalningar och kontrollenhet. MANUELL FYSISK TESTUTSKRIFT: ${state.epson.printerId} → Epson ${state.epson.host}. Övriga profiler förhandsvisas.` : 'Endast simulerade betalningar, kontrollenhet och utskriftsförhandsvisning.');
+  console.log(state.epson ? `Simulerade betalningar och kontrollenhet. ${state.epson.automatic ? 'AUTOMATISK' : 'MANUELL'} FYSISK TESTUTSKRIFT: ${printerIds(state.epson).join(', ')} → Epson ${state.epson.host}. Övriga profiler förhandsvisas.` : 'Endast simulerade betalningar, kontrollenhet och utskriftsförhandsvisning.');
   console.log(`Testomgång: ${config.sessionId}`);
   console.log(`Separat datamapp: ${contained(root, 'sessions', config.sessionId)}`);
   console.log(`Serverlogg: ${contained(root, 'sessions', config.sessionId, 'server.log')}`);
@@ -197,7 +202,7 @@ async function start(options, config) {
     if (!matches(await health(previous), config, previous)) throw new Error('En process kör enligt testmappen men servern kunde inte verifieras. Ingen ny process startades.');
     if (previous.port !== options.port || previous.host !== (options.lan || '127.0.0.1')) throw new Error('Testservern kör redan med en annan adress. Stoppa testmiljön innan adressen ändras.');
     if (Boolean(previous.httpLan) !== options.httpLan) throw new Error('Testservern kör med ett annat HTTP/HTTPS-läge. Stoppa testmiljön innan läget ändras.');
-    if ((previous.epson?.host ?? null) !== options.epson || (previous.epson && previous.epson.printerId !== options['epson-profile'])) throw new Error('Testservern kör med en annan skrivarkoppling. Stoppa testmiljön innan skrivarkopplingen ändras.');
+    if ((previous.epson?.host ?? null) !== options.epson || (previous.epson && (printerIds(previous.epson).join(',') !== options['epson-profile'] || Boolean(previous.epson.automatic) !== options.epsonAuto))) throw new Error('Testservern kör med en annan skrivarkoppling. Stoppa testmiljön innan skrivarkopplingen ändras.');
     printReady(root, config, previous);
     if (!options.noBrowser) openBrowser(previous.baseUrl + '/');
     return;
@@ -206,7 +211,7 @@ async function start(options, config) {
   if (options.lan) validateLanAddress(options.lan);
   const tls = options.lan && !options.httpLan ? await certificates(root, options.lan) : null;
   const state = { pid: 0, instanceId: config.instanceId, launchId: randomUUID(), sessionId: config.sessionId, port: options.port, host: options.lan || '127.0.0.1', caDirectory: tls?.caDirectory ?? null, httpLan: options.httpLan, projectRoot };
-  state.epson = options.epson ? { host: options.epson, printerId: options['epson-profile'] } : null;
+  state.epson = options.epson ? { host: options.epson, printerId: options['epson-profile'].split(',')[0], printerIds: options['epson-profile'].split(','), automatic: options.epsonAuto } : null;
   state.baseUrl = `${tls ? 'https' : 'http'}://${state.host}:${state.port}`;
   state.healthUrl = state.baseUrl + '/api/v1/health';
   state.caFile = tls ? path.join(tls.directory, 'root-ca.pem') : null;
@@ -220,7 +225,7 @@ async function start(options, config) {
   try {
     child = spawn(process.execPath, ['dist/server/index.js'], {
       cwd: projectRoot, detached: true, windowsHide: true, stdio: ['ignore', logFile, logFile],
-      env: { ...process.env, APP_MODE: 'training', PAYMENT_ADAPTER: 'simulator', FISCAL_ADAPTER: 'simulator', PRINT_ADAPTER: state.epson ? 'epson-test' : 'preview', EPSON_TEST_HOST: state.epson?.host ?? '', EPSON_TEST_PROFILE: state.epson?.printerId ?? '', NODE_ENV: 'production', npm_lifecycle_event: 'safe-test', DOTENV_CONFIG_PATH: emptyEnvironment, DOTENV_CONFIG_QUIET: 'true', DATA_DIR: dataDir, BACKUP_DIR: path.join(dataDir, 'backups'), HOST: state.host, PORT: String(options.port), TLS_CERT: tls ? path.join(tls.directory, 'server.pem') : '', TLS_KEY: tls ? path.join(tls.directory, 'server-key.pem') : '', SAFE_TEST_HTTP_LAN: options.httpLan ? '1' : '', SESSION_COOKIE_NAME: 'lagustosa_safe_test_' + config.instanceId.replaceAll('-', '') + (options.httpLan ? '_http' : ''), TEST_ENVIRONMENT: 'safe-test', TEST_INSTANCE_ID: config.instanceId, TEST_LAUNCH_ID: state.launchId, TEST_SESSION_ID: config.sessionId },
+      env: { ...process.env, APP_MODE: 'training', PAYMENT_ADAPTER: 'simulator', FISCAL_ADAPTER: 'simulator', PRINT_ADAPTER: state.epson ? 'epson-test' : 'preview', EPSON_TEST_HOST: state.epson?.host ?? '', EPSON_TEST_PROFILE: printerIds(state.epson).join(','), EPSON_TEST_AUTO: state.epson?.automatic ? '1' : '', NODE_ENV: 'production', npm_lifecycle_event: 'safe-test', DOTENV_CONFIG_PATH: emptyEnvironment, DOTENV_CONFIG_QUIET: 'true', DATA_DIR: dataDir, BACKUP_DIR: path.join(dataDir, 'backups'), HOST: state.host, PORT: String(options.port), TLS_CERT: tls ? path.join(tls.directory, 'server.pem') : '', TLS_KEY: tls ? path.join(tls.directory, 'server-key.pem') : '', SAFE_TEST_HTTP_LAN: options.httpLan ? '1' : '', SESSION_COOKIE_NAME: 'lagustosa_safe_test_' + config.instanceId.replaceAll('-', '') + (options.httpLan ? '_http' : ''), TEST_ENVIRONMENT: 'safe-test', TEST_INSTANCE_ID: config.instanceId, TEST_LAUNCH_ID: state.launchId, TEST_SESSION_ID: config.sessionId },
     });
   } finally { closeSync(logFile); }
   let spawnError;

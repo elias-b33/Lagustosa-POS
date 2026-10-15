@@ -123,6 +123,7 @@ try {
   assert.deepEqual([state.tabs.length, state.payments.length, state.receipts.length, state.printJobs.length], [0, 0, 0, 0]); assert.equal(state.currentDay, null);
   const invalidOptions = await cli('start', ['--port', '0']); assert.equal(invalidOptions.code, 1);
   const missingLan = await cli('start', ['--http-lan']); assert.equal(missingLan.code, 1); assert.match(missingLan.output, /kräver --lan/);
+  const missingPrinter = await cli('start', ['--epson-auto']); assert.equal(missingPrinter.code, 1); assert.match(missingPrinter.output, /kräver --epson/);
   const stopped = await cli('stop'); assert.equal(stopped.code, 0, stopped.output);
   assert.equal(existsSync(path.join(root, 'server.json')), false); assert.equal(existsSync(oldDatabase), true);
 
@@ -155,13 +156,17 @@ try {
     assert.equal(wrongPrinter.code, 1); assert.match(wrongPrinter.output, /annan skrivarkoppling/);
     const epsonStopped = await cli('stop'); assert.equal(epsonStopped.code, 0, epsonStopped.output);
 
-    const httpStarted = await cli('start', ['--lan', privateAddress, '--http-lan', '--epson', '192.168.254.254', '--epson-profile', 'printer-guest']);
+    const httpStarted = await cli('start', ['--lan', privateAddress, '--http-lan', '--epson', '192.168.254.254', '--epson-profile', 'printer-guest,printer-kitchen', '--epson-auto']);
     assert.equal(httpStarted.code, 0, httpStarted.output);
     const httpBase = `http://${privateAddress}:${port}`;
     const httpHealth = (await api(httpBase, '/health')).data;
     assert.equal(httpHealth.httpLan, true);
     assert.deepEqual(httpHealth.adapters, { payment: 'simulator', fiscal: 'simulator', print: 'epson-test' });
     assert.equal(httpHealth.testPrinter.printerId, 'printer-guest');
+    assert.deepEqual(httpHealth.testPrinter.printerIds, ['printer-guest', 'printer-kitchen']);
+    assert.equal(httpHealth.testPrinter.automatic, true);
+    const wrongAutomatic = await cli('start', ['--lan', privateAddress, '--http-lan', '--epson', '192.168.254.254', '--epson-profile', 'printer-guest,printer-kitchen']);
+    assert.equal(wrongAutomatic.code, 1); assert.match(wrongAutomatic.output, /annan skrivarkoppling/);
     assert.equal(readRuntime().caDirectory, null);
     assert.equal(readConfig().sessionId, current.sessionId, 'Protocol changes preserve the test round');
     const httpLogin = await api(httpBase, '/auth/login', null, { staffId: 'admin', pin: '1234', deviceCode: 'LAGUSTOSA-TEST' });

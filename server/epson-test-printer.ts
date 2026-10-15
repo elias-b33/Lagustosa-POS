@@ -19,13 +19,15 @@ type Connector = (options: { host: string; port: number }) => Socket;
 export class EpsonTestPrintAdapter implements PrintAdapter {
   readonly kind = 'epson-test';
   private pending: Promise<unknown> = Promise.resolve();
-  constructor(private host: string, private printerId: string, private connect: Connector = options => net.createConnection(options), private timeoutMs = 12000) {
+  private readonly printerIds: string[];
+  constructor(private host: string, printerIds: string | string[], private connect: Connector = options => net.createConnection(options), private timeoutMs = 12000, private automatic = false) {
     demand(isPrivatePrinterAddress(host), 'Ange skrivarens privata IPv4-adress.', 500, 'TEST_PRINTER_ADDRESS');
-    demand(/^[a-zA-Z0-9_-]{1,100}$/.test(printerId), 'Ange en giltig skrivarprofil.', 500, 'TEST_PRINTER_PROFILE');
+    this.printerIds = typeof printerIds === 'string' ? [printerIds] : [...printerIds];
+    demand(this.printerIds.length > 0 && this.printerIds.length <= 3 && new Set(this.printerIds).size === this.printerIds.length && this.printerIds.every(id => /^[a-zA-Z0-9_-]{1,100}$/.test(id)), 'Ange en giltig skrivarprofil.', 500, 'TEST_PRINTER_PROFILE');
   }
-  integration(): TestPrinterIntegration { return { kind: 'epson-test', model: 'TM-m30II', host: this.host, printerId: this.printerId }; }
+  integration(): TestPrinterIntegration { return { kind: 'epson-test', model: 'TM-m30II', host: this.host, printerId: this.printerIds[0], printerIds: [...this.printerIds], automatic: this.automatic }; }
   async print(job: PrintJob, printer: PrinterProfile, outcome: Result): Promise<Result> {
-    if (printer.id !== this.printerId) return outcome;
+    if (!this.printerIds.includes(printer.id)) return outcome;
     // The home test prints paper only; it never pulses a physical cash drawer.
     if (job.kind === 'drawer') return 'failed';
     const result = this.pending.then(() => this.send(job));

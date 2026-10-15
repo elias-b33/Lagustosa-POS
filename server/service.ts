@@ -12,7 +12,7 @@ import { PreviewPrintAdapter, SimulatorFiscalAdapter, SimulatorPaymentAdapter } 
 import { seed, seedPrinters, type StoredDevice, type StoredStaff } from './seed';
 import type { PaymentInput, RefundInput, TabCommand } from './validation';
 import { closingText, receiptText, registerReportText, ticketText } from './printing';
-import { printerDestination } from '../shared/printers';
+import { connectedPrinterIds, printerDestination } from '../shared/printers';
 import { orderedMenu, seedRestaurantMenu } from './menu-catalog';
 import { buildRegisterReports, trainingReportDetails } from './reporting';
 import { enrolRegister, type RegisterIdentity } from './registers';
@@ -37,6 +37,8 @@ export class KassaService {
   private backupDir: string;
   private backingUp = false;
   private fiscalInFlight = new Set<string>();
+  private automaticPrintRun: Promise<void> | null = null;
+  private automaticPrintingStopped = false;
   private deviceClients = new Map<string, { clients: Set<string>; lastSeenAt: string }>();
 
   constructor(readonly store: Store, options: ServiceOptions = {}) {
@@ -616,7 +618,70 @@ export class KassaService {
       ? this.store.all<PrinterProfile>('printer').find(printer => printer.active && printer.destination === printerDestination(kind))
       : originalPrinterId ? this.store.get<PrinterProfile>('printer', originalPrinterId) : undefined;
     const job: PrintJob = { id: randomUUID(), kind, sourceId, status: 'queued', text, createdAt: this.timestamp(), reprintOf, attempts: 0, printerId: printer?.id ?? null, printerName: printer?.name ?? null };
+    const integration = this.printAdapter.integration?.();
+    if (integration?.automatic && !reprintOf && ['guest', 'kitchen', 'bar'].includes(kind) && printer && connectedPrinterIds(integration).includes(printer.id)) {
+      // Persist the opt-in with the job inside the order/payment transaction.
+      // Old manual queues and copies are never swept into automatic printing.
+      job.autoPrint = { host: integration.host, printerId: printer.id };
+    }
     this.store.put('print', job);
+    return job;
+  }
+  private automaticPrintEligible(job: PrintJob): boolean {
+    const integration = this.printAdapter.integration?.();
+    const printer = job.printerId ? this.store.get<PrinterProfile>('printer', job.printerId) : undefined;
+    const receipt = job.kind === 'guest' ? this.store.get<Receipt>('receipt', job.sourceId) : undefined;
+    return !!(integration?.automatic && job.status === 'queued' && job.attempts === 0 && !job.reprintOf &&
+      ['guest', 'kitchen', 'bar'].includes(job.kind) && job.autoPrint?.host === integration.host && job.autoPrint.printerId === job.printerId &&
+      printer?.active && printer.destination === printerDestination(job.kind) && connectedPrinterIds(integration).includes(printer.id) &&
+      (job.kind !== 'guest' || (receipt?.fiscalStatus === 'confirmed' && receipt.payment.status === 'approved')));
+  }
+  drainAutomaticPrints(): Promise<void> {
+    if (this.automaticPrintingStopped || !this.printAdapter.integration?.().automatic) return Promise.resolve();
+    if (!this.automaticPrintRun) {
+      this.automaticPrintRun = (async () => {
+        while (!this.automaticPrintingStopped) {
+          const waiting = this.store.db.prepare("SELECT body FROM entities WHERE kind='print' AND json_extract(body,'$.status')='queued' AND json_extract(body,'$.autoPrint') IS NOT NULL AND json_extract(body,'$.attempts')=0 ORDER BY rowid").all() as { body: string }[];
+          const job = waiting.map(row => JSON.parse(row.body) as PrintJob).find(candidate => this.automaticPrintEligible(candidate));
+          if (!job) break;
+          await this.dispatchPrint('system', job.id, 'printed', true);
+        }
+      })().finally(() => { this.automaticPrintRun = null; });
+    }
+    return this.automaticPrintRun;
+  }
+  async stopAutomaticPrinting(): Promise<void> {
+    this.automaticPrintingStopped = true;
+    await this.automaticPrintRun;
+  }
+  private async dispatchPrint(actor: Actor | 'system', id: string, outcome: 'printed' | 'failed' | 'uncertain', automatic = false, reason = ''): Promise<PrintJob> {
+    const claimed = this.store.atomic(() => {
+      const current = this.store.get<PrintJob>('print', id);
+      demand(current, 'Utskriften finns inte.', 404);
+      demand(current.status === 'queued', 'Den här utskriften har redan hanterats.', 409);
+      demand(!automatic || this.automaticPrintEligible(current), 'Utskriften är inte köad för automatisk utskrift.', 409);
+      const printer = current.printerId ? this.store.get<PrinterProfile>('printer', current.printerId) : undefined;
+      demand(printer?.active && printer.destination === printerDestination(current.kind), 'Välj en aktiv skrivare för rätt typ av utskrift innan utskriften startas.', 409, 'PRINTER_REQUIRED');
+      current.status = 'printing';
+      current.attempts++;
+      const physical = this.printAdapter.integration?.();
+      current.delivery = connectedPrinterIds(physical).includes(printer.id) ? 'epson-test' : 'preview';
+      current.printerAddress = current.delivery === 'epson-test' ? physical!.host : null;
+      this.store.put('print', current);
+      const receipt = current.kind === 'guest' ? this.store.get<Receipt>('receipt', current.sourceId) : undefined;
+      this.log(actor, 'print.started', id, { delivery: current.delivery, printerId: printer.id, printerAddress: current.printerAddress, automatic, ...(receipt ? { registerId: receipt.registerId } : {}) });
+      return { job: current, printer };
+    });
+    const job = claimed.job;
+    this.notify();
+    try { job.status = await this.printAdapter.print(job, claimed.printer, outcome); }
+    catch { job.status = 'uncertain'; }
+    this.store.atomic(() => {
+      this.store.put('print', job);
+      const receipt = job.kind === 'guest' ? this.store.get<Receipt>('receipt', job.sourceId) : undefined;
+      this.log(actor, 'print.print', id, { status: job.status, reason, automatic, ...(receipt ? { registerId: receipt.registerId } : {}) });
+    });
+    this.notify();
     return job;
   }
   async print(actor: Actor, id: string, action: 'print' | 'resolve' | 'reprint' | 'route', outcome?: 'printed' | 'failed' | 'uncertain', reason = '', printerId?: string): Promise<PrintJob> {
@@ -662,26 +727,7 @@ export class KassaService {
     if (action === 'resolve') {
       demand(job.status === 'uncertain' && outcome !== 'uncertain' && reason.trim().length >= 3, 'Kontrollera utskriften och ange resultat och orsak.');
       job.status = outcome;
-    } else {
-      const claimed = this.store.atomic(() => {
-        const current = this.store.get<PrintJob>('print', id)!;
-        demand(current.status === 'queued', 'Den här utskriften har redan hanterats.', 409);
-        const printer = current.printerId ? this.store.get<PrinterProfile>('printer', current.printerId) : undefined;
-        demand(printer?.active && printer.destination === printerDestination(current.kind), 'Välj en aktiv skrivare för rätt typ av utskrift innan utskriften startas.', 409, 'PRINTER_REQUIRED');
-        current.status = 'printing';
-        current.attempts++;
-        const physical = this.printAdapter.integration?.();
-        current.delivery = physical?.printerId === printer.id ? 'epson-test' : 'preview';
-        current.printerAddress = current.delivery === 'epson-test' ? physical!.host : null;
-        this.store.put('print', current);
-        this.log(actor, 'print.started', id, { delivery: current.delivery, printerId: printer.id, printerAddress: current.printerAddress });
-        return { job: current, printer };
-      });
-      job = claimed.job;
-      this.notify();
-      try { job.status = await this.printAdapter.print(job, claimed.printer, outcome); }
-      catch { job.status = 'uncertain'; }
-    }
+    } else return this.dispatchPrint(actor, id, outcome, false, reason);
     this.store.atomic(() => { this.store.put('print', job); this.log(actor, `print.${action}`, id, { status: job.status, reason }); });
     this.notify();
     return job;

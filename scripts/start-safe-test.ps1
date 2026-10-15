@@ -5,6 +5,7 @@ param(
   [switch]$HttpLan,
   [string]$EpsonAddress,
   [string]$EpsonProfile = 'printer-kitchen',
+  [switch]$EpsonAuto,
   [string]$TestRoot,
   [int]$Port = 4273
 )
@@ -17,6 +18,7 @@ if ($NoBrowser) { $arguments += '--no-browser' }
 if ($LanAddress) { $arguments += @('--lan', $LanAddress) }
 if ($HttpLan) { $arguments += '--http-lan' }
 if ($EpsonAddress) { $arguments += @('--epson', $EpsonAddress, '--epson-profile', $EpsonProfile) }
+if ($EpsonAuto) { $arguments += '--epson-auto' }
 if ($TestRoot) { $arguments += @('--root', $TestRoot) }
 & $nodeRuntime @arguments
 exit $LASTEXITCODE

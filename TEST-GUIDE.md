@@ -171,6 +171,22 @@ Kopplingen kontrollerar modellnamnet före varje utskrift och väntar på rätt 
 
 Tekniska källor: [modellens kommandon](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/tmm30ii.html), [UTF-8](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/fs_lparen_cc_fn48.html), [bekräftelse av utskriftsdata](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_ch_fn48.html).
 
+### Automatiska köksbongar och gästkvitton på samma Epson
+
+Stoppa testservern och starta samma testmapp med båda profilerna och automatisk utskrift:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-safe-test.ps1 -LanAddress 192.168.1.50 -HttpLan -EpsonAddress 192.168.1.60 -EpsonProfile 'printer-guest,printer-kitchen' -EpsonAuto -NoBrowser
+```
+
+Behåll tidigare `-TestRoot` och `-Port`. Utelämna `-HttpLan` för HTTPS. `-EpsonAuto` är ett uttryckligt val; utan flaggan är utskrifterna manuella.
+
+- **Skicka till kök & bar** skapar köksbongen och skriver ut den automatiskt. Rätter som hålls tillbaka skrivs ut först vid **Fram huvudrätt** eller motsvarande. Makuleringar och bordsflyttar till köket följer samma kö.
+- En godkänd simulerad betalning ger ett automatiskt gästkvitto när den simulerade kontrollregistreringen är bekräftad. Nekad eller oklar betalning ger inget färdigt kvitto. Delbetalningar och returer får sina respektive kvitton.
+- Båda typerna går till samma fysiska skrivare i turordning. Barbongar förhandsvisas med konfigurationen ovan. Dagsrapporter, kassalåda och manuellt skapade kopior startas inte automatiskt.
+- Automatik gäller nya jobb som sparats med den valda skrivaradressen. Äldre manuella köer skrivs inte ut vid aktivering. Sparade automatiska jobb som aldrig har påbörjats fortsätter efter en omstart; avbrutna utskrifter blir **Osäkra** och skickas inte igen automatiskt.
+- Vid **Misslyckad** eller **Osäker** utskrift används **Utskrifter** för kontroll och vid behov en märkt kopia. En omladdning eller ett upprepat betalningsanrop skapar inte en extra originalutskrift. Kvittona behåller märkningen **ÖVNING**.
+
 ## Om något behöver kontrolleras
 
 Startfönstret skriver den aktiva testomgångens `server.log` och datamapp. Spara felmeddelandet, vilket bord det gällde, vad du klickade på och vilken enhetsprofil du använde. Kontrollera befintligt betalningsresultat efter ett avbrott innan du försöker igen. Vid osäker utskrift används kökontrollen innan en kopia görs.

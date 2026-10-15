@@ -11,10 +11,11 @@ import { KassaService } from './service';
 import type { Actor, BusinessDay, PrinterProfile } from '../shared/types';
 import * as schema from './validation';
 import { exportCsv, exportXml, exportJournalJson, journalExportCoverage, validJournalDate } from './export';
-import type { PaymentAdapter } from './adapters';
+import type { PaymentAdapter, PrintAdapter } from './adapters';
 import { SoftpaySandboxAdapter } from './softpay-adapter';
 import { readSoftpaySandboxConfig } from './softpay-config';
 import { EpsonTestPrintAdapter } from './epson-test-printer';
+import { connectedPrinterIds } from '../shared/printers';
 
 const journalQuery = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), registerId: z.string().min(1).max(72).optional() }).strict();
 
@@ -24,6 +25,7 @@ export interface AppOptions {
   sessionCookieName?: string;
   safeTest?: { instanceId: string; launchId: string; sessionId: string; httpLan?: boolean };
   paymentFactory?: (store: Store) => PaymentAdapter;
+  printerFactory?: () => PrintAdapter;
 }
 
 export function assertTrainingMode(env: NodeJS.ProcessEnv): void {
@@ -49,9 +51,9 @@ export async function createApp(options: AppOptions) {
     demand(!payment || payment.kind !== 'live', 'Riktiga betalningar är spärrade i träningsversionen.', 500, 'PRODUCTION_BLOCKED');
     demand(!options.safeTest || !payment || payment.kind === 'simulator', 'Den säkra övningsmiljön använder bara lokala simulatorer.', 500, 'SAFE_TEST_ADAPTER');
     demand(payment?.kind === 'sandbox' || !store.get('meta', 'payment-profile'), 'Den här databasen tillhör Softpay sandbox. Starta med samma koppling.', 500, 'PAYMENT_PROFILE_MISMATCH');
-    const printer = process.env.PRINT_ADAPTER === 'epson-test' ? new EpsonTestPrintAdapter(process.env.EPSON_TEST_HOST ?? '', process.env.EPSON_TEST_PROFILE ?? '') : undefined;
+    const printer = options.printerFactory?.() ?? (process.env.PRINT_ADAPTER === 'epson-test' ? new EpsonTestPrintAdapter(process.env.EPSON_TEST_HOST ?? '', (process.env.EPSON_TEST_PROFILE ?? '').split(','), undefined, undefined, process.env.EPSON_TEST_AUTO === '1') : undefined);
     service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change'), payment, printer });
-    demand(!printer || store.get<PrinterProfile>('printer', printer.integration().printerId)?.active, 'Epson-testet kräver en befintlig aktiv skrivarprofil.', 500, 'TEST_PRINTER_PROFILE');
+    demand(connectedPrinterIds(printer?.integration?.()).every(id => store.get<PrinterProfile>('printer', id)?.active), 'Epson-testet kräver befintliga aktiva skrivarprofiler.', 500, 'TEST_PRINTER_PROFILE');
   }
   catch (error) { store.close(); throw error; }
   await app.register(cookie);
@@ -218,6 +220,17 @@ export async function createApp(options: AppOptions) {
       return reply.code(404).send({ message: 'Sidan finns inte.' });
     });
   }
-  app.addHook('onClose', async () => { events.removeAllListeners(); store.close(); });
+  let automaticPrinter: ReturnType<typeof setInterval> | undefined;
+  app.addHook('onReady', async () => {
+    if (service.printAdapter.integration?.().automatic) {
+      automaticPrinter = setInterval(() => { void service.drainAutomaticPrints().catch(error => app.log.error(error, 'Automatic print queue failed')); }, 250);
+      automaticPrinter.unref();
+    }
+  });
+  app.addHook('onClose', async () => {
+    clearInterval(automaticPrinter);
+    await service.stopAutomaticPrinting();
+    events.removeAllListeners(); store.close();
+  });
   return { app, store, service };
 }

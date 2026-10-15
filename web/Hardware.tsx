@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, Pencil, Plus, Printer, Wifi } from 'lucide-react';
 import type { DeviceConnection, PrinterProfile } from '../shared/types';
-import { printerDestinationNames } from '../shared/printers';
+import { connectedPrinterIds, printerDestinationNames } from '../shared/printers';
 import { api, newKey } from './api';
 import { Action, Field, Modal, type WorkspaceProps } from './components';
 
@@ -20,7 +20,7 @@ export function PrinterSettings({ data, busy, run }: WorkspaceProps) {
     <div className="section-heading secondary-heading"><div><h3>Skrivare & utskrifter</h3><p className="muted">En profil vardera för kök, bar och gästkvitton. Varje utskrift behåller sin tilldelade skrivare.</p></div>
       <Action disabled={busy} onClick={() => setEditing({ id: newKey(), name: '', destination: 'guest', paperWidthMm: 80, active: false })}><Plus size={17} />Ny skrivarprofil</Action>
     </div>
-    <div className="notice"><Printer size={18} /><span>{data.printIntegration ? `Manuella testutskrifter till Epson ${data.printIntegration.model} på ${data.printIntegration.host}. Profil: ${printers.find(printer => printer.id === data.printIntegration?.printerId)?.name ?? data.printIntegration.printerId}. Övriga profiler förhandsvisas.` : 'Träningsläget använder utskriftsförhandsvisning. En Epson TM-m30II kan anslutas när testmiljön startas med skrivarens nätverksadress.'}</span></div>
+    <div className="notice"><Printer size={18} /><span>{data.printIntegration ? `${data.printIntegration.automatic ? 'Automatiska' : 'Manuella'} testutskrifter till Epson ${data.printIntegration.model} på ${data.printIntegration.host}. Profiler: ${printers.filter(printer => connectedPrinterIds(data.printIntegration).includes(printer.id)).map(printer => printer.name).join(', ')}. Övriga profiler förhandsvisas.` : 'Träningsläget använder utskriftsförhandsvisning. En Epson TM-m30II kan anslutas när testmiljön startas med skrivarens nätverksadress.'}</span></div>
     <div className="list-card hardware-list">{printers.map(printer => {
       const waiting = data.printJobs.filter(job => job.printerId === printer.id && ['queued', 'printing', 'uncertain'].includes(job.status)).length;
       return <div className="list-row" key={printer.id}><span className="list-icon"><Printer size={19} /></span><div><strong>{printer.name}</strong><span>{printerDestinationNames[printer.destination]} · {printer.paperWidthMm} mm</span><span>{waiting} väntande eller pågående kontroller</span></div><span className={`tag ${printer.active ? 'ready' : ''}`}>{printer.active ? 'Profil aktiv' : 'Profil avstängd'}</span><button className="icon-button" disabled={busy} aria-label={`Redigera ${printer.name}`} onClick={() => setEditing(printer)}><Pencil size={17} /></button></div>;

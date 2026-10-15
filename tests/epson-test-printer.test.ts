@@ -9,7 +9,7 @@ afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(
 const printer: PrinterProfile = { id: 'printer-kitchen', name: 'Kök', destination: 'kitchen', paperWidthMm: 80, active: true };
 const job: PrintJob = { id: 'test', kind: 'kitchen', sourceId: 'test', status: 'printing', text: 'Bord 01\nRäkor · sås\nÅÄÖ åäö\n', createdAt: '', reprintOf: null, attempts: 1, printerId: printer.id, printerName: printer.name };
 
-async function fakePrinter(options: { model?: string; reply?: 'ack' | 'none' | 'wrong' | 'close' } = {}) {
+async function fakePrinter(options: { model?: string; reply?: 'ack' | 'none' | 'wrong' | 'close'; automatic?: boolean } = {}) {
   const documents: Buffer[] = [];
   const sockets = new Set<Socket>();
   const server = net.createServer(socket => {
@@ -41,11 +41,21 @@ async function fakePrinter(options: { model?: string; reply?: 'ack' | 'none' | '
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as net.AddressInfo).port;
   cleanups.push(async () => { for (const socket of sockets) socket.destroy(); await new Promise<void>(resolve => server.close(() => resolve())); });
-  const adapter = new EpsonTestPrintAdapter('192.168.1.252', printer.id, () => net.createConnection({ host: '127.0.0.1', port }), 300);
+  const adapter = new EpsonTestPrintAdapter('192.168.1.252', options.automatic ? ['printer-guest', printer.id] : printer.id, () => net.createConnection({ host: '127.0.0.1', port }), 300, options.automatic);
   return { adapter, documents };
 }
 
 describe('Explicit Epson home test printing', () => {
+  it('delivers both automatic kitchen and guest documents to the same Epson connection queue', async () => {
+    const { adapter, documents } = await fakePrinter({ automatic: true });
+    const f = fixture({ printer: adapter }); f.open(); const tab = f.tab();
+    f.command(tab.id, { action: 'add', itemId: 'bread' }); f.command(tab.id, { action: 'send' });
+    await f.pay(tab.id); await f.service.drainAutomaticPrints();
+    expect(documents).toHaveLength(2);
+    expect(documents[0].toString('utf8')).toContain('KÖKSBESTÄLLNING');
+    expect(documents[1].toString('utf8')).toContain('ÖVNINGSKVITTO');
+    expect(f.store.all<PrintJob>('print').every(job => job.status === 'printed' && job.attempts === 1)).toBe(true);
+  });
   it('requires a private IP literal and does not permit arbitrary URLs', () => {
     for (const address of ['192.168.1.252', '10.0.0.2', '172.16.0.5']) expect(isPrivatePrinterAddress(address)).toBe(true);
     for (const address of ['127.0.0.1', '169.254.169.254', '8.8.8.8', '192.168.1.255', 'localhost', 'http://192.168.1.2', '192.168.01.2']) expect(() => new EpsonTestPrintAdapter(address, printer.id)).toThrow();
