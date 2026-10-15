@@ -8,12 +8,13 @@ import { z, ZodError } from 'zod';
 import { Store } from './db';
 import { AppError, demand } from './errors';
 import { KassaService } from './service';
-import type { Actor, BusinessDay } from '../shared/types';
+import type { Actor, BusinessDay, PrinterProfile } from '../shared/types';
 import * as schema from './validation';
 import { exportCsv, exportXml, exportJournalJson, journalExportCoverage, validJournalDate } from './export';
 import type { PaymentAdapter } from './adapters';
 import { SoftpaySandboxAdapter } from './softpay-adapter';
 import { readSoftpaySandboxConfig } from './softpay-config';
+import { EpsonTestPrintAdapter } from './epson-test-printer';
 
 const journalQuery = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), registerId: z.string().min(1).max(72).optional() }).strict();
 
@@ -28,7 +29,7 @@ export interface AppOptions {
 export function assertTrainingMode(env: NodeJS.ProcessEnv): void {
   const mode = env.APP_MODE ?? 'training';
   demand(mode === 'training', 'Produktionsläget är spärrat. Riktiga betalnings-, kontrollenhets- och skrivarkopplingar samt tillverkardeklaration krävs först.', 500, 'PRODUCTION_BLOCKED');
-  demand(['simulator', 'softpay-sandbox'].includes(env.PAYMENT_ADAPTER ?? 'simulator') && (env.FISCAL_ADAPTER ?? 'simulator') === 'simulator' && (env.PRINT_ADAPTER ?? 'preview') === 'preview', 'Välj simulator eller Softpay sandbox. Riktiga betalningar och kontrollenhetskopplingar är spärrade.', 500, 'ADAPTER_UNAVAILABLE');
+  demand(['simulator', 'softpay-sandbox'].includes(env.PAYMENT_ADAPTER ?? 'simulator') && (env.FISCAL_ADAPTER ?? 'simulator') === 'simulator' && ['preview', 'epson-test'].includes(env.PRINT_ADAPTER ?? 'preview'), 'Välj simulator eller Softpay sandbox. Riktiga betalningar och kontrollenhetskopplingar är spärrade.', 500, 'ADAPTER_UNAVAILABLE');
   demand(env.TEST_ENVIRONMENT !== 'safe-test' || (env.PAYMENT_ADAPTER ?? 'simulator') === 'simulator', 'Den säkra övningsmiljön använder bara lokala simulatorer.', 500, 'SAFE_TEST_ADAPTER');
 }
 
@@ -48,7 +49,9 @@ export async function createApp(options: AppOptions) {
     demand(!payment || payment.kind !== 'live', 'Riktiga betalningar är spärrade i träningsversionen.', 500, 'PRODUCTION_BLOCKED');
     demand(!options.safeTest || !payment || payment.kind === 'simulator', 'Den säkra övningsmiljön använder bara lokala simulatorer.', 500, 'SAFE_TEST_ADAPTER');
     demand(payment?.kind === 'sandbox' || !store.get('meta', 'payment-profile'), 'Den här databasen tillhör Softpay sandbox. Starta med samma koppling.', 500, 'PAYMENT_PROFILE_MISMATCH');
-    service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change'), payment });
+    const printer = process.env.PRINT_ADAPTER === 'epson-test' ? new EpsonTestPrintAdapter(process.env.EPSON_TEST_HOST ?? '', process.env.EPSON_TEST_PROFILE ?? '') : undefined;
+    service = new KassaService(store, { backupDir: options.backupDir, now: options.now, notify: () => events.emit('change'), payment, printer });
+    demand(!printer || store.get<PrinterProfile>('printer', printer.integration().printerId)?.active, 'Epson-testet kräver en befintlig aktiv skrivarprofil.', 500, 'TEST_PRINTER_PROFILE');
   }
   catch (error) { store.close(); throw error; }
   await app.register(cookie);
@@ -77,7 +80,7 @@ export async function createApp(options: AppOptions) {
   const actor = (request: FastifyRequest): Actor => service.session(request.cookies[sessionCookieName]);
   const paramId = (request: FastifyRequest): string => z.object({ id: z.string().min(1).max(100) }).parse(request.params).id;
 
-  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: service.paymentAdapter.integration?.().provider ?? 'simulator', fiscal: 'simulator', print: 'preview' } }));
+  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: service.paymentAdapter.integration?.().provider ?? 'simulator', fiscal: 'simulator', print: service.printAdapter.kind }, testPrinter: service.printAdapter.integration?.() }));
   // Liveness above identifies the process. Readiness also exercises the database;
   // it does not attest to bank connectivity, physical printers or a completed sale.
   app.get('/api/v1/ready', async (_request, reply) => {
@@ -101,7 +104,7 @@ export async function createApp(options: AppOptions) {
     reply.clearCookie(sessionCookieName, { path: '/' });
     return { ok: true };
   });
-  app.get('/api/v1/bootstrap', async request => ({ ...service.bootstrap(actor(request)), ...(options.safeTest ? { testEnvironment: 'safe-test' as const, testRoundId: options.safeTest.sessionId } : {}) }));
+  app.get('/api/v1/bootstrap', async request => ({ ...service.bootstrap(actor(request)), printIntegration: service.printAdapter.integration?.(), ...(options.safeTest ? { testEnvironment: 'safe-test' as const, testRoundId: options.safeTest.sessionId } : {}) }));
   app.get('/api/v1/events', async (request, reply) => {
     const identity = actor(request);
     reply.hijack();

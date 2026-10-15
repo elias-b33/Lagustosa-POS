@@ -670,8 +670,11 @@ export class KassaService {
         demand(printer?.active && printer.destination === printerDestination(current.kind), 'Välj en aktiv skrivare för rätt typ av utskrift innan utskriften startas.', 409, 'PRINTER_REQUIRED');
         current.status = 'printing';
         current.attempts++;
+        const physical = this.printAdapter.integration?.();
+        current.delivery = physical?.printerId === printer.id ? 'epson-test' : 'preview';
+        current.printerAddress = current.delivery === 'epson-test' ? physical!.host : null;
         this.store.put('print', current);
-        this.log(actor, 'print.started', id, {});
+        this.log(actor, 'print.started', id, { delivery: current.delivery, printerId: printer.id, printerAddress: current.printerAddress });
         return { job: current, printer };
       });
       job = claimed.job;

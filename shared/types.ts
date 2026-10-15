@@ -71,6 +71,7 @@ export interface Receipt {
   zReportSequence?: number;
 }
 export interface PrintJob {
+  delivery?: 'preview' | 'epson-test'; printerAddress?: string | null;
   id: string; kind: 'guest' | 'kitchen' | 'bar' | 'closing' | 'drawer';
   sourceId: string; status: 'queued' | 'printing' | 'printed' | 'failed' | 'uncertain';
   text: string; createdAt: string; reprintOf: string | null; attempts: number;
@@ -104,7 +105,9 @@ export interface DayReport {
 export interface Company { name: string; organizationNumber: string; address: string; city: string; phone: string }
 export interface Settings { company: Company; registerId: string; taxRules: TaxRule[] }
 export interface AuditEntry { id: number; at: string; actor: string; action: string; entityId: string; details: unknown; hash: string; previousHash: string }
+export interface TestPrinterIntegration { kind: 'epson-test'; model: 'TM-m30II'; host: string; printerId: string }
 export interface Bootstrap {
+  printIntegration?: TestPrinterIntegration;
   paymentIntegration?: import('./payment-integration').PaymentIntegration;
   mode: 'training'; actor: Actor; menu: MenuItem[]; tables: DiningTable[]; tabs: Tab[];
   testEnvironment?: 'safe-test';

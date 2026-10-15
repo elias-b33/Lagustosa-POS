@@ -22,7 +22,8 @@ export interface FiscalAdapter {
   recoverMissing?(receipt: Receipt): Promise<FiscalResult>;
 }
 export interface PrintAdapter {
-  readonly kind: 'preview' | 'live';
+  readonly kind: 'preview' | 'epson-test' | 'live';
+  integration?(): import('../shared/types').TestPrinterIntegration;
   print(job: PrintJob, printer: PrinterProfile, outcome: 'printed' | 'failed' | 'uncertain'): Promise<'printed' | 'failed' | 'uncertain'>;
 }
 

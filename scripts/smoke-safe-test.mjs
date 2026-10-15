@@ -140,6 +140,16 @@ try {
     await assert.rejects(secureRequest(`https://${privateAddress}:${port}/api/v1/health`), error => ['SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'].includes(error.code));
     console.log('LAN check passed: private address, verified local CA and HTTPS; CA trust was not installed.');
     const ended = await cli('stop'); assert.equal(ended.code, 0, ended.output);
+    // Starting explicit physical test mode never sends paper by itself.
+    // This address is configuration only: no print action is requested here.
+    const epson = await cli('start', ['--lan', privateAddress, '--epson', '192.168.254.254']);
+    assert.equal(epson.code, 0, epson.output);
+    const epsonHealth = (await secureRequest(`https://${privateAddress}:${port}/api/v1/health`, ca)).data;
+    assert.deepEqual(epsonHealth.adapters, { payment: 'simulator', fiscal: 'simulator', print: 'epson-test' });
+    assert.equal(epsonHealth.testPrinter.printerId, 'printer-kitchen');
+    const wrongPrinter = await cli('start', ['--lan', privateAddress, '--epson', '192.168.254.253']);
+    assert.equal(wrongPrinter.code, 1); assert.match(wrongPrinter.output, /annan skrivarkoppling/);
+    const epsonStopped = await cli('stop'); assert.equal(epsonStopped.code, 0, epsonStopped.output);
   } else console.log('No private IPv4 interface available; LAN smoke check skipped.');
 
   console.log('Safe environment verified: Windows launcher/Node runtime, isolated data and cookie, forced simulators, startup identity, duplicate launch, preserved test rounds, backup and guarded stop.');

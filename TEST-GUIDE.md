@@ -135,6 +135,28 @@ Om Windows sedan visar **ERR_CERT_AUTHORITY_INVALID** saknas vanligen förtroend
 
 Den här versionen stöder webbläsare. Om en kommande fysisk betalterminal ska köra vår beställningsapp måste modellen även stödja en sådan app eller ha en kompatibel integration.
 
+## Manuell Epson-testutskrift på hemnätverket
+
+En **Epson TM-m30II (M362B)** kan anslutas med Ethernet till samma router som kassadatorn. iPaden kan använda routerns Wi-Fi. Kopplingen använder skrivarens lokala TCP-port 9100 och kräver ingen Windows-skrivardrivrutin. Den är avsedd för ett privat testnät.
+
+Stoppa testservern och starta samma testmapp igen med uttrycklig skrivarkonfiguration (ersätt adresserna med datorns och skrivarens egna):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-safe-test.ps1 -LanAddress 192.168.1.50 -EpsonAddress 192.168.1.60 -EpsonProfile printer-kitchen -NoBrowser
+```
+
+Använd samma `-TestRoot` och `-Port` som tidigare om de angavs vid första starten. Testdata och rotcertifikat bevaras. Utan `-EpsonAddress` är fysisk utskrift avstängd; startverktyget tillåter inte byte av skrivarkoppling medan servern kör.
+
+1. Logga in som **Ansvarig** på datorn och **Servering**, PIN **3456**, enhetskod **SERVERING-1** på iPaden.
+2. Skicka en beställning från iPaden. Den visas i kassan och på köksskärmen.
+3. På huvudkassan: öppna **Utskrifter**, välj köksbongen och tryck **Skriv ut på Epson**. Detta är en manuell fysisk testutskrift. Ingen gammal kö skrivs ut automatiskt vid starten.
+4. Kontrollera papper, svenska tecken, artikelantal och bord. Kopplingen märker pappret **ÖVNING — ELEVA POS** och journalför att utskriften gick till en fysisk testskrivare. Andra profiler fortsätter att simuleras.
+5. Vid **Osäker utskrift**, kontrollera pappret och registrera resultatet och orsaken. Systemet skickar inte om osäkra jobb automatiskt. En ny utskrift skapas genom den befintliga funktionen för märkt kopia.
+
+Kopplingen kontrollerar modellnamnet före varje utskrift och väntar på rätt Epson-bekräftelse för utskriftens process-ID. Ett levererat nätverkspaket räknas inte i sig som en genomförd utskrift. En förlorad bekräftelse efter sändning blir osäker status. Kassalådans elektriska öppningssignal stöds inte av denna testkoppling. Fysiska bankbetalningar, kontrollenhet och produktionsläge är fortsatt spärrade.
+
+Tekniska källor: [modellens kommandon](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/tmm30ii.html), [UTF-8](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/fs_lparen_cc_fn48.html), [bekräftelse av utskriftsdata](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_ch_fn48.html).
+
 ## Om något behöver kontrolleras
 
 Startfönstret skriver den aktiva testomgångens `server.log` och datamapp. Spara felmeddelandet, vilket bord det gällde, vad du klickade på och vilken enhetsprofil du använde. Kontrollera befintligt betalningsresultat efter ett avbrott innan du försöker igen. Vid osäker utskrift används kökontrollen innan en kopia görs.
