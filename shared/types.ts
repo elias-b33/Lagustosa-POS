@@ -111,6 +111,7 @@ export interface Bootstrap {
   paymentIntegration?: import('./payment-integration').PaymentIntegration;
   mode: 'training'; actor: Actor; menu: MenuItem[]; tables: DiningTable[]; tabs: Tab[];
   testEnvironment?: 'safe-test';
+  testHttpLan?: boolean;
   testRoundId?: string;
   tickets: Ticket[]; payments: Payment[]; receipts: Receipt[]; printJobs: PrintJob[];
   days: BusinessDay[]; currentDay: BusinessDay | null; report: DayReport | null;

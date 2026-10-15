@@ -22,7 +22,7 @@ export interface AppOptions {
   database: string; backupDir?: string; webDir?: string;
   https?: { key: Buffer; cert: Buffer }; now?: () => Date; logger?: boolean; development?: boolean;
   sessionCookieName?: string;
-  safeTest?: { instanceId: string; launchId: string; sessionId: string };
+  safeTest?: { instanceId: string; launchId: string; sessionId: string; httpLan?: boolean };
   paymentFactory?: (store: Store) => PaymentAdapter;
 }
 
@@ -80,7 +80,7 @@ export async function createApp(options: AppOptions) {
   const actor = (request: FastifyRequest): Actor => service.session(request.cookies[sessionCookieName]);
   const paramId = (request: FastifyRequest): string => z.object({ id: z.string().min(1).max(100) }).parse(request.params).id;
 
-  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: service.paymentAdapter.integration?.().provider ?? 'simulator', fiscal: 'simulator', print: service.printAdapter.kind }, testPrinter: service.printAdapter.integration?.() }));
+  app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', httpLan: options.safeTest?.httpLan ?? false, instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: service.paymentAdapter.integration?.().provider ?? 'simulator', fiscal: 'simulator', print: service.printAdapter.kind }, testPrinter: service.printAdapter.integration?.() }));
   // Liveness above identifies the process. Readiness also exercises the database;
   // it does not attest to bank connectivity, physical printers or a completed sale.
   app.get('/api/v1/ready', async (_request, reply) => {
@@ -104,7 +104,7 @@ export async function createApp(options: AppOptions) {
     reply.clearCookie(sessionCookieName, { path: '/' });
     return { ok: true };
   });
-  app.get('/api/v1/bootstrap', async request => ({ ...service.bootstrap(actor(request)), printIntegration: service.printAdapter.integration?.(), ...(options.safeTest ? { testEnvironment: 'safe-test' as const, testRoundId: options.safeTest.sessionId } : {}) }));
+  app.get('/api/v1/bootstrap', async request => ({ ...service.bootstrap(actor(request)), printIntegration: service.printAdapter.integration?.(), ...(options.safeTest ? { testEnvironment: 'safe-test' as const, testRoundId: options.safeTest.sessionId, testHttpLan: options.safeTest.httpLan ?? false } : {}) }));
   app.get('/api/v1/events', async (request, reply) => {
     const identity = actor(request);
     reply.hijack();

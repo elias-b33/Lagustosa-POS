@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createApp, assertTrainingMode } from './app';
 import { demand } from './errors';
+import { assertTestTransport } from './test-network';
 import { acquireDatabaseLock } from '../scripts/database-lock.mjs';
 
 assertTrainingMode(process.env);
@@ -13,13 +14,13 @@ const certPath = process.env.TLS_CERT || '';
 const keyPath = process.env.TLS_KEY || '';
 if (Boolean(certPath) !== Boolean(keyPath)) throw new Error('Både TLS_CERT och TLS_KEY måste anges.');
 const https = certPath && keyPath ? { cert: readFileSync(certPath), key: readFileSync(keyPath) } : undefined;
-const safeTest = process.env.TEST_ENVIRONMENT === 'safe-test' ? { instanceId: process.env.TEST_INSTANCE_ID || '', launchId: process.env.TEST_LAUNCH_ID || '', sessionId: process.env.TEST_SESSION_ID || '' } : undefined;
+const httpLan = assertTestTransport(process.env, Boolean(https));
+const safeTest = process.env.TEST_ENVIRONMENT === 'safe-test' ? { instanceId: process.env.TEST_INSTANCE_ID || '', launchId: process.env.TEST_LAUNCH_ID || '', sessionId: process.env.TEST_SESSION_ID || '', httpLan } : undefined;
 const host = process.env.HOST || '127.0.0.1';
 if (safeTest) {
   const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
   demand(uuid.test(safeTest.instanceId) && uuid.test(safeTest.launchId), 'Testmiljön saknar giltig identitet.', 500);
   demand(/^[a-zA-Z0-9_-]{1,100}$/.test(safeTest.sessionId), 'Testomgången saknar giltig identitet.', 500);
-  demand(Boolean(https) || ['127.0.0.1', '::1', 'localhost'].includes(host), 'Testmiljön behöver HTTPS för anslutningar från andra enheter.', 500);
 }
 const builtWeb = path.resolve('dist/web');
 const development = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';

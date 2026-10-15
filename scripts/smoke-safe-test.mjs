@@ -26,7 +26,7 @@ async function cli(action, extra = [], selectedRoot = root) {
   const useWindowsLauncher = process.platform === 'win32' && !extra.length;
   const executable = useWindowsLauncher ? 'powershell.exe' : runtime;
   const commandArgs = useWindowsLauncher ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(project, 'scripts', 'start-safe-test.ps1'), '-Action', action, '-TestRoot', selectedRoot, '-Port', String(port), '-NoBrowser'] : args;
-  const child = spawn(executable, commandArgs, { cwd: project, windowsHide: true, stdio: 'pipe', env: { ...process.env, APP_MODE: 'production', PAYMENT_ADAPTER: 'live', FISCAL_ADAPTER: 'live', PRINT_ADAPTER: 'physical', TLS_CERT: 'not-a-certificate', TLS_KEY: 'not-a-key', HOST: '0.0.0.0', DATA_DIR: path.join(temporary, 'must-not-be-used'), NODE_ENV: 'development' } });
+  const child = spawn(executable, commandArgs, { cwd: project, windowsHide: true, stdio: 'pipe', env: { ...process.env, APP_MODE: 'production', PAYMENT_ADAPTER: 'live', FISCAL_ADAPTER: 'live', PRINT_ADAPTER: 'physical', TLS_CERT: 'not-a-certificate', TLS_KEY: 'not-a-key', SAFE_TEST_HTTP_LAN: '1', HOST: '0.0.0.0', DATA_DIR: path.join(temporary, 'must-not-be-used'), NODE_ENV: 'development' } });
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
@@ -68,6 +68,7 @@ try {
   assert.equal(health.instanceId, original.instanceId);
   assert.deepEqual(health.adapters, { payment: 'simulator', fiscal: 'simulator', print: 'preview' });
   assert.equal(health.environment, 'safe-test');
+  assert.equal(health.httpLan, false, 'Inherited HTTP opt-in must be cleared by the default launcher');
   assert.equal(existsSync(path.join(temporary, 'must-not-be-used')), false);
   const repeated = await cli('start'); assert.equal(repeated.code, 0, repeated.output);
   assert.equal(readRuntime().pid, firstProcess.pid, 'Opening the launcher twice must reuse the verified server');
@@ -121,6 +122,7 @@ try {
   state = (await api(base, '/bootstrap', newCookie)).data;
   assert.deepEqual([state.tabs.length, state.payments.length, state.receipts.length, state.printJobs.length], [0, 0, 0, 0]); assert.equal(state.currentDay, null);
   const invalidOptions = await cli('start', ['--port', '0']); assert.equal(invalidOptions.code, 1);
+  const missingLan = await cli('start', ['--http-lan']); assert.equal(missingLan.code, 1); assert.match(missingLan.output, /kräver --lan/);
   const stopped = await cli('stop'); assert.equal(stopped.code, 0, stopped.output);
   assert.equal(existsSync(path.join(root, 'server.json')), false); assert.equal(existsSync(oldDatabase), true);
 
@@ -137,6 +139,8 @@ try {
     assert.ok(serverCertificate.subject, 'Browser TLS requires a subject or a critical SAN extension.');
     assert.equal(serverCertificate.checkIP(privateAddress), privateAddress);
     assert.equal((await secureRequest(`https://${privateAddress}:${port}/api/v1/health`, ca)).data.instanceId, current.instanceId);
+    const unexpectedHttp = await cli('start', ['--lan', privateAddress, '--http-lan']);
+    assert.equal(unexpectedHttp.code, 1); assert.match(unexpectedHttp.output, /annat HTTP\/HTTPS-läge/);
     await assert.rejects(secureRequest(`https://${privateAddress}:${port}/api/v1/health`), error => ['SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'].includes(error.code));
     console.log('LAN check passed: private address, verified local CA and HTTPS; CA trust was not installed.');
     const ended = await cli('stop'); assert.equal(ended.code, 0, ended.output);
@@ -150,6 +154,29 @@ try {
     const wrongPrinter = await cli('start', ['--lan', privateAddress, '--epson', '192.168.254.253']);
     assert.equal(wrongPrinter.code, 1); assert.match(wrongPrinter.output, /annan skrivarkoppling/);
     const epsonStopped = await cli('stop'); assert.equal(epsonStopped.code, 0, epsonStopped.output);
+
+    const httpStarted = await cli('start', ['--lan', privateAddress, '--http-lan', '--epson', '192.168.254.254', '--epson-profile', 'printer-guest']);
+    assert.equal(httpStarted.code, 0, httpStarted.output);
+    const httpBase = `http://${privateAddress}:${port}`;
+    const httpHealth = (await api(httpBase, '/health')).data;
+    assert.equal(httpHealth.httpLan, true);
+    assert.deepEqual(httpHealth.adapters, { payment: 'simulator', fiscal: 'simulator', print: 'epson-test' });
+    assert.equal(httpHealth.testPrinter.printerId, 'printer-guest');
+    assert.equal(readRuntime().caDirectory, null);
+    assert.equal(readConfig().sessionId, current.sessionId, 'Protocol changes preserve the test round');
+    const httpLogin = await api(httpBase, '/auth/login', null, { staffId: 'admin', pin: '1234', deviceCode: 'LAGUSTOSA-TEST' });
+    const httpSetCookie = httpLogin.response.headers.get('set-cookie');
+    assert.match(httpSetCookie, /^lagustosa_safe_test_[a-f0-9]{32}_http=/);
+    assert.match(httpSetCookie, /HttpOnly/); assert.match(httpSetCookie, /SameSite=Strict/); assert.doesNotMatch(httpSetCookie, /; Secure/i);
+    const httpCookie = httpSetCookie.split(';')[0];
+    assert.equal((await api(httpBase, '/bootstrap', httpCookie)).data.testHttpLan, true);
+    assert.equal((await fetch(httpBase + '/api/v1/bootstrap')).status, 401);
+    const crossSite = await fetch(httpBase + '/api/v1/auth/logout', { method: 'POST', headers: { Cookie: httpCookie, Origin: 'http://example.invalid', 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(crossSite.status, 403);
+    const unexpectedTls = await cli('start', ['--lan', privateAddress, '--epson', '192.168.254.254', '--epson-profile', 'printer-guest']);
+    assert.equal(unexpectedTls.code, 1); assert.match(unexpectedTls.output, /annat HTTP\/HTTPS-läge/);
+    const httpStopped = await cli('stop'); assert.equal(httpStopped.code, 0, httpStopped.output);
+    console.log('Explicit HTTP home test passed: private binding, separate login cookie, preserved round, simulated payments and guest-printer configuration.');
   } else console.log('No private IPv4 interface available; LAN smoke check skipped.');
 
   console.log('Safe environment verified: Windows launcher/Node runtime, isolated data and cookie, forced simulators, startup identity, duplicate launch, preserved test rounds, backup and guarded stop.');

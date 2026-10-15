@@ -135,6 +135,20 @@ Om Windows sedan visar **ERR_CERT_AUTHORITY_INVALID** saknas vanligen förtroend
 
 Den här versionen stöder webbläsare. Om en kommande fysisk betalterminal ska köra vår beställningsapp måste modellen även stödja en sådan app eller ha en kompatibel integration.
 
+### Hemtest utan certifikat
+
+För ett tillfälligt hemtest med testuppgifter kan HTTP väljas uttryckligen. Trafiken, inklusive testinloggningen, är då okrypterad. Använd det endast på det egna privata testnätet, utan portvidarebefordran. Produktionsläget och riktiga betalningar är fortsatt spärrade.
+
+Stoppa den befintliga testservern och starta **samma testmapp** med:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-safe-test.ps1 -LanAddress 192.168.1.50 -HttpLan -NoBrowser
+```
+
+Behåll tidigare `-TestRoot`, `-Port`, `-EpsonAddress` och `-EpsonProfile` om de används. Öppna adressen med **http://**, exempelvis `http://192.168.1.50:4273/`, på både datorn och iPaden. Inget certifikat behöver installeras. Logga in igen: HTTP använder en separat sessionskaka så att tidigare HTTPS-inloggningar inte blockerar den. Sparade beställningar, kvitton och samma testomgång finns kvar; webbläsarens lokalt sparade uppgifter tillhör däremot respektive HTTP-/HTTPS-adress.
+
+Läget tillåter bara datorns egen privata IPv4-adress. Utan `-HttpLan` används HTTPS för LAN som tidigare. För att återgå, stoppa testservern och starta med samma inställningar utan `-HttpLan`. Certifikaten bevaras.
+
 ## Manuell Epson-testutskrift på hemnätverket
 
 En **Epson TM-m30II (M362B)** kan anslutas med Ethernet till samma router som kassadatorn. iPaden kan använda routerns Wi-Fi. Kopplingen använder skrivarens lokala TCP-port 9100 och kräver ingen Windows-skrivardrivrutin. Den är avsedd för ett privat testnät.

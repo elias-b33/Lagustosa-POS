@@ -2,6 +2,7 @@ param(
   [ValidateSet('start', 'stop', 'status', 'new-session')][string]$Action = 'start',
   [switch]$NoBrowser,
   [string]$LanAddress,
+  [switch]$HttpLan,
   [string]$EpsonAddress,
   [string]$EpsonProfile = 'printer-kitchen',
   [string]$TestRoot,
@@ -14,6 +15,7 @@ $nodeRuntime = if (Test-Path -LiteralPath $bundledNode) { $bundledNode } else { 
 $arguments = @((Join-Path $PSScriptRoot 'safe-test.mjs'), $Action, '--port', [string]$Port)
 if ($NoBrowser) { $arguments += '--no-browser' }
 if ($LanAddress) { $arguments += @('--lan', $LanAddress) }
+if ($HttpLan) { $arguments += '--http-lan' }
 if ($EpsonAddress) { $arguments += @('--epson', $EpsonAddress, '--epson-profile', $EpsonProfile) }
 if ($TestRoot) { $arguments += @('--root', $TestRoot) }
 & $nodeRuntime @arguments
