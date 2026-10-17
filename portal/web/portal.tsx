@@ -1,4 +1,9 @@
 import {
+  AccountSecurity,
+  AuthenticatorInstructions,
+  AuthenticatorHelp,
+} from "./security";
+import {
   Store,
   Tags,
   Layers,
@@ -50,6 +55,7 @@ import {
   api,
   download,
   enroll,
+  cancelEnrollment,
   local,
   newPassword,
   resetPassword,
@@ -58,6 +64,7 @@ import {
   signOut,
   verify,
   type Session,
+  type Enrollment,
 } from "./client";
 import {
   dateShift,
@@ -228,8 +235,9 @@ function Login({
     [code, setCode] = useState(""),
     [working, setWorking] = useState(false),
     [error, setError] = useState(""),
-    [setup, setSetup] = useState<{ qr: string; secret: string } | null>(null),
-    [sent, setSent] = useState(false);
+    [setup, setSetup] = useState<Enrollment | null>(null),
+    [sent, setSent] = useState(false),
+    [selectedFactor, setSelectedFactor] = useState("");
   const act = async (work: () => Promise<unknown>) => {
     setWorking(true);
     setError("");
@@ -274,7 +282,7 @@ function Login({
           <h2>{identity ? "Ett steg till" : "Välkommen tillbaka"}</h2>
           <p>
             {identity
-              ? "Bekräfta inloggningen med din autentiseringsapp."
+              ? "Öppna Google Authenticator på mobilen och ange koden för Eleva Admin."
               : "Logga in för att se hur det går för restaurangen."}
           </p>
           {local && <span className="badge training">Lokal testportal</span>}
@@ -282,8 +290,16 @@ function Login({
             onSubmit={(event) => {
               event.preventDefault();
               void act(async () => {
-                if (identity) await verify(code);
+                if (identity)
+                  await verify(
+                    code,
+                    setup?.factorId ?? (selectedFactor || undefined),
+                  );
                 else await signIn(email, password);
+                setPassword("");
+                setCode("");
+                setSetup(null);
+                setSelectedFactor("");
                 onReady();
               });
             }}
@@ -323,23 +339,26 @@ function Login({
                       void act(async () => setSetup(await enroll()))
                     }
                   >
-                    Konfigurera tvåstegsverifiering
+                    Koppla Google Authenticator
                   </button>
                 )}
-                {setup && (
-                  <div className="mfa-setup">
-                    <img
-                      src={setup.qr}
-                      width="180"
-                      height="180"
-                      alt="QR-kod för autentiseringsappen"
-                    />
-                    <p>Skanna i din autentiseringsapp.</p>
-                    <details>
-                      <summary>Ange nyckeln manuellt</summary>
-                      <code>{setup.secret}</code>
-                    </details>
-                  </div>
+                {setup && <AuthenticatorInstructions setup={setup} />}
+                {(identity.factors?.length ?? 0) > 1 && !setup && (
+                  <label>
+                    Välj autentiseringsapp
+                    <select
+                      value={selectedFactor || identity.factors![0].id}
+                      onChange={(event) =>
+                        setSelectedFactor(event.target.value)
+                      }
+                    >
+                      {identity.factors!.map((factor) => (
+                        <option key={factor.id} value={factor.id}>
+                          {factor.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
                 <label>
                   Sexsiffrig kod
@@ -360,7 +379,12 @@ function Login({
                 {error}
               </p>
             )}
-            <button className="button primary" disabled={working}>
+            <button
+              className="button primary"
+              disabled={
+                working || Boolean(identity && !identity.enrolled && !setup)
+              }
+            >
               {working
                 ? "Kontrollerar…"
                 : identity
@@ -386,7 +410,13 @@ function Login({
               className="text-button"
               onClick={() =>
                 void act(async () => {
+                  if (setup)
+                    await cancelEnrollment(setup.factorId).catch(() => {});
                   await signOut();
+                  setSetup(null);
+                  setCode("");
+                  setPassword("");
+                  setSelectedFactor("");
                   onReady();
                 })
               }
@@ -398,6 +428,7 @@ function Login({
           {sent && (
             <p role="status">Om kontot finns har instruktioner skickats.</p>
           )}
+          {identity && <AuthenticatorHelp />}
           <div className="login-footer">
             <ShieldCheck size={15} />
             {local
@@ -1109,9 +1140,11 @@ function OperationsView({ meta }: { meta: PortalMeta }) {
 function Account({
   identity,
   onLogout,
+  onUpdated,
 }: {
   identity: Session;
   onLogout: () => Promise<void>;
+  onUpdated: () => Promise<void>;
 }) {
   const [password, setPassword] = useState(""),
     [message, setMessage] = useState("");
@@ -1141,9 +1174,10 @@ function Account({
           </div>
           <div>
             <dt>Åtkomst</dt>
-            <dd>Statistik och läsåtkomst</dd>
+            <dd>Enligt din restaurangbehörighet</dd>
           </div>
         </dl>
+        <AccountSecurity identity={identity} onUpdated={onUpdated} />
         {local ? (
           <Notice>
             Det här kontot gäller den lokala testportalen. Ett separat inbjudet
@@ -1697,7 +1731,11 @@ export function Portal() {
               initialTo={to}
             />
           ) : page === "account" ? (
-            <Account identity={identity} onLogout={logout} />
+            <Account
+              identity={identity}
+              onLogout={logout}
+              onUpdated={refreshSession}
+            />
           ) : !meta || (!data && economic) ? (
             <Panel title={loading ? "Hämtar statistik…" : "Statistik inväntas"}>
               <Empty>

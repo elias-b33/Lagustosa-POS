@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { z } from "zod";
+import { managementCommandSchema } from "../../shared/backoffice-command";
 import type { SyncConfig } from "./worker";
 import type {
   CommandEnvelope,
@@ -55,6 +57,19 @@ export async function syncManagement(config: SyncConfig, sequence: number) {
     [],
   );
   for (const envelope of commands) {
+    const valid = managementCommandSchema.safeParse(envelope.command);
+    // A member can call the database RPC directly. Invalid bodies must not block the queue.
+    if (!valid.success) {
+      await exchange(null, [
+        {
+          id: z.string().uuid().parse(envelope.command.id),
+          status: "rejected",
+          message: "Ändringen innehåller ogiltiga uppgifter och har avvisats.",
+          at: new Date().toISOString(),
+        },
+      ]);
+      continue;
+    }
     const result = await request<CommandResult>(
       new URL("commands", runtime),
       config.runtimeToken,

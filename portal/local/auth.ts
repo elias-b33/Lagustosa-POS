@@ -28,13 +28,23 @@ export function totp(secret: string, at = Date.now()) {
   );
 }
 export function verifyTotp(secret: string, code: string, at = Date.now()) {
-  if (!/^\d{6}$/.test(code)) return false;
-  return [-1, 0, 1].some((step) =>
-    timingSafeEqual(
-      Buffer.from(totp(secret, at + step * 30000)),
-      Buffer.from(code),
-    ),
-  );
+  return totpStep(secret, code, at) !== null;
+}
+// Return the accepted time step so replay protection applies across sessions/restarts.
+export function totpStep(secret: string, code: string, at = Date.now()) {
+  if (!/^\d{6}$/.test(code)) return null;
+  for (const offset of [1, 0, -1]) {
+    const step = Math.floor(at / 30000) + offset;
+    if (
+      step >= 0 &&
+      timingSafeEqual(
+        Buffer.from(totp(secret, step * 30000)),
+        Buffer.from(code),
+      )
+    )
+      return step;
+  }
+  return null;
 }
 export function passwordHash(
   value: string,
@@ -43,6 +53,7 @@ export function passwordHash(
   return `${salt}:${scryptSync(value, salt, 32).toString("hex")}`;
 }
 export function passwordMatches(value: string, stored: string) {
+  if (!/^[a-f0-9]{32}:[a-f0-9]{64}$/.test(stored)) return false;
   const [salt, hash] = stored.split(":");
   const actual = Buffer.from(passwordHash(value, salt).split(":")[1], "hex");
   return timingSafeEqual(actual, Buffer.from(hash, "hex"));

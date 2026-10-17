@@ -38,6 +38,7 @@ export type Session = {
   enrolled: boolean;
   local: boolean;
   mfaRequired?: boolean;
+  factors?: { id: string; name: string }[];
 };
 export async function session(): Promise<Session | null> {
   if (!cloud) {
@@ -59,6 +60,11 @@ export async function session(): Promise<Session | null> {
     verified: levels?.currentLevel === "aal2",
     enrolled: Boolean(factors?.totp.length),
     local: false,
+    mfaRequired: true,
+    factors: (factors?.totp ?? []).map((factor) => ({
+      id: factor.id,
+      name: factor.friendly_name ?? "Google Authenticator",
+    })),
   };
 }
 export async function signIn(email: string, password: string) {
@@ -70,40 +76,54 @@ export async function signIn(email: string, password: string) {
   const { error } = await cloud.auth.signInWithPassword({ email, password });
   if (error) throw error;
 }
-let factor: string | null = null;
-export async function enroll() {
-  if (!cloud) return api<{ qr: string; secret: string }>("/auth/enroll");
-  const { data: old } = await cloud.auth.mfa.listFactors();
-  for (const f of old?.all ?? [])
-    if (f.status === "unverified")
-      await cloud.auth.mfa.unenroll({ factorId: f.id });
+export type Enrollment = { qr: string; secret: string; factorId?: string };
+export async function enroll(password?: string): Promise<Enrollment> {
+  if (!cloud)
+    return api<Enrollment>("/auth/enroll", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
   const { data, error } = await cloud.auth.mfa.enroll({
     factorType: "totp",
-    friendlyName: "Eleva Admin",
+    friendlyName: `Eleva Admin · ${new Date().toISOString()}`,
   });
   if (error) throw error;
-  factor = data.id;
-  return { qr: data.totp.qr_code, secret: data.totp.secret };
+  return { qr: data.totp.qr_code, secret: data.totp.secret, factorId: data.id };
 }
-export async function verify(code: string) {
+export async function cancelEnrollment(factorId?: string) {
+  if (!cloud) return api("/auth/enroll/cancel", { method: "POST", body: "{}" });
+  if (!factorId) return;
+  const { data, error } = await cloud.auth.mfa.listFactors();
+  if (error) throw error;
+  // Never remove a verified factor, or another browser's pending setup.
+  if (
+    data.all.some(
+      (factor) => factor.id === factorId && factor.status === "unverified",
+    )
+  ) {
+    const { error } = await cloud.auth.mfa.unenroll({ factorId });
+    if (error) throw error;
+  }
+}
+export async function verify(code: string, factorId?: string) {
   if (!cloud)
     return api("/auth/verify", {
       method: "POST",
       body: JSON.stringify({ code }),
     });
-  if (!factor) {
-    const { data } = await cloud.auth.mfa.listFactors();
-    factor = data?.totp[0]?.id ?? null;
+  if (!factorId) {
+    const { data, error } = await cloud.auth.mfa.listFactors();
+    if (error) throw error;
+    factorId = data?.totp[0]?.id;
   }
-  if (!factor) throw new Error("Konfigurera tvåstegsverifiering först.");
+  if (!factorId) throw new Error("Koppla Google Authenticator först.");
   const { error } = await cloud.auth.mfa.challengeAndVerify({
-    factorId: factor,
+    factorId,
     code,
   });
   if (error) throw error;
 }
 export async function signOut() {
-  factor = null;
   if (cloud) {
     const { error } = await cloud.auth.signOut();
     if (error) throw error;

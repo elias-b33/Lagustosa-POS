@@ -38,7 +38,36 @@ async function login(page: Page) {
 
     expect((await page.request.get("/api/meta")).status()).toBe(401);
 
-    await page.getByLabel("Sexsiffrig kod").fill(totp(config.secret));
+    if (!config.enrolled) {
+      await page
+        .getByRole("button", {
+          name: "Koppla Google Authenticator",
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByAltText(
+          "QR-kod för att koppla Eleva Admin till Google Authenticator",
+        ),
+      ).toBeVisible();
+    }
+    // Respect the single-use time step even when several tests log in during one 30-second period.
+    const latest = JSON.parse(
+      readFileSync(path.join(directory, "local-account.json"), "utf8"),
+    );
+    await expect
+      .poll(
+        () => Math.floor(Date.now() / 30000) + 1 > (latest.lastTotpStep ?? -1),
+        { timeout: 35000 },
+      )
+      .toBe(true);
+    const step = Math.max(
+      Math.floor(Date.now() / 30000),
+      (latest.lastTotpStep ?? -1) + 1,
+    );
+    await page
+      .getByLabel("Sexsiffrig kod")
+      .fill(totp(config.secret, step * 30000));
 
     await page
 
@@ -392,4 +421,123 @@ test("butik, kupong och lager sparas genom kassans kontroller och historik kan �
       ),
     ).toBe(true);
   }
+});
+
+test("nekar främmande ursprung och värdnamn samt begränsar inloggningsunderlag", async ({
+  request,
+}) => {
+  expect(
+    (
+      await request.get("/api/auth/session", {
+        headers: { host: "attacker.example" },
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.post("/api/auth/login", {
+        headers: { origin: "https://attacker.example" },
+        data: {},
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.post("/api/auth/login", {
+        headers: { "sec-fetch-site": "cross-site" },
+        data: {},
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.post("/api/auth/login", {
+        headers: { "content-type": "text/plain" },
+        data: "{}",
+      })
+    ).status(),
+  ).toBe(415);
+  const large = await request.post("/api/auth/login", {
+    data: { email: "x".repeat(5000), password: "x" },
+  });
+  expect(large.status()).toBe(413);
+  expect(await large.text()).not.toContain("stack");
+  const response = await request.get("/");
+  expect(response.headers()["content-security-policy"]).toContain(
+    "base-uri 'self'",
+  );
+});
+
+test("kopplar Google Authenticator från Mitt konto och bevarar skyddet vid nästa inloggning", async ({
+  page,
+}) => {
+  test.skip(
+    process.env.ADMIN_TEST_PASSWORD_ONLY !== "1",
+    "Aktivering från lösenordsläge testas i den lokala testpolicyn.",
+  );
+  await login(page);
+  await page.getByRole("button", { name: "Mitt konto", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Aktivera Google Authenticator", exact: true })
+    .click();
+  const password = readFileSync(path.join(directory, "inloggning.txt"), "utf8")
+    .match(/Lösenord: (.+)/)![1]
+    .trim();
+  await page.getByLabel("Nuvarande lösenord", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Visa QR-kod", exact: true }).click();
+  await expect(
+    page.getByAltText(
+      "QR-kod för att koppla Eleva Admin till Google Authenticator",
+    ),
+  ).toBeVisible();
+  const secret = (await page.locator(".mfa-setup code").textContent())!;
+  for (const width of [1440, 1024, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.screenshot({
+      path: `artifacts/admin-authenticator-${width}.png`,
+      fullPage: true,
+      mask: [page.locator(".mfa-setup img"), page.locator(".mfa-setup code")],
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await expect(
+    (await page.request.get("/api/auth/session")).json(),
+  ).resolves.toMatchObject({ mfaRequired: false });
+  await page.getByLabel("Sexsiffrig kod", { exact: true }).fill(totp(secret));
+  await page
+    .getByRole("button", { name: "Bekräfta och aktivera", exact: true })
+    .click();
+  await expect(
+    page.getByText("Verifiering med mobilkod är aktiv.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".mfa-setup")).toHaveCount(0);
+  const config = JSON.parse(
+    readFileSync(path.join(directory, "local-account.json"), "utf8"),
+  );
+  expect(config.requireMfa).toBe(true);
+  expect(config.enrolled).toBe(true);
+  const old = await page.context().cookies();
+  await page
+    .getByRole("button", { name: "Logga ut", exact: true })
+    .last()
+    .click();
+  await page.getByLabel("E-post", { exact: true }).fill(config.email);
+  await page.getByLabel("Lösenord", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Logga in", exact: true }).click();
+  await expect(page.getByLabel("Sexsiffrig kod")).toBeVisible();
+  expect((await page.request.get("/api/meta")).status()).toBe(401);
+  expect(
+    (
+      await page.request.get("/api/meta", {
+        headers: { cookie: old.map((c) => `${c.name}=${c.value}`).join("; ") },
+      })
+    ).status(),
+  ).toBe(401);
+  expect(
+    (await page.request.post("/api/auth/enroll", { data: {} })).status(),
+  ).toBe(403);
 });

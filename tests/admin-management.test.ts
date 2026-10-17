@@ -379,6 +379,22 @@ describe("Adminbehörigheter och leveranssäkerhet", () => {
           JSON.stringify({ ...body, id: key() }),
         ]),
       ).rejects.toThrow("UNAUTHORIZED");
+      await db.query("select set_config('request.jwt.claims',$1,false)", [
+        JSON.stringify({ sub: user, aal: "aal2" }),
+      ]);
+      for (const invalid of [
+        { ...body, id: key(), kind: null },
+        { ...body, id: key(), value: null },
+        { ...body, id: key(), target: "" },
+        { ...body, id: key(), baseVersion: "bad" },
+        { ...body, id: key(), extra: true },
+      ])
+        await expect(
+          db.query("select portal_queue_command($1,$2::jsonb)", [
+            installation,
+            JSON.stringify(invalid),
+          ]),
+        ).rejects.toThrow("INVALID_COMMAND");
       await db.exec("reset role");
       expect(await exchange(db, installation, token, null, [])).toHaveLength(1);
       await db.query(
@@ -465,6 +481,36 @@ describe("Adminbehörigheter och leveranssäkerhet", () => {
       expect((await managementData(db, installation)).commands[0].status).toBe(
         "applied",
       );
+      // A malformed legacy/direct-RPC body must be rejected without blocking later changes.
+      const malformed = key(),
+        following = key();
+      await db.query(
+        "insert into portal_commands(id,installation_id,created_by,body) values($1,$2,$3,$4::jsonb)",
+        [
+          malformed,
+          installation,
+          user,
+          JSON.stringify({ id: malformed, kind: null }),
+        ],
+      );
+      await queueCommand(db, installation, user, {
+        id: following,
+        kind: "global-category",
+        target: key(),
+        baseVersion: null,
+        value: { name: "Dryck", position: 1 },
+      });
+      worker = new SyncWorker(config);
+      await worker.once();
+      worker.close();
+      const completed = (await managementData(db, installation)).commands;
+      expect(
+        completed.find((row) => row.command.id === malformed)?.status,
+      ).toBe("rejected");
+      expect(
+        completed.find((row) => row.command.id === following)?.status,
+      ).toBe("applied");
+      expect(changes()).toBe(2);
       expect(
         (
           await pos.app.inject({

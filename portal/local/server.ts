@@ -2,18 +2,18 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import staticFiles from "@fastify/static";
 import { randomBytes, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+} from "node:fs";
 import path from "node:path";
-import QRCode from "qrcode";
+import { registerLocalAuth, type LocalAuthConfig } from "./auth-routes";
 import { z } from "zod";
 import { replica, provision, ingest, readReplica } from "./replica";
-import {
-  newSecret,
-  passwordHash,
-  passwordMatches,
-  totp,
-  verifyTotp,
-} from "./auth";
+import { newSecret, passwordHash, totp } from "./auth";
 import { analytics, exportCsv, receiptPage } from "../shared/analytics";
 import { querySchema } from "../shared/model";
 import { SyncWorker } from "../sync/worker";
@@ -26,16 +26,11 @@ const directory = path.resolve(
 );
 mkdirSync(directory, { recursive: true });
 const configFile = path.join(directory, "local-account.json");
-type Config = {
+type Config = LocalAuthConfig & {
   restaurantId: string;
   installationId: string;
   userId: string;
   token: string;
-  email: string;
-  passwordHash: string;
-  secret: string;
-  enrolled: boolean;
-  requireMfa?: boolean;
 };
 let config: Config;
 if (existsSync(configFile))
@@ -66,20 +61,18 @@ if (process.env.ADMIN_LOCAL_REQUIRE_MFA !== undefined) {
     "true";
   writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
-const requireMfa = config.requireMfa !== false;
+const requireMfa = () => config.requireMfa !== false;
 const credentialsFile = path.join(directory, "inloggning.txt");
 if (existsSync(credentialsFile)) {
   const text = readFileSync(credentialsFile, "utf8").replace(
     /Tvåsteg(?:skod|sverifiering):[^\r\n]*/g,
-    requireMfa
-      ? "Tvåstegskod: kör npm run admin:code"
-      : "Tvåstegsverifiering: avstängd endast i denna lokala testportal",
+    "Tvåstegsverifiering: se aktuell status i Admin under Mitt konto.",
   );
   writeFileSync(credentialsFile, text, { mode: 0o600 });
 }
 if (process.argv.includes("--code")) {
   process.stdout.write(
-    requireMfa
+    requireMfa()
       ? `Aktuell lokal testkod: ${totp(config.secret)}\n`
       : "Tvåstegsverifieringen är avstängd i denna lokala testportal. Logga in med e-post och lösenord.\n",
   );
@@ -96,12 +89,6 @@ await provision(
 );
 const app = Fastify({ bodyLimit: 8_000_000, logger: false });
 await app.register(cookie);
-const sessions = new Map<
-  string,
-  { stage: "password" | "verified"; expires: number; lastCode?: string }
->();
-let failures = 0,
-  blockedUntil = 0;
 app.addHook("onRequest", async (request, reply) => {
   reply
     .header("Cache-Control", "no-store")
@@ -110,7 +97,7 @@ app.addHook("onRequest", async (request, reply) => {
     .header("Referrer-Policy", "no-referrer");
   reply.header(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   );
   const hostname = (request.headers.host ?? "").split(":")[0];
   if (!["127.0.0.1", "localhost"].includes(hostname))
@@ -131,122 +118,31 @@ app.addHook("onRequest", async (request, reply) => {
       return reply.code(403).send({ message: "Åtkomst nekad." });
     if (request.headers["sec-fetch-site"] === "cross-site")
       return reply.code(403).send({ message: "Åtkomst nekad." });
+    if (
+      !/^application\/json(?:;|$)/i.test(request.headers["content-type"] ?? "")
+    )
+      return reply.code(415).send({ message: "Använd JSON för ändringar." });
   }
 });
 app.setErrorHandler((error, _request, reply) => {
-  reply.code(error instanceof z.ZodError ? 400 : 409).send({
-    message:
-      error instanceof z.ZodError
-        ? "Kontrollera uppgifterna."
-        : (error as Error).message,
-  });
-});
-app.post("/api/auth/login", async (request, reply) => {
-  if (Date.now() < blockedUntil)
-    return reply
-      .code(429)
-      .send({ message: "För många försök. Vänta 15 minuter." });
-  const input = z
-    .object({ email: z.string().max(160), password: z.string().max(256) })
-    .strict()
-    .parse(request.body);
-  if (
-    input.email !== config.email ||
-    !passwordMatches(input.password, config.passwordHash)
-  ) {
-    if (++failures >= 5) {
-      blockedUntil = Date.now() + 900000;
-      failures = 0;
-    }
-    return reply.code(401).send({ message: "Fel e-post eller lösenord." });
-  }
-  failures = 0;
-  sessions.delete(request.cookies.eleva_admin_local ?? "");
-  const token = randomBytes(32).toString("base64url");
-  const lifetime = requireMfa ? 600 : 8 * 3600;
-  sessions.set(token, {
-    stage: requireMfa ? "password" : "verified",
-    expires: Date.now() + lifetime * 1000,
-  });
-  reply.setCookie("eleva_admin_local", token, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "strict",
-    maxAge: lifetime,
-  });
-  return { email: config.email, enrolled: config.enrolled };
-});
-app.get("/api/auth/session", async (request, reply) => {
-  const session = sessions.get(request.cookies.eleva_admin_local ?? "");
-  if (!session || session.expires < Date.now())
-    return reply.code(401).send({ message: "Logga in." });
-  return {
-    email: config.email,
-    verified: session.stage === "verified",
-    enrolled: config.enrolled,
-    local: true,
-    mfaRequired: requireMfa,
-  };
-});
-app.get("/api/auth/enroll", async (request, reply) => {
-  if (!requireMfa)
-    return reply.code(403).send({
-      message: "Tvåstegsverifieringen är avstängd i detta lokala test.",
+  const status = (error as { statusCode?: number }).statusCode;
+  reply
+    .code(
+      error instanceof z.ZodError ? 400 : status && status < 500 ? status : 409,
+    )
+    .send({
+      message:
+        error instanceof z.ZodError
+          ? "Kontrollera uppgifterna."
+          : "Anropet kunde inte genomföras. Kontrollera uppgifterna och försök igen.",
     });
-  const session = sessions.get(request.cookies.eleva_admin_local ?? "");
-  if (!session || session.expires < Date.now() || config.enrolled)
-    return reply
-      .code(403)
-      .send({ message: "Logga in för att konfigurera tvåstegsverifiering." });
-  const uri = `otpauth://totp/Eleva%20Admin:${encodeURIComponent(config.email)}?secret=${config.secret}&issuer=Eleva%20Admin`;
-  return { secret: config.secret, qr: await QRCode.toDataURL(uri) };
 });
-app.post("/api/auth/verify", async (request, reply) => {
-  if (!requireMfa)
-    return reply.code(403).send({
-      message: "Logga in med e-post och lösenord i detta lokala test.",
-    });
-  const token = request.cookies.eleva_admin_local ?? "",
-    session = sessions.get(token);
-  if (!session || session.expires < Date.now())
-    return reply.code(401).send({ message: "Logga in igen." });
-  if (Date.now() < blockedUntil)
-    return reply
-      .code(429)
-      .send({ message: "För många kodförsök. Vänta 15 minuter." });
-  const { code } = z
-    .object({ code: z.string().max(6) })
-    .strict()
-    .parse(request.body);
-  if (!verifyTotp(config.secret, code) || session.lastCode === code) {
-    if (++failures >= 5) {
-      blockedUntil = Date.now() + 900000;
-      failures = 0;
-    }
-    return reply.code(401).send({ message: "Koden stämmer inte." });
-  }
-  failures = 0;
-  sessions.delete(token);
-  const next = randomBytes(32).toString("base64url");
-  sessions.set(next, {
-    stage: "verified",
-    expires: Date.now() + 8 * 3600000,
-    lastCode: code,
+const auth = registerLocalAuth(app, config, (next) => {
+  const temporary = configFile + ".tmp";
+  writeFileSync(temporary, JSON.stringify({ ...config, ...next }, null, 2), {
+    mode: 0o600,
   });
-  config.enrolled = true;
-  writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 });
-  reply.setCookie("eleva_admin_local", next, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "strict",
-    maxAge: 8 * 3600,
-  });
-  return { ok: true };
-});
-app.post("/api/auth/logout", async (request, reply) => {
-  sessions.delete(request.cookies.eleva_admin_local ?? "");
-  reply.clearCookie("eleva_admin_local", { path: "/" });
-  return { ok: true };
+  renameSync(temporary, configFile);
 });
 app.post("/api/ingest", async (request, reply) => {
   try {
@@ -258,7 +154,11 @@ app.post("/api/ingest", async (request, reply) => {
   } catch (error) {
     return reply
       .code((error as Error).message.includes("UNAUTHORIZED") ? 401 : 409)
-      .send({ message: (error as Error).message });
+      .send({
+        message: (error as Error).message.includes("UNAUTHORIZED")
+          ? "Synknyckeln är ogiltig."
+          : "Synkningen avvisades. Kontrollera synkposition och underlag.",
+      });
   }
 });
 app.post("/api/management-exchange", async (request, reply) => {
@@ -290,12 +190,7 @@ app.post("/api/management-exchange", async (request, reply) => {
   );
 });
 app.post("/api/commands", async (request, reply) => {
-  const currentSession = sessions.get(request.cookies.eleva_admin_local ?? "");
-  if (
-    !currentSession ||
-    currentSession.stage !== "verified" ||
-    currentSession.expires < Date.now()
-  )
+  if (!auth.verified(request.cookies.eleva_admin_local))
     return reply.code(401).send({ message: "Logga in för att fortsätta." });
   const result = await queueCommand(
     db,
@@ -307,10 +202,9 @@ app.post("/api/commands", async (request, reply) => {
   return result;
 });
 app.get("/api/:route", async (request, reply) => {
-  const session = sessions.get(request.cookies.eleva_admin_local ?? "");
-  if (!session || session.stage !== "verified" || session.expires < Date.now())
+  if (!auth.verified(request.cookies.eleva_admin_local))
     return reply.code(401).send({
-      message: requireMfa
+      message: requireMfa()
         ? "Logga in med tvåstegsverifiering."
         : "Logga in med e-post och lösenord.",
     });

@@ -10,6 +10,30 @@ Kontot genereras i `%LOCALAPPDATA%/LagustosaPOS/eleva-admin/inloggning.txt`. Log
 
 För endast den egna lokala testinstallationen kan `ADMIN_LOCAL_REQUIRE_MFA=false` sättas vid start. Valet sparas i installationens lokala kontofil och gäller även efter omstart. E-post och lösenord krävs fortfarande. Återaktivera med `ADMIN_LOCAL_REQUIRE_MFA=true`. Molnportalens Supabase-inloggning och krav på `aal2` påverkas inte.
 
+### Google Authenticator
+
+I lösenordsbaserat testläge: öppna **Mitt konto → Aktivera Google Authenticator**, bekräfta lösenordet, välj **+ → Skanna en QR-kod** i Google Authenticator och ange den sexsiffriga koden. Aktiveringen sker först när koden har godkänts. Då sparas policyn och alla tidigare testsessioner avslutas. Att stänga eller avbryta formuläret aktiverar inget. En koppling som inte bekräftats går ut efter tio minuter. Om `ADMIN_LOCAL_REQUIRE_MFA=false` fortfarande uttryckligen anges i startmiljön har den inställningen företräde vid nästa start; ta bort den för att behålla valet från Mitt konto.
+
+När MFA krävs sker kopplingen vid första inloggningen. Vid senare inloggning anges lösenord och en ny kod från mobilen. QR-koden och konfigurationsnyckeln visas inte igen efter koppling. Nyckeln kan anges manuellt med tidsbaserad typ i appen. Andra TOTP-appar är också kompatibla. Google-inloggning och SMS behövs inte för detta flöde.
+
+Google Authenticator bör överföras eller synkroniseras innan byte av mobil. Portalen utfärdar inte egna reservkoder. Återställning av en förlorad faktor i molnet kräver en kontrollerad rutin hos kontoansvarig med separat identitetskontroll och återkallelse av tidigare sessioner. Ett lösenordsbyte ersätter inte MFA. Den rutinen och verklig Supabase-inloggning måste provas före publicering. Lokal `admin:code` är endast ett utvecklingshjälpmedel på testdatorn, inte en produktionslösning för återställning.
+
+### Säkerhetsgranskning 2026-10-17
+
+Granskningen omfattade Admin-inloggning, sessionskakor, restaurangbehörigheter/RLS, synk- och ändringskö, webbyggens nyckelhantering samt beroenden. Följande korrigerades:
+
+- Lokal TOTP kunde återanvändas i en ny session. Accepterat tidssteg sparas nu på kontot och återanvändning stoppas även efter serveromstart.
+- En korrekt lösenordsinloggning kunde nollställa räknaren för felaktiga mobilkoder. Separata spärrar för lösenord och MFA sparas nu över omstart: fem fel ger femton minuters spärr. Sessionskakan byts efter verifiering.
+- Webbbyggets spärr mot servernycklar gällde tidigare bara det särskilda molnkommandot. Samtliga Vite-byggen och utvecklingsstarter validerar nu att bara en publik publishable/anon-nyckel används.
+- Ett felaktigt uttryckligt installations-id kunde falla tillbaka till användarens enda installation. Ett uttryckligt id måste nu matcha; inget kommando riktas om automatiskt.
+- Moln-API:t läste hela underlaget innan storlekskontroll. JSON läses nu med bytegräns under överföringen, även utan Content-Length.
+- Felaktiga kommandon via direkta databas-RPC-anrop kunde blockera följande leveranser. Migration `202610170003_command_validation.sql` kontrollerar format och serialiserar kögränsen. Synkprocessen avvisar även äldre ogiltiga kommandon och fortsätter med nästa.
+- Den lokala servern kräver JSON för ändringar, begränsar inloggningsunderlag och lämnar inte ut interna undantagsmeddelanden.
+
+Verifiering: `tests/admin-security.test.ts`, befintliga statistik-/RLS-/synktester och `tests/admin-browser/portal.spec.ts` (både obligatorisk MFA och aktivering från lokalt testläge). Browserbilder vid 1440/1024/768/390 px maskerar konfigurationsnyckel och QR-kod. `npm audit` rapporterade inga kända sårbarheter vid kontrollen; detta är inte ett bevis på att systemet saknar säkerhetsbrister. Ingen extern penetrationstestning, driftad Supabase-miljö eller fysisk mobilapp har verifierats automatiskt. Träningsmiljön och produktionsspärrarna kvarstår.
+
+Referenser: [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=sv), [Supabase TOTP](https://supabase.com/docs/guides/auth/auth-mfa/totp), [NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b.html).
+
 `ADMIN_LOCAL_DIR` och `ADMIN_LOCAL_PORT` skapar en separat lokal portal. En befintlig portal får inte automatiskt byta kassadatabas. Den lokala PostgreSQL-repliken kör samma migration, RLS-regler och mottagningstransaktion som molndatabasen. Den lokala inloggningen är en separat testimplementation; produktion använder Supabase Auth. Den lokala servern får inte publiceras eller portvidarebefordras.
 
 Utvecklingsgränssnitt: `npm run admin:dev` på 5193, med API-proxy till lokalservern på 5194. Byggda appen fungerar direkt på 5194.

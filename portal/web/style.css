@@ -1790,3 +1790,75 @@ tbody tr:hover {
     min-height: 44px;
   }
 }
+
+.account-security {
+  padding: 22px;
+  border-top: 1px solid var(--border);
+}
+.security-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.security-title h3,
+.mfa-setup h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.security-title p,
+.account-security p,
+.mfa-help p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.security-active,
+.security-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.authenticator-form {
+  display: grid;
+  gap: 16px;
+  max-width: 480px;
+}
+.authenticator-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.authenticator-form input {
+  width: 100%;
+  min-height: 44px;
+}
+.mfa-setup ol {
+  padding-left: 20px;
+  margin: 14px 0 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.mfa-setup li + li {
+  margin-top: 8px;
+}
+.mfa-help {
+  margin-top: 20px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.mfa-help summary,
+.mfa-setup summary {
+  cursor: pointer;
+}
+.mfa-help a {
+  color: var(--accent);
+}
+.mfa-help summary:focus-visible,
+.mfa-setup summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}

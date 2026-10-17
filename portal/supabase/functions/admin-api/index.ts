@@ -1,3 +1,8 @@
+import {
+  boundedJson,
+  selectInstallation,
+  RequestError,
+} from "../../../shared/security.ts";
 import { managementCommandSchema } from "../../../../shared/backoffice-command.ts";
 import { archivePage } from "../../../shared/archive.ts";
 import { createClient } from "@supabase/supabase-js";
@@ -52,10 +57,7 @@ Deno.serve(async (request: Request) => {
         request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
       if (token.length < 32 || token.length > 256)
         return respond({ message: "Synknyckel saknas." }, 401);
-      const text = await request.text();
-      if (text.length > 8_000_000)
-        return respond({ message: "Leveransen är för stor." }, 413);
-      const body = deliverySchema.parse(JSON.parse(text));
+      const body = deliverySchema.parse(await boundedJson(request, 8_000_000));
       const admin = createClient(url, secretKey, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
@@ -81,10 +83,11 @@ Deno.serve(async (request: Request) => {
         request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
       if (token.length < 32 || token.length > 256)
         return respond({ message: "Synknyckel saknas." }, 401);
-      const text = await request.text();
-      if (text.length > 6_500_000)
-        return respond({ message: "Leveransen är för stor." }, 413);
-      const body = JSON.parse(text);
+      const body = (await boundedJson(request, 6_500_000)) as {
+        installationId: string;
+        snapshot: unknown;
+        results: unknown[];
+      };
       const admin = createClient(url, secretKey, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
@@ -123,17 +126,16 @@ Deno.serve(async (request: Request) => {
         { message: "Tvåstegsverifiering och restaurangbehörighet krävs." },
         403,
       );
-    const installation =
-      installs.find(
-        (row) => row.id === address.searchParams.get("installationId"),
-      ) ?? (installs.length === 1 ? installs[0] : null);
+    const installation = selectInstallation(
+      installs,
+      address.searchParams.get("installationId"),
+    );
     if (!installation)
       return respond({ message: "Välj en behörig installation." }, 403);
     if (route === "commands") {
-      const text = await request.text();
-      if (text.length > 200000)
-        return respond({ message: "Ändringen är för stor." }, 413);
-      const body = managementCommandSchema.parse(JSON.parse(text));
+      const body = managementCommandSchema.parse(
+        await boundedJson(request, 200000),
+      );
       const { data, error } = await client.rpc("portal_queue_command", {
         p_installation: installation.id,
         p_body: body,
@@ -252,6 +254,8 @@ Deno.serve(async (request: Request) => {
       return respond({ message: "Sidan finns inte." }, 404);
     return respond(result);
   } catch (error) {
+    if (error instanceof RequestError)
+      return respond({ message: error.message }, error.status);
     return respond(
       {
         message:
