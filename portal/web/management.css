@@ -465,6 +465,7 @@
   }
   .mg-catalog td {
     display: block;
+    height: auto;
     padding: 0;
     border: 0;
   }
