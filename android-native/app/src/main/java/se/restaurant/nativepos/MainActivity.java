@@ -24,7 +24,7 @@ public final class MainActivity extends Activity implements PosController.Listen
   public Ui ui;
   public Forms forms;
   public FrameMonitor frames;
-  public String selectedTab = "", activeView = "pos";
+  public String selectedTab = "", activeView = "home";
   private LinearLayout root, content, notice;
   private TextView connection, message, pendingButton;
   private Screen screen;
@@ -45,9 +45,10 @@ public final class MainActivity extends Activity implements PosController.Listen
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     getWindow()
         .setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
-    if (BuildConfig.DEBUG) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
-    selectedTab = controller.preferences.getString("tab", "");
-    activeView = saved == null ? "pos" : saved.getString("view", "pos");
+    if (BuildConfig.TEST_BUILD) getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+    // Cold launches start with no bill selected. Rotation retains the current workspace.
+    selectedTab = saved == null ? "" : saved.getString("tab", "");
+    activeView = saved == null ? "home" : saved.getString("view", "home");
     frames = new FrameMonitor(getWindow());
     if (BuildConfig.DEBUG)
       StrictMode.setThreadPolicy(
@@ -93,7 +94,7 @@ public final class MainActivity extends Activity implements PosController.Listen
 
   @Override
   protected void onPause() {
-    if (measuring && BuildConfig.DEBUG) {
+    if (measuring && BuildConfig.TEST_BUILD) {
       JSONObject report = frames.report();
       if (screen instanceof PosScreen) ((PosScreen) screen).addDiagnostics(report);
       String text = report.toString();
@@ -125,6 +126,7 @@ public final class MainActivity extends Activity implements PosController.Listen
   @Override
   protected void onSaveInstanceState(Bundle state) {
     state.putString("view", activeView);
+    state.putString("tab", selectedTab);
     super.onSaveInstanceState(state);
   }
 
@@ -174,8 +176,8 @@ public final class MainActivity extends Activity implements PosController.Listen
               ? data.deviceStation
               : data.role.equals("bar") ? "bar" : "kitchen";
     if ((activeView.equals("reports") || activeView.equals("prints")) && !data.manager())
-      activeView = "pos";
-    if (activeView.equals("settings") && !data.role.equals("admin")) activeView = "pos";
+      activeView = "home";
+    if (activeView.equals("settings") && !data.role.equals("admin")) activeView = "home";
     String key = "shell:" + counter() + ":" + activeView + ":" + data.owner;
     if (!key.equals(structure)) buildShell(key);
     connection.setText(
@@ -260,7 +262,7 @@ public final class MainActivity extends Activity implements PosController.Listen
                 return;
               }
               try {
-                ServerAddress.normalize(server.getText().toString(), BuildConfig.DEBUG);
+                ServerAddress.normalize(server.getText().toString(), BuildConfig.TEST_BUILD);
               } catch (Exception e) {
                 toast(e.getMessage());
                 return;
@@ -432,7 +434,9 @@ public final class MainActivity extends Activity implements PosController.Listen
     if (counter()) workspace.addView(navigation(true), ui.lp(100, -1));
     content = ui.column();
     workspace.addView(content, new LinearLayout.LayoutParams(0, -1, 1));
-    screen = activeView.equals("pos") ? new PosScreen(this) : new WorkspaceScreen(this, activeView);
+    screen = activeView.equals("home") ? new HomeScreen(this)
+        : activeView.equals("tables") ? new TableMapScreen(this)
+        : activeView.equals("pos") ? new PosScreen(this) : new WorkspaceScreen(this, activeView);
     content.addView(screen.view(), ui.lp(-1, -1));
     if (!counter()) root.addView(navigation(false), ui.lp(-1, 58));
   }
@@ -442,7 +446,7 @@ public final class MainActivity extends Activity implements PosController.Listen
     nav.setBackgroundColor(Ui.PAPER);
     List<String> ids =
         new ArrayList<>(
-            Arrays.asList("pos", "tables", "kitchen", "bar", "prints", "reports", "settings"));
+            Arrays.asList("home", "pos", "tables", "kitchen", "bar", "prints", "reports", "settings"));
     Snapshot s = controller.snapshot;
     if (s.stationOnly()) ids = new ArrayList<>(Collections.singletonList(activeView));
     if (!s.manager()) {
@@ -470,10 +474,12 @@ public final class MainActivity extends Activity implements PosController.Listen
 
   public static String title(String id) {
     switch (id) {
+      case "home":
+        return "Start";
       case "pos":
         return "Kassa";
       case "tables":
-        return "Bord";
+        return "Bordskarta";
       case "kitchen":
         return "Kök";
       case "bar":
@@ -488,12 +494,47 @@ public final class MainActivity extends Activity implements PosController.Listen
   }
 
   public void navigate(String view) {
+    if (view.equals("home")) {
+      if (controller.busy) {
+        toast("Vänta tills ändringen är klar.");
+        return;
+      }
+      selectedTab = "";
+      controller.preferences.edit().remove("tab").apply();
+    }
     activeView = view;
-    controller.setScope(view.equals("pos") || view.equals("tables") ? "service" : "full");
+    controller.setScope(view.equals("home") || view.equals("pos") || view.equals("tables") ? "service" : "full");
     rebuild();
   }
 
+  public void leaveTab() {
+    // Keep the durable command journal and all server data; only clear UI selection.
+    if (controller.busy) {
+      toast("Vänta tills ändringen är klar, så att du kan kontrollera att den sparats.");
+      return;
+    }
+    navigate("home");
+  }
+
+  public void openTable(JSONObject table) {
+    Snapshot data = controller.snapshot;
+    if (data == null) return;
+    JSONObject current = TableLookup.byId(data.tables, Json.id(table));
+    if (current == null || !current.optBoolean("active")) {
+      toast("Bordet är inte tillgängligt längre.");
+      return;
+    }
+    JSONObject open = TableLookup.openTab(data.tabs, Json.id(current));
+    if (open != null) selectTab(Json.id(open));
+    else if (controller.writable()) forms.newTab(current);
+    else toast("Anslut till kassaservern innan du öppnar ett ledigt bord.");
+  }
+
   public void selectTab(String id) {
+    if (id.isEmpty()) {
+      leaveTab();
+      return;
+    }
     selectedTab = id;
     controller.preferences.edit().putString("tab", id).apply();
     if (!activeView.equals("pos")) navigate("pos");
@@ -708,11 +749,12 @@ public final class MainActivity extends Activity implements PosController.Listen
       rebuild();
       return;
     }
+    if (screen instanceof HomeScreen && ((HomeScreen) screen).back()) return;
     if (screen instanceof PosScreen && ((PosScreen) screen).back()) return;
-    if (!activeView.equals("pos")
+    if (!activeView.equals("home")
         && controller.snapshot != null
         && !controller.snapshot.stationOnly()) {
-      navigate("pos");
+      leaveTab();
       return;
     }
     confirm(

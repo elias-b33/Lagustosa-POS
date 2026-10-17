@@ -2,7 +2,27 @@
 
 Serverbas: GitHub-commit `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8`. Android-kodens resultat nedan hör till denna separata native-gren och säger inget om webbklientens prestanda.
 
-## Utfall 2026-10-17
+## Version 1.1, 2026-10-17
+
+Distribuerad APK: `1.1.0-native-test`, versionCode 2, **234 195 byte**. SHA-256: `3ccefedf9e4930b708d9ecfd94d089fe859e4cb501e50c85a7cbdd4b0948248d`.
+
+- Optimerad test-APK och osignerad release byggda. Installerad test-APK saknar flaggan `DEBUGGABLE`; R8:s kodoptimering är aktiverad. Lokal test-HTTP och diagnostik styrs separat och ändrar inte release-variantens HTTPS-krav.
+- **25 JVM-tester passerade**, inklusive bordsnummer med inledande nollor, dubbletter i olika områden, inaktiva bord, återanvändning av öppen nota och beständig försöksnyckel för minus.
+- **Android Lint: 0 fel, 23 varningar.** Varningar om bland annat textresurser och lokal testkonfiguration kvarstår.
+- Den nya native-serverdelens TypeScript-kontroll och regressionstest passerade. Provet kontrollerar 3→2 med bevarade tillval, pris, moms, gäst och kommentar; samma nyckel efter förlorat svar; konflikt vid ändrad avsikt/version/antal; nekad obehörig eller anonym ändring; betalningslås för pending/unknown/approved; makuleringsbong för exakt en skickad enhet; och full återställning av databas/journal/utskriftskö om bongkontrollen misslyckas.
+- Ny produktkod ligger endast i `android-native/`; övrig ändring är dess egen GitHub-workflow. Ordinarie webb- och serverkällor ändras inte.
+
+BlueStacks använder en separat native-server på lokal port 4198 och en separat testdatabas, skapad med SQLite online-backup av den tidigare native-demonstrationen. De tidigare 12 notorna bevarades i kopian; originaldatabasen och originalservern lämnades orörda. De automatiserade provnotorna är träningsdata och medför inga betalningar.
+
+Slutlig APK provades i **BlueStacks/Android 9** med logisk handkasseskärm **360 × 616 dp** (540 × 960 pixlar, 240 dpi). `UnpaidTabsTest` och `HomePerformanceTest` gav tillsammans **OK (2 tests)** på 156,388 sekunder. Den tiden är testkörningens längd, inte ett FPS-resultat. Testet bekräftade startsida utan vald nota, obetalda disknotor, synliga borttagningsknappar, 3→2 utan ny orderrad, appomstart, okänt bordsnummer, samma nota via nummer/karta, större notlista på handkassa samt utslag av en av flera väntande rätter. Notornas betalningslistor förblev tomma. Huvudkassans flöde hade också passerat under 1.1-arbetet; slutlig bred layout kontrollerades visuellt efter att BlueStacks återställts till 1600 × 900.
+
+Det korta mätfönstret innehöll uppvärmd menyskrollning, navigation till startsidan och scrollning av öppna notor. **897 HWUI-bildtider**, median **0,90 ms**, p95 **1,28 ms**, p99 **4,31 ms**, **0 över 16,7 ms**, **0 över 33,3 ms**, **0 tappade mätvärden**. Det håller bildtidsbudgeten för 30/60 fps i detta emulatorprov. Det mäter inte faktisk konstant FPS eller beröringsfördröjning på en betalterminal. Modellsträngen `SM-G998B` kommer från BlueStacks; ingen fysisk Samsung användes. [Rådata](docs/bluestacks-v11-frames.json) och [instrumenteringsresultat](docs/native-v11-test-results.txt) sparas med koden.
+
+Under arbetet avbröts ett prov av BlueStacks UiAutomation vid bildtagning; skärmbilder är därför valfria i nottestet. Ett första prov på den minsta skärmen visade också att den ursprungliga kombinationen av knappsats och notlista blev för trång. Det åtgärdades med den expanderade notlistan före den godkända slutkörningen. Inga sådana misslyckade eller äldre körningar räknas in i slutresultatet ovan.
+
+## Historiskt utfall 1.0, 2026-10-17
+
+Följande äldre resultat avser APK 1.0 med SHA-256 nedan. Den byggvarianten hade `minifyEnabled=true` men också `debuggable=true`, vilket stängde av full kodoptimering i R8. Version 1.1 rättar detta med `debuggable=false`. De gamla mätvärdena är fortfarande observationer av den gamla APK:n; de ska inte presenteras som mätningar av 1.1.
 
 21 JVM-tester och två instrumenterade Android-flöden passerade. Den separata kontrollen av den distribuerade, optimerade APK:n passerade också, inklusive tappat svar, tvångsstängning av hela appen och återhämtning. Android Lint rapporterade 0 fel och 20 varningar (bland annat svenska texter utan översättningsresurser, avsiktlig beständig lagring, lokal test-HTTP, användarinstallerad CA och versionsförslag).
 

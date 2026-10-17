@@ -65,6 +65,13 @@ public class UnpaidTabsTest {
     if (device.findObject(By.pkg("com.android.inputmethod.latin")) != null) device.pressBack();
   }
 
+  private void screenshot(String name) {
+    // BlueStacks can crash its UiAutomation service during capture after a display resize.
+    // Screenshots are optional evidence, never part of the functional assertions.
+    if (InstrumentationRegistry.getArguments().getString("screenshots", "false").equals("true"))
+      device.takeScreenshot(new File(InstrumentationRegistry.getInstrumentation().getContext().getExternalFilesDir(null), name));
+  }
+
   private Set<String> tabIds() throws Exception {
     Set<String> ids = new HashSet<>();
     JSONArray tabs = request("/bootstrap", null).getJSONArray("tabs");
@@ -83,7 +90,8 @@ public class UnpaidTabsTest {
 
   private JSONObject createTab() throws Exception {
     Set<String> before = tabIds();
-    tap("+ Ny nota");
+    if (device.findObject(By.desc("Ingen nota vald")) != null) tap("+ Disknota");
+    else tap("+ Ny nota");
     positive();
     for (int attempt = 0; attempt < 40; attempt++) {
       JSONArray tabs = request("/bootstrap", null).getJSONArray("tabs");
@@ -112,6 +120,10 @@ public class UnpaidTabsTest {
   }
 
   private void addCola(String tabId) throws Exception {
+    addCola(tabId, 1);
+  }
+
+  private void addCola(String tabId, int quantity) throws Exception {
     find(By.desc("Sök i menyn")).setText("Cola");
     hideKeyboard();
     device.waitForIdle(1000);
@@ -120,6 +132,7 @@ public class UnpaidTabsTest {
           .scrollIntoView(new UiSelector().descriptionStartsWith("Cola,"));
     }
     find(By.descStartsWith("Cola,")).click();
+    find(By.desc("Antal")).setText(String.valueOf(quantity));
     positive();
     awaitLines(tabId, 1);
   }
@@ -145,13 +158,21 @@ public class UnpaidTabsTest {
 
   private void removeCola(String tabId) throws Exception {
     showOrder();
-    find(By.descStartsWith("1 × Cola,")).click();
-    find(By.text("Ta bort artikel")).click();
+    tap("Ta bort Cola");
     find(By.desc("Orsak")).setText("Feltryck vid test");
     hideKeyboard();
     positive();
     awaitLines(tabId, 0);
     assertTrue(device.wait(Until.gone(By.descStartsWith("1 × Cola,")), 15000));
+  }
+
+  private void openSaved(String label) throws Exception {
+    UiObject2 expand = device.findObject(By.desc("Visa alla öppna notor"));
+    if (expand != null) expand.click();
+    if (device.findObject(By.text(label)) == null)
+      new UiScrollable(new UiSelector().description("Öppna notor").scrollable(true)).scrollIntoView(new UiSelector().text(label));
+    find(By.text(label)).click();
+    find(By.desc("Artikelmeny"));
   }
 
   private void assertUnpaid(String id) throws Exception {
@@ -164,9 +185,15 @@ public class UnpaidTabsTest {
   public void leaveSwitchRemoveAndReopenUnpaidCounterTabs() throws Exception {
     assertEquals("training", request("/health", null).getString("mode"));
     request("/auth/login", new JSONObject().put("staffId", "admin").put("pin", "1234").put("deviceCode", code));
+    device.executeShellCommand("am force-stop " + APP);
     device.executeShellCommand("am start -n " + APP + "/se.restaurant.nativepos.MainActivity");
     device.waitForIdle(1000);
     UiObject2 server = device.wait(Until.findObject(By.desc("Kassaserver")), 5000);
+    if (server == null) {
+      tap("⋮");
+      find(By.text("Anslutning och arbetsyta")).click();
+      server = find(By.desc("Kassaserver"));
+    }
     if (server != null) {
       server.setText(origin);
       find(By.desc("Enhetskod")).setText(code);
@@ -178,6 +205,8 @@ public class UnpaidTabsTest {
       pin.setText("1234");
       tap("Börja servicen");
     }
+    find(By.desc("Ingen nota vald"));
+    tap("Kassa");
     find(By.desc("Artikelmeny"));
     if (device.findObject(By.desc("Öppna dagen för att börja ta beställningar")) != null) {
       tap("Öppna dagen för att börja ta beställningar");
@@ -189,6 +218,9 @@ public class UnpaidTabsTest {
     JSONObject first = createTab();
     String a = first.getString("id"), label = first.getString("label");
     addCola(a);
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
+    assertUnpaid(a);
     JSONObject second = createTab();
     String b = second.getString("id");
     addCola(b);
@@ -205,26 +237,102 @@ public class UnpaidTabsTest {
     removeCola(a);
     menu();
     addCola(a);
-    tap("Bord");
-    if (device.findObject(By.text(label)) == null) {
-      new UiScrollable(new UiSelector().description("Bord").scrollable(true))
-          .scrollIntoView(new UiSelector().text(label));
-    }
-    find(By.text(label)).click();
-    find(By.desc("Artikelmeny"));
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
+    openSaved(label);
     device.executeShellCommand("am force-stop " + APP);
     device.executeShellCommand("am start -n " + APP + "/se.restaurant.nativepos.MainActivity");
-    find(By.desc("Artikelmeny"));
+    find(By.desc("Ingen nota vald"));
+    openSaved(label);
     find(By.textStartsWith(label + " ·"));
     showOrder();
     find(By.descStartsWith("1 × Cola,"));
     assertUnpaid(a);
     assertUnpaid(b);
     assertEquals(3, tab(a).getJSONArray("lines").length());
-    device.takeScreenshot(new File(InstrumentationRegistry.getInstrumentation().getContext().getExternalFilesDir(null), "unpaid-tab.png"));
+    screenshot("unpaid-tab.png");
     menu();
     find(By.desc("Sök i menyn")).setText("");
     hideKeyboard();
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
+
+    // A visible minus must change the persisted quantity, not delete and re-add a row.
+    JSONObject quantityTab = createTab();
+    String quantityId = quantityTab.getString("id");
+    addCola(quantityId, 3);
+    showOrder();
+    tap("Minska antal Cola");
+    find(By.desc("Orsak")).setText("En Cola för mycket");
+    positive();
+    find(By.descStartsWith("2 × Cola,"));
+    assertEquals(2, tab(quantityId).getJSONArray("lines").getJSONObject(0).getInt("quantity"));
+    assertEquals(1, tab(quantityId).getJSONArray("lines").length());
+    removeCola(quantityId);
+    assertUnpaid(quantityId);
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
+
+    // Resolve a configured free table by number, then open that same bill from the map.
+    JSONObject chosen = null;
+    JSONObject state = request("/bootstrap", null);
+    JSONArray tables = state.getJSONArray("tables"), savedTabs = state.getJSONArray("tabs");
+    for (int i = 0; i < tables.length() && chosen == null; i++) {
+      JSONObject table = tables.getJSONObject(i);
+      if (!table.optBoolean("active") || !table.getString("name").matches("Bord \\d+")) continue;
+      boolean occupied = false;
+      for (int j = 0; j < savedTabs.length(); j++) {
+        JSONObject t = savedTabs.getJSONObject(j);
+        if (t.optString("tableId").equals(table.getString("id")) && t.optString("status").equals("open")) occupied = true;
+      }
+      if (!occupied) chosen = table;
+    }
+    assertNotNull("A free numbered table is required in this training fixture", chosen);
+    Set<String> beforeTable = tabIds();
+    tap("9"); tap("9"); tap("9");
+    tap("Öppna bord");
+    assertEquals(beforeTable, tabIds());
+    tap("Rensa");
+    String digits = String.valueOf(Integer.parseInt(chosen.getString("name").replace("Bord ", "")));
+    for (char digit : digits.toCharArray()) tap(String.valueOf(digit));
+    tap("Öppna bord");
+    positive();
+    find(By.desc("Artikelmeny"));
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
+    screenshot("native-home.png");
+    tap("Bordskarta");
+    tap(chosen.getString("area"));
+    UiObject2 mapped = device.wait(Until.findObject(By.descStartsWith(chosen.getString("name") + ", Öppen")), 10000);
+    assertNotNull(mapped);
+    screenshot("native-map.png");
+    mapped.click();
+    find(By.desc("Artikelmeny"));
+    assertEquals(beforeTable.size() + 1, tabIds().size());
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
+    for (char digit : digits.toCharArray()) tap(String.valueOf(digit));
+    tap("Öppna bord");
+    find(By.desc("Artikelmeny"));
+    assertEquals(beforeTable.size() + 1, tabIds().size());
+    device.pressBack();
+    find(By.desc("Ingen nota vald"));
+    // Several held courses must still leave room for the visible row controls on a handset.
+    JSONObject held = tab(quantityId);
+    String itemId = held.getJSONArray("lines").getJSONObject(0).getString("itemId");
+    for (String course : new String[] {"starter", "main"})
+      held = request("/tabs/" + quantityId + "/commands", new JSONObject()
+          .put("key", UUID.randomUUID().toString()).put("version", held.getInt("version"))
+          .put("action", "add").put("itemId", itemId).put("quantity", 1).put("hold", true).put("course", course));
+    openSaved(quantityTab.getString("label"));
+    showOrder();
+    tap("Slå ut väntande rätter");
+    find(By.text("förrätt")).click();
+    find(By.desc("Slå ut varmrätt"));
+    find(By.desc("Minska antal Cola"));
+    assertUnpaid(quantityId);
+    tap("Lämna nota");
+    find(By.desc("Ingen nota vald"));
     System.out.println("Unpaid tabs verified: " + label + " and " + second.getString("label") + "; draft and sent rows removed; app restart preserved both; zero payments.");
   }
 }

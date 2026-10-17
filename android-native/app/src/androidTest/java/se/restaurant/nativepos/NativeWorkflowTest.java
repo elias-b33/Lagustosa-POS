@@ -179,6 +179,7 @@ public class NativeWorkflowTest {
     onMain(
         () -> {
           activity.selectTab("");
+          activity.navigate("pos");
           activity.controller.refresh();
         });
     await(() -> activity.controller.snapshot.products.size() >= 300, 30000);

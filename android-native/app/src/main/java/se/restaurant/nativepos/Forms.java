@@ -250,22 +250,7 @@ public final class Forms {
         index -> {
           LinearLayout form = ui.column();
           EditText reason = ui.field(form, "Orsak", "");
-          if (index == 0)
-            a.modal(
-                "Ta bort artikel",
-                form,
-                "Ta bort",
-                () ->
-                    a.command(
-                        data().tab(Json.id(tab)),
-                        Json.obj(
-                            "action",
-                            "remove",
-                            "lineId",
-                            Json.id(line),
-                            "reason",
-                            required(reason, 3)),
-                        "Ta bort " + line.optString("name")));
+          if (index == 0) removeLine(line, tab, false);
           else {
             EditText price =
                 ui.field(
@@ -292,6 +277,47 @@ public final class Forms {
                         "Ändra artikelpris"));
           }
         });
+  }
+
+  public void removeLine(JSONObject original, JSONObject originalTab, boolean one) {
+    if (originalTab == null || !a.controller.writable()) return;
+    JSONObject tab = data().tab(Json.id(originalTab));
+    JSONObject line = tab == null ? null : TableLookup.byId(Json.list(tab, "lines"), Json.id(original));
+    if (line == null || line.optString("status").equals("void") || !tab.optString("status").equals("open")) {
+      a.toast("Raden har ändrats. Öppna notan igen.");
+      return;
+    }
+    if (data().lockedTabs.contains(Json.id(tab))) {
+      a.toast("Betalning har påbörjats. Raden är låst tills betalningen har retts ut.");
+      return;
+    }
+    boolean sent = !line.optString("status").equals("draft") && !line.optString("status").equals("held");
+    if (sent && !data().manager()) {
+      a.toast("Be ansvarig makulera artikeln eftersom den redan har skickats.");
+      return;
+    }
+    int count = line.optInt("quantity");
+    boolean decrement = one && count > 1;
+    if (decrement && !a.controller.quantitySupported) {
+      a.textDialog("Uppdatera Android-kassaservern", "Servern saknar stöd för att minska antal. Starta serverdelen i android-native. Ingen artikel har ändrats.");
+      return;
+    }
+    LinearLayout form = ui.column();
+    String description = decrement ? count + " → " + (count - 1) + " × " + line.optString("name")
+        : "Hela raden tas bort: " + count + " × " + line.optString("name");
+    ui.full(form, ui.text(description, 19, Ui.INK, true));
+    if (sent) ui.full(form, ui.label("En makuleringsbong skickas till kök eller bar för det borttagna antalet."));
+    EditText reason = ui.field(form, "Orsak", "");
+    Runnable submit = () -> {
+      JSONObject latest = data().tab(Json.id(tab));
+      if (latest == null || latest.optInt("version") != tab.optInt("version"))
+        throw new IllegalArgumentException("Notan har ändrats. Stäng dialogen och kontrollera raden igen.");
+      String why = required(reason, 3);
+      if (decrement) a.write("/native/tabs/" + Json.id(tab) + "/decrement",
+          Json.obj("version", tab.optInt("version"), "lineId", Json.id(line), "expectedQuantity", count, "reason", why), "POST", "Minska antal " + line.optString("name"));
+      else a.command(tab, Json.obj("action", "remove", "lineId", Json.id(line), "reason", why), "Ta bort " + line.optString("name"));
+    };
+    a.modal(decrement ? "Minska antal" : "Ta bort artikel", form, decrement ? "Minska med 1" : "Ta bort", submit);
   }
 
   public void tabOptions(JSONObject tab) {

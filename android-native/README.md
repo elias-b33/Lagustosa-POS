@@ -9,29 +9,56 @@ Separat Android-app med vanliga Android-vyer och RecyclerView. Inget WebView, in
 - All Android-kod, resurser, Gradle-konfiguration och tester ligger i `android-native/`.
 - Native-testappen har app-id `se.restaurant.nativepos.test`. Den kan installeras bredvid den tidigare appen `se.restaurant.pos.test` och har egna inställningar, inloggning och sparade försök.
 - Release-varianten har app-id `se.restaurant.nativepos`. Egen produktionssignering krävs senare.
-- Webbklient, server, befintligt Android-projekt och tidigare APK ändras inte av detta projekt eller dess byggskript.
-- Apparna använder samma server-API. Om två appar ansluts till samma server arbetar de med samma serverdata. Använd en separat träningsdatabas under provningen.
+- Webbklient, den ordinarie serverns källfiler, befintligt Android-projekt och tidigare APK ändras inte av detta projekt eller dess byggskript.
+- `android-native/server/` är en separat serverstart som återanvänder grund-API:t och lägger till en atomisk minskning av artikelantal. Den ordinarie webbservern registrerar inte denna extra route. Använd en egen native-träningsdatabas och port.
+- Om två appar ansluts till samma server arbetar de med samma serverdata. Att installera APK:erna separat isolerar inte serverdata automatiskt.
 - Grenen `codex/android-native` utgår från `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8`. Ingenting behöver slås ihop med `main` för att bygga native-appen.
 
 ## Det som finns
 
 Native inloggning och PIN-knappsats; handkassa och huvudkassa; meny, sökning och kategorier; bord och disknotor; gäster, tillval, köksmeddelanden, väntande rätter och utslag; prisändring, rabatt, flytt och makulering; köks- och barbongar; delbetalning per belopp, gäst, lika delar, rader eller antal; simulerat kort, Swish och kontant; dricks och returer; kvitton, kontroll av osäkra utfall och utskriftskö; öppning, kontantrörelser och dagsavslut; journal och rapportexport; företag, meny, tillval, personal, bord, enheter och skrivare.
 
-Bord visas som en snabb lista. Köket hanterar hela bongens status. Webbversionens grafiska bordsplan och eventuella senare funktioner för stationsindelning/beredning per artikel är inte kopierade. Servern är fortfarande källa för moms, betalningsfördelning, journal och kontrollkoder. Alla administrativa funktioner och hårdvarukombinationer behöver restaurangens acceptanstest före pilot.
+Version 1.1 har en neutral startsida med bordsnummer, sifferknappar, öppna notor och en native-bordskarta. Kartan använder bordens sparade områden och positioner; grått betyder ledigt och grönt betyder öppen nota. På en smal skärm kan kartan rullas. Kökets status gäller fortfarande hela bongen. Servern är källa för moms, betalningsfördelning, journal och kontrollkoder. Alla administrativa funktioner och hårdvarukombinationer behöver restaurangens acceptanstest före pilot.
 
 ## Obetalda notor och feltryck
 
 En nota och dess artikelrader sparas på kassaservern när respektive åtgärd bekräftas. Betalning är ett separat steg. **Skicka till kök & bar** skickar beställningen till beredning; det behövs inte för att spara en oskickad beställning.
 
-- På handkassa: välj **‹ Till menyn** från notan. Öppna en annan via **Välj nota** överst, **+ Ny nota** eller **Bord**. Disknotor finns efter borden i bordlistan.
-- På huvudkassa: menyn, valet av nota och **+ Ny nota** visas bredvid den aktuella notan.
-- Ta bort en artikel genom att trycka på raden i notan, välja **Ta bort artikel**, ange orsak och bekräfta. Det tar bort hela raden, inklusive dess antal.
+- **Lämna nota** visar startsidan med **Ingen nota vald**. Den sparade notan ligger kvar obetald under **Öppna notor**. En oavslutad överföring behåller sin synliga varning och sitt sparade försök.
+- Kallstart visar startsidan utan att välja en gammal nota. **Tillbaka** går från notavyn till menyn, därefter till startsidan. Rotation behåller vald nota.
+- Knappa in bordsnummer och välj **Öppna bord**, eller välj bordet i **Bordskarta**. En befintlig öppen nota återanvänds. Ett ledigt bord frågar efter gästantal. Okända nummer skapar inte nya bord. Dubbletter i olika områden kräver val av område.
+- **+ Disknota** öppnar en fristående nota. På huvudkassa visas meny och nota samtidigt. På handkassa visas raderna med **Visa nota**.
+- På handkassans startsida öppnar **Öppna notor** en större lista; **‹ Bordsnummer** visar nummerknapparna igen. Detta håller sparade notor lättåtkomliga även vid 360 dp skärmbredd. Huvudkassan visar båda samtidigt.
+- Varje rad har synliga **−** och **Ta bort**. Minus minskar exempelvis 3 till 2; vid 1 tas raden bort. **Ta bort** tar bort hela raden. Ange orsak och bekräfta. Pris, tillval, moms, gäst och beredningsstatus bevaras vid minskning.
 - **Servering** får ta bort oskickade och väntande rader. En redan skickad rad kräver **Kassa** eller **Ansvarig** och skapar en makuleringsbong. Betalda notor rättas med retur. En påbörjad eller godkänd delbetalning spärrar andra ändringar på den notan tills betalningsflödet är utrett/slutfört.
 - Avsluta en tom disknota via **Gäster · flytta · rabatt → Avsluta tom nota**.
 
 Obetalda notor finns kvar efter omstart när appen ansluter till samma serverdatabas. En ny, tom testdatabas innehåller inte den förra databasens notor. Nya ändringar kräver serverkontakt.
 
-Det separata APK-testet `se.restaurant.nativepos.smoke.UnpaidTabsTest` provar två öppna disknotor, byte utan betalning, borttagning före/efter utskick, återöppning via bordlistan och bevarande efter omstart av appen. Kör det enbart mot en isolerad träningsserver. Det lämnar två obetalda provnotor och rensar inte appdata. Instrumenteringsargumenten `server` och `deviceCode` kan anpassas; standard är Android-emulatorns `http://10.0.2.2:4196` och den äldre testkod som nämns nedan.
+Det separata APK-testet `se.restaurant.nativepos.smoke.UnpaidTabsTest` provar byte och lämnande utan betalning, synlig borttagning före/efter utskick, minskning 3→2, återöppning efter appomstart, okänt bordsnummer och återanvändning av samma nota via nummer och karta. Kör endast mot en isolerad native-träningsserver med minst ett ledigt numrerat bord. Testet lämnar provnotor och rensar inte appdata. Ange `server` och `deviceCode` för rätt server. De äldre betalnings-/nätverksproven använder sin egen tillfälliga fixture på 4196.
+
+Skärmbilder via UI Automator är avstängda som standard i nottestet eftersom BlueStacks bildtagning kan tappa automationsanslutningen efter byte av skärmstorlek. `-e screenshots true` aktiverar dem. Ta annars skärmbilder efter avslutat test. `HomePerformanceTest` gör ett separat, skrivskyddat scrollprov av meny och öppna notor på en redan ansluten installation.
+
+## Native-server för version 1.1
+
+Alla nya serverfiler ligger under `android-native/`. Grundserverns källfiler importeras oförändrade. Webben behöver varken byggas eller startas. Node 24 och repots låsta npm-beroenden behövs.
+
+```powershell
+npm ci
+node android-native/scripts/build-server.mjs
+node --test android-native/artifacts/native-server/app.test.mjs
+$env:NATIVE_DATA_DIR = "$env:LOCALAPPDATA/RestaurantPosBuild/native-demo-v11"
+$env:APP_MODE = 'training'
+$env:HOST = '127.0.0.1'
+$env:PORT = '4198'
+node android-native/artifacts/native-server/index.mjs
+```
+
+Välj en egen datamapp. Den vanliga webbserverns eller en annan aktiv servers databas får inte anges. En ny mapp ger nya testdata; för att behålla en tidigare native-demo används en konsekvent SQLite-säkerhetskopia till en ny mapp. Den gamla servern/databasen lämnas då separat.
+
+För BlueStacks med ADB: `adb -s 127.0.0.1:5555 reverse tcp:4198 tcp:4198`, ange sedan `http://127.0.0.1:4198` i appen. För Android Studios emulator används `http://10.0.2.2:4198`. En fysisk Samsung behöver separat nätverkskonfiguration; loopbackadressen ovan fungerar inte där.
+
+Mot en äldre server fungerar grundflödena fortfarande, men minskning av en rad med fler än en artikel kräver native-serverdelen. Appen visar då ett tydligt meddelande och ändrar ingenting. Ingen osäker kombination av ”ta bort och lägg tillbaka” används. Serverdelen kontrollerar behörighet, aktuell version, ursprungligt antal, betalningslås och återanvändning av försöksnyckel i samma databastransaktion. En skickad artikel ger makuleringsbong för exakt en enhet; lagret återställs inte automatiskt för redan beredd mat.
 
 ## Installera på Samsung eller emulator
 
@@ -74,17 +101,19 @@ Målet är att minst 95 % av uppmätta bilder under aktiv scrollning/arbetsflöd
 - Sökning, listjämförelser, nätverk, JSON, summering och beständig lagring görs på bakgrundstrådar.
 - Serverhändelser slås samman till en uppdatering; bakgrundsläge stänger händelseströmmen och pausar kontroller.
 - Stabil meny behåller samma produktmodeller. Inga bakgrundsanimationer, oskärpa, stora bilder eller webbmotorer.
-- R8 och resurskrympning används i APK:n som distribueras för provning.
+- R8 och resurskrympning används i APK:n som distribueras för provning. Från 1.1 är den även `debuggable=false`, så R8:s kodoptimering kan köras fullt. Lokalt testnät och mätning styrs separat med `TEST_BUILD`; release-varianten tillåter fortfarande bara HTTPS.
 
 Välj **⋮ → Mät prestanda**, kör realistiska arbetsmoment och välj sedan **Spara prestandamätning**. Mätningen använder Android HWUI `TOTAL_DURATION`, med första ritningen borttagen och redovisning av tappade mätvärden. Testbygget skriver även en diagnostikfil när appen läggs i bakgrunden. Den innehåller bildtider och enhetsmodell, inga order- eller personuppgifter.
 
 Se [verifiering och terminalprov](VERIFICATION.md). Emulatorresultat är utvecklingsindikatorer och bevisar inte stabila 30/60 fps på Worldline eller Swedbank Pay.
 
-Skärmbilder från den verkliga optimerade APK:n, med isolerade träningsdata:
+Version 1.1 i BlueStacks, med isolerade träningsdata:
 
-![Native huvudkassa](docs/native-counter.png)
+![Native startsida](docs/native-v11-home.png)
 
-[Visa native handkassa](docs/native-handheld.png) · [Visa träningsbetalningen](docs/native-payment.png)
+[Visa bordskartan](docs/native-v11-map.png) · [Visa minus, Ta bort och Lämna nota](docs/native-v11-order.png)
+
+Äldre 1.0-bilder: [handkassa](docs/native-handheld.png) · [huvudkassa](docs/native-counter.png) · [träningsbetalning](docs/native-payment.png).
 
 ## Säkra försök och anslutning
 

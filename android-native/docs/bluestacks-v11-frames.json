@@ -1,0 +1,1 @@
+{"metric":"Android HWUI TOTAL_DURATION; first-draw frames excluded","samples":897,"droppedMetrics":0,"p50Ms":0.901782,"p95Ms":1.275995,"p99Ms":4.310405,"framesOver16_7ms":0,"framesOver33_3ms":0,"device":"SM-G998B","androidApi":28,"physicalTerminalVerified":false}

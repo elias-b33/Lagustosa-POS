@@ -84,6 +84,8 @@ public class OptimizedApkTest {
     tap("Anslut kassan");
     find("PIN-kod").setText("1234");
     tap("Börja servicen");
+    find("Ingen nota vald");
+    tap("Kassa");
     find("Artikelmeny");
     if (device.findObject(By.desc("Öppna dagen för att börja ta beställningar")) != null) {
       tap("Öppna dagen för att börja ta beställningar");
@@ -114,6 +116,10 @@ public class OptimizedApkTest {
     probe("release");
     text("Återuppta samma försök");
     assertTrue(device.wait(Until.gone(By.text("Återuppta samma försök")), 15000));
+    UiObject2 saved = device.wait(Until.findObject(By.descStartsWith("Disk ")), 15000);
+    assertNotNull(saved);
+    saved.click();
+    find("Artikelmeny");
     tap("Visa nota");
     tap("Skicka till kök & bar");
     SystemClock.sleep(700);

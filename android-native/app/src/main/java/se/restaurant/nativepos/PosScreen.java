@@ -14,10 +14,10 @@ public final class PosScreen implements MainActivity.Screen {
   private final MainActivity a;
   private final Ui ui;
   private final LinearLayout root, menu, order, categories, actions, cart;
-  private final TextView heading, total, dayNotice, send, pay, cartText;
+  private final TextView heading, total, dayNotice, send, pay, cartText, leave;
   private final Spinner tabs;
   private final ProductAdapter products;
-  private final RowsAdapter lines;
+  private final OrderAdapter lines;
   private final RecyclerView grid, lineList;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private static final ExecutorService FILTERS = Executors.newSingleThreadExecutor();
@@ -35,6 +35,9 @@ public final class PosScreen implements MainActivity.Screen {
     dayNotice =
         ui.button("Öppna dagen för att börja ta beställningar", false, () -> a.navigate("reports"));
     ui.full(root, dayNotice);
+    leave = ui.button("‹ Lämna nota", false, a::leaveTab);
+    leave.setContentDescription("Lämna nota");
+    ui.full(root, leave);
     LinearLayout panes = ui.row();
     ui.weight(root, panes);
     menu = ui.column();
@@ -112,7 +115,7 @@ public final class PosScreen implements MainActivity.Screen {
             () -> {
               if (a.tab() != null) a.forms.tabOptions(a.tab());
             }));
-    lines = new RowsAdapter(ui, row -> a.forms.line((JSONObject) row.data, a.tab()));
+    lines = new OrderAdapter(a);
     lineList = RowsAdapter.list(ui, lines);
     lineList.setContentDescription("Aktuell nota");
     ui.weight(order, lineList);
@@ -162,6 +165,9 @@ public final class PosScreen implements MainActivity.Screen {
     dayNotice.setVisibility(data.day == null ? View.VISIBLE : View.GONE);
     JSONObject tab = a.tab();
     boolean open = tab != null && tab.optString("status").equals("open");
+    leave.setText(open ? "‹ Lämna nota · " + tab.optString("label") : "‹ Till startsidan");
+    ui.enable(leave, !a.controller.busy);
+    lines.context(a.controller.writable() && open, data.manager(), open && data.lockedTabs.contains(Json.id(tab)));
     if (!selected.equals(a.selectedTab)) {
       selected = a.selectedTab;
       showOrder(false);
@@ -242,17 +248,17 @@ public final class PosScreen implements MainActivity.Screen {
       Set<String> courses = new LinkedHashSet<>();
       for (JSONObject line : Json.list(tab, "lines"))
         if (line.optString("status").equals("held")) courses.add(line.optString("course"));
-      for (String course : courses) {
-        TextView fire =
-            ui.button(
-                "Slå ut " + Forms.course(course),
-                false,
-                () ->
-                    a.command(
-                        a.tab(), Json.obj("action", "fire", "course", course), "Slå ut rätt"));
-        ui.enable(fire, a.controller.writable());
-        ui.full(actions, fire);
-      }
+      String[] courseIds = courses.toArray(new String[0]);
+      String[] labels = new String[courseIds.length];
+      for (int i = 0; i < courseIds.length; i++) labels[i] = Forms.course(courseIds[i]);
+      // A row of buttons per course would squeeze the order list off a small handset.
+      TextView fire = ui.button(courseIds.length == 1 ? "Slå ut " + labels[0] : "Slå ut väntande rätter", false, () -> {
+        if (courseIds.length == 1) a.command(a.tab(), Json.obj("action", "fire", "course", courseIds[0]), "Slå ut rätt");
+        else a.choose("Vilken rätt ska slås ut?", labels,
+            i -> a.command(a.tab(), Json.obj("action", "fire", "course", courseIds[i]), "Slå ut rätt"));
+      });
+      ui.enable(fire, a.controller.writable());
+      ui.full(actions, fire);
     }
     cart.setVisibility(!a.counter() && !orderShown && open ? View.VISIBLE : View.GONE);
   }

@@ -8,6 +8,18 @@ on:
 permissions:
   contents: read
 jobs:
+  native-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node node_modules/typescript/bin/tsc -p android-native/server/tsconfig.json
+      - run: node android-native/scripts/build-server.mjs
+      - run: node --test android-native/artifacts/native-server/app.test.mjs
   build:
     runs-on: ubuntu-latest
     defaults:

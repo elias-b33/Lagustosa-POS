@@ -38,6 +38,7 @@ public final class PosController {
   public volatile Snapshot snapshot;
   public volatile CommandJournal.Pending pending;
   public boolean online, busy, checking;
+  public volatile boolean quantitySupported;
   public String error = "";
   public List<JSONObject> staff = Collections.emptyList();
   private String scope = "service";
@@ -143,7 +144,7 @@ public final class PosController {
       return;
     }
     try {
-      String normalized = ServerAddress.normalize(server, BuildConfig.DEBUG);
+      String normalized = ServerAddress.normalize(server, BuildConfig.TEST_BUILD);
       if (device.trim().isEmpty()) throw new IllegalArgumentException("Ange enhetskoden.");
       if (pending != null && !pending.origin.equals(normalized))
         throw new IllegalArgumentException(
@@ -155,6 +156,7 @@ public final class PosController {
       checking = false;
       refreshQueued = false;
       snapshot = null;
+      quantitySupported = false;
       staff = Collections.emptyList();
       online = false;
       preferences.edit().putString("server", normalized).putString("device", device.trim()).apply();
@@ -182,12 +184,20 @@ public final class PosController {
             JSONObject health = client.get("/health");
             if (!health.optBoolean("ok") || !health.optString("mode").equals("training"))
               throw new IllegalStateException("Denna version kräver kassaserverns träningsmiljö.");
+            boolean quantity = false;
+            try {
+              quantity = client.get("/native/capabilities").optBoolean("decrement");
+            } catch (ApiClient.Failure unsupported) {
+              if (unsupported.status != 404) throw unsupported;
+            }
+            final boolean support = quantity;
             List<JSONObject> people =
                 Json.list(new JSONArray(client.request("/auth/staff", null, "GET")));
             main.post(
                 () -> {
                   if (epoch != generation) return;
                   checking = false;
+                  quantitySupported = support;
                   staff = people;
                   notifyUi();
                   if (client.hasSession()) refresh();

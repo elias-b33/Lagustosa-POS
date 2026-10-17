@@ -92,6 +92,7 @@ public final class CommandJournal {
         || path.equals("/business-days")
         || path.equals("/cash-movements")
         || path.matches("/tabs/[^/]+/(commands|payments)")
+        || path.matches("/native/tabs/[^/]+/decrement")
         || path.matches("/payments/[^/]+/refunds")
         || path.matches("/business-days/[^/]+/close");
   }
