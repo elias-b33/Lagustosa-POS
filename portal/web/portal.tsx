@@ -1,4 +1,14 @@
 import {
+  Store,
+  Tags,
+  Layers,
+  TicketPercent,
+  Megaphone,
+  Warehouse,
+  ListPlus,
+} from "lucide-react";
+import { Management, Archive, managementPages } from "./management";
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -66,7 +76,18 @@ import {
 } from "../shared/model";
 
 type Page =
-  "overview" | "orders" | "sales" | "products" | "operations" | "account";
+  | "overview"
+  | "orders"
+  | "sales"
+  | "products"
+  | "operations"
+  | "account"
+  | "history"
+  | "reports"
+  | "logs"
+  | "processing"
+  | "settings"
+  | (typeof managementPages)[number]["id"];
 const pages = [
   {
     id: "overview",
@@ -75,14 +96,32 @@ const pages = [
     group: "VERKSAMHET",
   },
   { id: "orders", name: "Beställningar", icon: ListOrdered },
-  { id: "sales", name: "Försäljning", icon: BarChart3, group: "ANALYS" },
-  { id: "products", name: "Artiklar", icon: Package },
+  ...managementPages.map((page) => ({
+    ...page,
+    icon: {
+      restaurant: Store,
+      categories: Tags,
+      catalog: Package,
+      modifiers: ListPlus,
+      "global-categories": Layers,
+      coupons: TicketPercent,
+      campaigns: Megaphone,
+      inventory: Warehouse,
+    }[page.id],
+  })),
+  { id: "sales", name: "Försäljning", icon: BarChart3, group: "FÖRSÄLJNING" },
+  { id: "history", name: "Orderhistorik", icon: ListOrdered },
+  { id: "reports", name: "Rapporter", icon: ReceiptText },
+  { id: "logs", name: "Loggar", icon: Clock3 },
+  { id: "processing", name: "Behandlingshistorik", icon: RefreshCw },
+  { id: "products", name: "Artikelförsäljning", icon: Package },
   {
     id: "operations",
     name: "Driftstatus",
     icon: SlidersHorizontal,
     group: "ADMINISTRATION",
   },
+  { id: "settings", name: "Inställningar", icon: SlidersHorizontal },
   { id: "account", name: "Mitt konto", icon: ShieldCheck },
 ] as const;
 const money = (ore: number) =>
@@ -1399,25 +1438,39 @@ export function Portal() {
           </div>
         </div>
         <nav aria-label="Huvudmeny">
-          {pages.map((item) => (
-            <div key={item.id}>
-              {"group" in item && <h2>{item.group}</h2>}
-              <button
-                className={item.id === page ? "active" : ""}
-                aria-current={item.id === page ? "page" : undefined}
-                onClick={() => navigate(item.id)}
-              >
-                <item.icon size={18} />
-                {item.name}
-                {item.id === "orders" &&
-                  Boolean(meta?.operations.openTabs.length) && (
-                    <span className="nav-count">
-                      {meta!.operations.openTabs.length}
-                    </span>
-                  )}
-              </button>
-            </div>
-          ))}
+          {(
+            ["VERKSAMHET", "BUTIK", "FÖRSÄLJNING", "ADMINISTRATION"] as const
+          ).map((group) => {
+            let currentGroup = "VERKSAMHET";
+            const children = pages.filter((item) => {
+              if ("group" in item && item.group) currentGroup = item.group;
+              return currentGroup === group;
+            });
+            return (
+              <details key={group} open>
+                <summary>{group === "VERKSAMHET" ? "ÖVERSIKT" : group}</summary>
+                <div>
+                  {children.map((item) => (
+                    <button
+                      key={item.id}
+                      className={item.id === page ? "active" : ""}
+                      aria-current={item.id === page ? "page" : undefined}
+                      onClick={() => navigate(item.id)}
+                    >
+                      <item.icon size={17} />
+                      {item.name}
+                      {item.id === "orders" &&
+                        Boolean(meta?.operations.openTabs.length) && (
+                          <span className="nav-count">
+                            {meta!.operations.openTabs.length}
+                          </span>
+                        )}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
         </nav>
         <div className="sidebar-foot">
           <div className="account-avatar">
@@ -1487,7 +1540,9 @@ export function Portal() {
                         ? "Se vad som säljer och hur sortimentet presterar."
                         : page === "operations"
                           ? "Det senaste kända läget från restaurangen."
-                          : "Din personliga åtkomst till Eleva Admin."}
+                          : page === "account"
+                            ? "Din personliga åtkomst till Eleva Admin."
+                            : "Hantera restaurangens uppgifter och följ ändringar från Admin."}
               </p>
             </div>
             <div className="heading-actions">
@@ -1631,7 +1686,17 @@ export function Portal() {
               </ul>
             </details>
           ) : null}
-          {page === "account" ? (
+          {managementPages.some((p) => p.id === page) ||
+          ["settings", "processing"].includes(page) ? (
+            <Management key={page} page={page} />
+          ) : ["history", "reports", "logs"].includes(page) ? (
+            <Archive
+              key={page}
+              view={page as "history" | "reports" | "logs"}
+              initialFrom={from}
+              initialTo={to}
+            />
+          ) : page === "account" ? (
             <Account identity={identity} onLogout={logout} />
           ) : !meta || (!data && economic) ? (
             <Panel title={loading ? "Hämtar statistik…" : "Statistik inväntas"}>

@@ -17,6 +17,8 @@ import {
 import { analytics, exportCsv, receiptPage } from "../shared/analytics";
 import { querySchema } from "../shared/model";
 import { SyncWorker } from "../sync/worker";
+import { managementData, queueCommand, exchange } from "./management";
+import { archivePage } from "../shared/archive";
 
 const directory = path.resolve(
   process.env.ADMIN_LOCAL_DIR ??
@@ -188,11 +190,9 @@ app.get("/api/auth/session", async (request, reply) => {
 });
 app.get("/api/auth/enroll", async (request, reply) => {
   if (!requireMfa)
-    return reply
-      .code(403)
-      .send({
-        message: "Tvåstegsverifieringen är avstängd i detta lokala test.",
-      });
+    return reply.code(403).send({
+      message: "Tvåstegsverifieringen är avstängd i detta lokala test.",
+    });
   const session = sessions.get(request.cookies.eleva_admin_local ?? "");
   if (!session || session.expires < Date.now() || config.enrolled)
     return reply
@@ -203,11 +203,9 @@ app.get("/api/auth/enroll", async (request, reply) => {
 });
 app.post("/api/auth/verify", async (request, reply) => {
   if (!requireMfa)
-    return reply
-      .code(403)
-      .send({
-        message: "Logga in med e-post och lösenord i detta lokala test.",
-      });
+    return reply.code(403).send({
+      message: "Logga in med e-post och lösenord i detta lokala test.",
+    });
   const token = request.cookies.eleva_admin_local ?? "",
     session = sessions.get(token);
   if (!session || session.expires < Date.now())
@@ -263,16 +261,61 @@ app.post("/api/ingest", async (request, reply) => {
       .send({ message: (error as Error).message });
   }
 });
+app.post("/api/management-exchange", async (request, reply) => {
+  const body = z
+    .object({
+      installationId: z.literal(config.installationId),
+      snapshot: z.record(z.string(), z.unknown()).nullable(),
+      results: z
+        .array(
+          z
+            .object({
+              id: z.string().uuid(),
+              status: z.enum(["applied", "conflict", "rejected"]),
+              message: z.string().max(1000),
+              at: z.string().datetime(),
+            })
+            .strict(),
+        )
+        .max(20),
+    })
+    .strict()
+    .parse(request.body);
+  return exchange(
+    db,
+    body.installationId,
+    request.headers.authorization?.replace(/^Bearer /, "") ?? "",
+    body.snapshot as never,
+    body.results,
+  );
+});
+app.post("/api/commands", async (request, reply) => {
+  const currentSession = sessions.get(request.cookies.eleva_admin_local ?? "");
+  if (
+    !currentSession ||
+    currentSession.stage !== "verified" ||
+    currentSession.expires < Date.now()
+  )
+    return reply.code(401).send({ message: "Logga in för att fortsätta." });
+  const result = await queueCommand(
+    db,
+    config.installationId,
+    config.userId,
+    request.body,
+  );
+  void sync().then(() => sync());
+  return result;
+});
 app.get("/api/:route", async (request, reply) => {
   const session = sessions.get(request.cookies.eleva_admin_local ?? "");
   if (!session || session.stage !== "verified" || session.expires < Date.now())
-    return reply
-      .code(401)
-      .send({
-        message: requireMfa
-          ? "Logga in med tvåstegsverifiering."
-          : "Logga in med e-post och lösenord.",
-      });
+    return reply.code(401).send({
+      message: requireMfa
+        ? "Logga in med tvåstegsverifiering."
+        : "Logga in med e-post och lösenord.",
+    });
+  if ((request.params as { route: string }).route === "management")
+    return managementData(db, config.installationId);
   const current = await readReplica(db, config.installationId);
   if (!current)
     return reply
@@ -286,6 +329,14 @@ app.get("/api/:route", async (request, reply) => {
     to: q.to,
     ...(q.registerId ? { registerId: q.registerId } : {}),
   });
+  if (["history", "reports", "logs"].includes(route))
+    return archivePage(current.days, {
+      ...query,
+      view: route,
+      search: q.search?.slice(0, 160),
+      status: q.status,
+      page: Number(q.page) || 1,
+    });
   if (route === "receipts")
     return receiptPage(current.days, {
       ...query,
@@ -322,6 +373,10 @@ const savedSource = existsSync(sourceFile)
   ? (JSON.parse(readFileSync(sourceFile, "utf8")).database as string)
   : undefined;
 const sourceDatabase = process.env.ADMIN_SOURCE_DB ?? savedSource;
+const bridgeFile = path.join(directory, "bridge.json");
+const bridge = existsSync(bridgeFile)
+  ? JSON.parse(readFileSync(bridgeFile, "utf8"))
+  : {};
 if (
   savedSource &&
   sourceDatabase &&
@@ -343,8 +398,8 @@ if (sourceDatabase) {
     installationId: config.installationId,
     endpoint: `http://127.0.0.1:${port}/api/ingest`,
     token: config.token,
-    runtimeUrl: process.env.ADMIN_RUNTIME_URL,
-    runtimeToken: process.env.ADMIN_RUNTIME_TOKEN,
+    runtimeUrl: process.env.ADMIN_RUNTIME_URL ?? bridge.runtimeUrl,
+    runtimeToken: process.env.ADMIN_RUNTIME_TOKEN ?? bridge.runtimeToken,
   });
 }
 let syncing = false;

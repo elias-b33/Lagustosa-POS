@@ -1,4 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { applyPromotion, consumeSentStock } from './promotions-stock';
+import { orderBackofficeMenu } from './backoffice-menu';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import type { Actor, Allocation, Bootstrap, BusinessDay, CashMovement, DayReport, Device, DeviceConnection, DiningTable, MenuItem, OrderLine, Payment, PaymentStatus, PrintJob, PrinterProfile, Receipt, Settings, Staff, Station, Tab, Ticket } from '../shared/types';
@@ -97,7 +99,7 @@ export class KassaService {
     return register;
   }
   settings(): Settings { return this.store.get<Settings>('settings', 'settings')!; }
-  menu(): MenuItem[] { return orderedMenu(this.store); }
+  menu(): MenuItem[] { return orderBackofficeMenu(orderedMenu(this.store), this.store); }
   publicStaff(): Staff[] { return this.store.all<StoredStaff>('staff').map(({ pinHash: _pinHash, ...staff }) => staff); }
   publicDevices(): Device[] { return this.store.all<StoredDevice>('device').map(({ codeHash: _codeHash, ...device }) => device); }
   deviceConnections(): DeviceConnection[] {
@@ -301,6 +303,10 @@ export class KassaService {
         demand(input.discountBps !== undefined && input.reason && input.reason.trim().length >= 3, 'Ange rabatt och orsak.');
         tab.discountBps = input.discountBps;
         tab.discountReason = input.reason;
+        delete tab.promotion;
+      } else if (input.action === 'promotion') {
+        demand(Boolean(input.promotionId) !== Boolean(input.couponCode), 'Välj en kampanj eller ange en kupongkod.');
+        applyPromotion(this.store, tab, input, this.timestamp());
       } else if (input.action === 'price') {
         this.require(actor, authorizedRoles);
         const line = tab.lines.find(candidate => candidate.id === input.lineId && candidate.status !== 'void');
@@ -311,13 +317,14 @@ export class KassaService {
         demand(tab.lines.every(line => line.status === 'void') || tab.lines.length === 0, 'Makulera orderraderna innan notan avslutas.');
         tab.status = 'void';
       }
-      if (['add', 'price', 'discount'].includes(input.action)) {
+      if (['add', 'price', 'discount', 'promotion'].includes(input.action)) {
         // Validate every amount-changing command before persisting it. Check the
         // discount numerator before rounding so extreme input cannot poison a tab.
         const originalOre = tab.lines.filter(line => line.status !== 'void').reduce((sum, line) => sum + line.unitPriceOre * line.quantity, 0);
         demand(tab.lines.length <= 1000 && Number.isSafeInteger(originalOre) && Number.isSafeInteger(originalOre * tab.discountBps), 'Notan är för stor.');
         demand(originalOre - roundRatio(originalOre * tab.discountBps, 10000) <= 100000000, 'Notan är för stor.');
       }
+      consumeSentStock(this.store, before, tab, this.timestamp(), actor.staff.id);
       tab.version++;
       tab.updatedAt = this.timestamp();
       this.store.put('tab', tab);

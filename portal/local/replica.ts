@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { deliverySchema, type Delivery, type PortalDay } from "../shared/model";
 import type { PortalMeta } from "../shared/analytics";
@@ -29,6 +29,34 @@ export async function replica(directory?: string) {
       ),
     );
   }
+  await db.exec(
+    "create table if not exists portal_local_migrations(name text primary key)",
+  );
+  for (const name of readdirSync(
+    new URL("../supabase/migrations/", import.meta.url),
+  )
+    .filter((name) => name.endsWith(".sql") && !name.includes("0001_"))
+    .sort()) {
+    if (
+      !(
+        await db.query(
+          "select name from portal_local_migrations where name=$1",
+          [name],
+        )
+      ).rows.length
+    )
+      await db.transaction(async (tx) => {
+        await tx.exec(
+          readFileSync(
+            new URL("../supabase/migrations/" + name, import.meta.url),
+            "utf8",
+          ),
+        );
+        await tx.query("insert into portal_local_migrations values($1)", [
+          name,
+        ]);
+      });
+  }
   return db;
 }
 export async function provision(
@@ -46,7 +74,7 @@ export async function provision(
     [restaurantId],
   );
   await db.query(
-    "insert into portal_members values($1,$2,true) on conflict do nothing",
+    "insert into portal_members(restaurant_id,user_id,active,role) values($1,$2,true,'owner') on conflict(restaurant_id,user_id) do update set role='owner'",
     [restaurantId, userId],
   );
   await db.query(

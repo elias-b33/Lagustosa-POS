@@ -15,6 +15,12 @@ import { SyncWorker } from "../portal/sync/worker";
 import { analytics, exportCsv } from "../portal/shared/analytics";
 import { registerAdminRuntime } from "../server/admin-runtime";
 import type { Payment, PrintJob, Ticket } from "../shared/types";
+import {
+  exchange,
+  queueCommand,
+  managementData,
+} from "../portal/local/management";
+import type { ManagementSnapshot, CommandResult } from "../shared/backoffice";
 
 describe("Eleva Admin: återstart och belastning", () => {
   it("återupptar en diskbaserad leverans när serverns bekräftelse försvinner", async () => {
@@ -91,7 +97,24 @@ describe("Eleva Admin: återstart och belastning", () => {
       app = Fastify(),
       installation = randomUUID(),
       token = "load-test-".repeat(5);
-    await provision(db, randomUUID(), installation, token, randomUUID());
+    const owner = randomUUID(),
+      runtimeToken = "management-load-test-".repeat(3);
+    await provision(db, randomUUID(), installation, token, owner);
+    registerAdminRuntime(app, f.service, runtimeToken);
+    app.post("/management-exchange", async (request) => {
+      const body = request.body as {
+        snapshot: ManagementSnapshot | null;
+        results: CommandResult[];
+      };
+      return exchange(db, installation, token, body.snapshot, body.results);
+    });
+    await queueCommand(db, installation, owner, {
+      id: randomUUID(),
+      kind: "global-category",
+      target: randomUUID(),
+      baseVersion: null,
+      value: { name: "Belastningsprov", position: 0 },
+    });
     let offline = false,
       received = 0,
       failures = 0;
@@ -112,6 +135,8 @@ describe("Eleva Admin: återstart och belastning", () => {
       installationId: installation,
       endpoint: endpoint + "/ingest",
       token,
+      runtimeUrl: endpoint + "/api/v1/admin-sync/runtime",
+      runtimeToken,
     };
     let child: ChildProcess | undefined;
     const waitFor = async (check: () => boolean) => {
@@ -148,6 +173,9 @@ describe("Eleva Admin: återstart och belastning", () => {
         messages.push(message as { ok: boolean }),
       );
       await waitFor(() => messages.some((row) => row.ok));
+      expect((await managementData(db, installation)).commands[0].status).toBe(
+        "applied",
+      );
       for (let guest = 0; guest < 90; guest++) {
         if (guest === 20) {
           offline = true;
@@ -263,6 +291,8 @@ describe("Eleva Admin: återstart och belastning", () => {
               .update(journalBefore)
               .digest("hex"),
             physicalPrints: 0,
+            managementBridgeActive: true,
+            managementCommandApplied: true,
           },
           null,
           2,

@@ -17,6 +17,8 @@ import { readSoftpaySandboxConfig } from './softpay-config';
 import { EpsonTestPrintAdapter } from './epson-test-printer';
 import { connectedPrinterIds } from '../shared/printers';
 import { registerAdminRuntime } from './admin-runtime';
+import { promotionAvailable } from './promotions-stock';
+import type { Promotion } from '../shared/backoffice';
 
 const journalQuery = z.object({ from: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), to: z.string().refine(validJournalDate, 'Ogiltigt kalenderdatum').optional(), registerId: z.string().min(1).max(72).optional() }).strict();
 
@@ -81,7 +83,8 @@ export async function createApp(options: AppOptions) {
     }
   });
   const actor = (request: FastifyRequest): Actor => service.session(request.cookies[sessionCookieName]);
-  registerAdminRuntime(app,service,process.env.ADMIN_RUNTIME_TOKEN);
+  registerAdminRuntime(app, service, process.env.ADMIN_RUNTIME_TOKEN, () => events.emit('change'));
+  app.get('/api/v1/promotions', async request => { const who = actor(request); service.require(who, ['admin', 'cashier', 'waiter']); return store.all<Promotion>('backoffice-campaign').filter(item => promotionAvailable(item, service.timestamp())).map(item => ({ id: item.id, name: item.name, discountBps: item.discountBps })); });
   const paramId = (request: FastifyRequest): string => z.object({ id: z.string().min(1).max(100) }).parse(request.params).id;
 
   app.get('/api/v1/health', async () => ({ ok: true, mode: 'training', version: '0.1.0', environment: options.safeTest ? 'safe-test' : 'training', httpLan: options.safeTest?.httpLan ?? false, instanceId: options.safeTest?.instanceId, launchId: options.safeTest?.launchId, testRoundId: options.safeTest?.sessionId, processId: options.safeTest ? process.pid : undefined, adapters: { payment: service.paymentAdapter.integration?.().provider ?? 'simulator', fiscal: 'simulator', print: service.printAdapter.kind }, testPrinter: service.printAdapter.integration?.() }));

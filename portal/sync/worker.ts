@@ -9,6 +9,7 @@ import {
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { SourceReader, type RuntimeStatus } from "./project";
+import { syncManagement } from "./management";
 import {
   deliverySchema,
   initialCursor,
@@ -177,6 +178,11 @@ export class SyncWorker {
     this.state.pending = null;
     this.state.pendingDays = null;
     this.save();
+    try {
+      await syncManagement(this.config, this.state.cursor.sequence);
+    } catch (error) {
+      process.stderr.write(`Adminanslutning: ${(error as Error).message}\n`);
+    }
     return this.state.cursor;
   }
   close() {

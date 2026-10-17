@@ -1,3 +1,4 @@
+import { createApp } from "../../server/app";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -70,4 +71,8 @@ for (let d = 0; d < 3; d++) {
 }
 store.close();
 process.env.ADMIN_SOURCE_DB = database;
+process.env.ADMIN_RUNTIME_TOKEN = "admin-fixture-loopback-token-20261017";
+const live = await createApp({ database });
+await live.app.listen({ host: "127.0.0.1", port: 0 });
+process.env.ADMIN_RUNTIME_URL = `http://127.0.0.1:${(live.app.server.address() as { port: number }).port}/api/v1/admin-sync/runtime`;
 await import("../../portal/local/server");

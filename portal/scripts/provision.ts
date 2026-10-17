@@ -39,24 +39,24 @@ const { data: invite, error: inviteError } =
     options: { redirectTo: origin + "/account" },
   });
 if (inviteError) throw inviteError;
-const { error: r } = await client
-  .from("portal_restaurants")
-  .insert({
-    id: restaurantId,
-    name: process.env.ADMIN_RESTAURANT_NAME ?? "La Gustosa",
-  });
+const { error: r } = await client.from("portal_restaurants").insert({
+  id: restaurantId,
+  name: process.env.ADMIN_RESTAURANT_NAME ?? "La Gustosa",
+});
 if (r) throw r;
 const { error: m } = await client
   .from("portal_members")
-  .insert({ restaurant_id: restaurantId, user_id: invite.user.id });
-if (m) throw m;
-const { error: i } = await client
-  .from("portal_installations")
   .insert({
-    id: installationId,
     restaurant_id: restaurantId,
-    token_hash: createHash("sha256").update(token).digest("hex"),
+    user_id: invite.user.id,
+    role: "owner",
   });
+if (m) throw m;
+const { error: i } = await client.from("portal_installations").insert({
+  id: installationId,
+  restaurant_id: restaurantId,
+  token_hash: createHash("sha256").update(token).digest("hex"),
+});
 if (i) throw i;
 writeFileSync(
   path.join(output, "installation.json"),

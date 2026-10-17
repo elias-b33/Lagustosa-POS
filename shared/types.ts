@@ -35,6 +35,7 @@ export interface OrderLine {
   createdAt: string; overrideReason?: string;
 }
 export interface Tab {
+  promotion?: { id: string; name: string; kind: 'coupon' | 'campaign'; discountBps: number };
   id: string; dayId: string; number: number; tableId: string | null; label: string;
   guestCount: number; serviceMode: ServiceMode; status: 'open' | 'paid' | 'void';
   version: number; lines: OrderLine[]; discountBps: number; discountReason: string;

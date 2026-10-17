@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  orderSummarySchema,
+  savedReportSchema,
+  eventSummarySchema,
+} from "./archive-model.ts";
 
 const id = z.string().min(1).max(160);
 const ore = z.number().int().safe();
@@ -89,6 +94,9 @@ const receiptSchema = z
   .strict();
 export const daySchema = z
   .object({
+    orders: z.array(orderSummarySchema).optional(),
+    reports: z.array(savedReportSchema).optional(),
+    events: z.array(eventSummarySchema).optional(),
     id,
     date,
     status: z.enum(["open", "closed"]),

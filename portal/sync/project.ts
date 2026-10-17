@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { projectArchive } from "./archive";
 import type {
   AuditEntry,
   BusinessDay,
@@ -76,6 +77,7 @@ function bucket(
 export function projectDay(day: BusinessDay, journal: AuditEntry[]): PortalDay {
   const ledger = registerLedgerSnapshot({ day, journal });
   const result: PortalDay = {
+    ...projectArchive(day, journal),
     id: day.id,
     date: day.date,
     status: day.status,
@@ -250,6 +252,16 @@ export function projectDay(day: BusinessDay, journal: AuditEntry[]): PortalDay {
       });
       issue(result, "Historisk kassaidentitet saknas för vissa belopp.");
     }
+  }
+  for (const order of result.orders ?? []) {
+    order.paidOre = [...ledger.payments.values()]
+      .filter(
+        (row) =>
+          row.payment.tabId === order.id &&
+          row.payment.status === "approved" &&
+          row.payment.kind === "sale",
+      )
+      .reduce((sum, row) => sum + row.payment.amountOre, 0);
   }
   return result;
 }

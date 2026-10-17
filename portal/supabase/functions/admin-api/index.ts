@@ -1,3 +1,5 @@
+import { managementCommandSchema } from "../../../../shared/backoffice-command.ts";
+import { archivePage } from "../../../shared/archive.ts";
 import { createClient } from "@supabase/supabase-js";
 import {
   deliverySchema,
@@ -74,7 +76,32 @@ Deno.serve(async (request: Request) => {
         );
       return respond(data);
     }
-    if (request.method !== "GET")
+    if (route === "management-exchange" && request.method === "POST") {
+      const token =
+        request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
+      if (token.length < 32 || token.length > 256)
+        return respond({ message: "Synknyckel saknas." }, 401);
+      const text = await request.text();
+      if (text.length > 6_500_000)
+        return respond({ message: "Leveransen är för stor." }, 413);
+      const body = JSON.parse(text);
+      const admin = createClient(url, secretKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data, error } = await admin.rpc("portal_management_exchange", {
+        p_installation: body.installationId,
+        p_token_hash: await digest(token),
+        p_snapshot: body.snapshot ?? null,
+        p_results: body.results ?? [],
+      });
+      if (error)
+        return respond({ message: "Adminöverföringen avvisades." }, 409);
+      return respond(data);
+    }
+    if (
+      request.method !== "GET" &&
+      !(route === "commands" && request.method === "POST")
+    )
       return respond({ message: "Metoden stöds inte." }, 405);
     const authorization = request.headers.get("authorization") ?? "";
     const client = createClient(url, publicKey, {
@@ -89,7 +116,7 @@ Deno.serve(async (request: Request) => {
     // RLS independently requires aal2 and an active restaurant membership for every read.
     const { data: installs, error } = await client
       .from("portal_installations")
-      .select("id,metadata,received_at,snapshot_at")
+      .select("id,restaurant_id,metadata,received_at,snapshot_at")
       .is("revoked_at", null);
     if (error || !installs?.length)
       return respond(
@@ -102,6 +129,58 @@ Deno.serve(async (request: Request) => {
       ) ?? (installs.length === 1 ? installs[0] : null);
     if (!installation)
       return respond({ message: "Välj en behörig installation." }, 403);
+    if (route === "commands") {
+      const text = await request.text();
+      if (text.length > 200000)
+        return respond({ message: "Ändringen är för stor." }, 413);
+      const body = managementCommandSchema.parse(JSON.parse(text));
+      const { data, error } = await client.rpc("portal_queue_command", {
+        p_installation: installation.id,
+        p_body: body,
+      });
+      if (error)
+        return respond(
+          { message: "Du saknar behörighet, eller ändringen kunde inte köas." },
+          403,
+        );
+      return respond({ id: data, status: "queued" });
+    }
+    if (route === "management") {
+      const { data: stored } = await client
+        .from("portal_management")
+        .select("payload")
+        .eq("installation_id", installation.id)
+        .maybeSingle();
+      const { data: commands } = await client
+        .from("portal_commands")
+        .select("body,created_by,status,created_at,result")
+        .eq("installation_id", installation.id)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      const { data: member } = await client
+        .from("portal_members")
+        .select("role")
+        .eq("restaurant_id", installation.restaurant_id)
+        .eq("user_id", identity.user.id)
+        .maybeSingle();
+      const snapshot = stored?.payload ?? null,
+        role = member?.role ?? "viewer";
+      return respond({
+        snapshot,
+        role,
+        canManage: role !== "viewer",
+        connected: Boolean(
+          snapshot && Date.now() - Date.parse(snapshot.generatedAt) < 120000,
+        ),
+        commands: (commands ?? []).map((row) => ({
+          command: row.body,
+          actorId: row.created_by,
+          status: row.status,
+          createdAt: row.created_at,
+          result: row.result,
+        })),
+      });
+    }
     if (!installation.metadata)
       return respond({ message: "Väntar på första synkningen." }, 503);
     if (route === "meta") {
@@ -138,6 +217,16 @@ Deno.serve(async (request: Request) => {
     );
     if (readError) throw readError;
     const days = (stored ?? []) as PortalDay[];
+    if (["history", "reports", "logs"].includes(route ?? ""))
+      return respond(
+        archivePage(days, {
+          ...query,
+          view: route!,
+          search: address.searchParams.get("search")?.slice(0, 160),
+          status: address.searchParams.get("status") ?? "",
+          page: Number(address.searchParams.get("page")) || 1,
+        }),
+      );
     if (route === "receipts")
       return respond(
         receiptPage(days, {

@@ -26,7 +26,8 @@ export const loginSchema = z.object({ staffId: id, pin: z.string().regex(/^\d{4,
 export const createTabSchema = z.object({ key: id, tableId: id.nullable(), guestCount: z.number().int().min(1).max(100), serviceMode: z.enum(['dine_in', 'takeaway']) }).strict();
 export const commandSchema = z.object({
   key: id, version: z.number().int().min(1),
-  action: z.enum(['add', 'remove', 'send', 'fire', 'move', 'guests', 'discount', 'price', 'void']),
+  action: z.enum(['add', 'remove', 'send', 'fire', 'move', 'guests', 'discount', 'promotion', 'price', 'void']),
+  promotionId: id.optional(), couponCode: z.string().trim().min(3).max(32).optional(),
   itemId: id.optional(), lineId: id.optional(), quantity: z.number().int().min(1).max(100).optional(),
   guest: z.number().int().min(0).max(100).optional(), modifiers: z.array(id).max(100).optional(), notes: text.optional(),
   course: z.enum(['starter', 'main', 'dessert', 'drink']).optional(), hold: z.boolean().optional(),
