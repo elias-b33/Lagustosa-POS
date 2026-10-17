@@ -67,4 +67,12 @@ public class MoneyTest {
     assertThrows(IllegalArgumentException.class, () -> Money.round(-1, 100));
     assertThrows(IllegalArgumentException.class, () -> Money.distribute(1, new long[] {-1}));
   }
+
+  @Test
+  public void rejectsOverflowWhenFractionIsAddedToWholeKronor() {
+    for (String value : new String[] {"92233720368547758,08", "92233720368547758,99", "9223372036854775807"})
+      assertNull(value, Money.parse(value));
+    assertEquals(Long.valueOf(100000000), Money.parse("1000000,00"));
+    assertNull(Money.parse("1000000,01"));
+  }
 }

@@ -58,6 +58,8 @@ public final class Forms {
         return "Väntar på utslag";
       case "sent":
         return "Skickad";
+      case "queued":
+        return "Väntar";
       case "started":
         return "Tillagas";
       case "ready":
@@ -395,6 +397,10 @@ public final class Forms {
   }
 
   public void payment(JSONObject tab) {
+    payment(tab, 0);
+  }
+
+  public void payment(JSONObject tab, int initialSplit) {
     a.controller.setScope("full");
     for (JSONObject p : data().payments)
       if (p.optString("tabId").equals(Json.id(tab))
@@ -418,7 +424,7 @@ public final class Forms {
                 "Per gäst",
                 "Valda artikelrader",
                 "Antal per artikel"),
-            0);
+            initialSplit);
     EditText amount = ui.field(form, "Delbelopp i kronor", Money.input(remaining), DECIMAL);
     EditText parts = ui.field(form, "Antal delar som återstår", "2", NUMBER);
     List<String> guests = new ArrayList<>();
@@ -826,29 +832,37 @@ public final class Forms {
   }
 
   public void ticket(JSONObject ticket) {
-    String detail = "";
-    for (JSONObject item : Json.list(ticket, "items"))
-      detail +=
-          item.optInt("quantity")
-              + " × "
-              + item.optString("name")
-              + "\n"
-              + item.optString("notes")
-              + "\n";
+    JSONObject current = TableLookup.byId(data().tickets, Json.id(ticket));
+    if (current == null || !TicketPresentation.active(current)) {
+      a.toast("Bongen är avslutad eller helt makulerad. Uppdatera listan.");
+      return;
+    }
     LinearLayout form = ui.column();
-    ui.full(form, ui.text(detail, 17, Ui.INK, false));
-    for (String state : new String[] {"started", "ready", "served"})
+    ui.full(form, ui.text(TicketPresentation.details(current), 17, Ui.INK, false));
+    String state = TicketPresentation.nextState(current.optString("status"));
+    if (!state.isEmpty()) {
+      boolean cancellation = current.optString("kind").equals("cancel");
+      String label = cancellation
+          ? (state.equals("started") ? "Påbörja annullering" : state.equals("ready") ? "Annullering hanterad" : "Arkivera annullering")
+          : status(state);
       ui.full(
           form,
           ui.button(
-              status(state),
+              label,
               state.equals("ready"),
-              () ->
+              () -> {
+                  JSONObject latest = TableLookup.byId(data().tickets, Json.id(current));
+                  if (latest == null || !TicketPresentation.active(latest)
+                      || !latest.optString("status").equals(current.optString("status"))
+                      || !latest.toString().equals(current.toString()))
+                    throw new IllegalArgumentException("Bongen har ändrats. Öppna den igen innan du fortsätter.");
                   a.write(
-                      "/tickets/" + Json.id(ticket) + "/status",
+                      "/tickets/" + Json.id(current) + "/status",
                       Json.obj("status", state),
                       "POST",
-                      "Ändra bongstatus")));
-    a.modal(ticket.optString("tabLabel"), form, null, () -> {});
+                      "Ändra bongstatus");
+              }));
+    }
+    a.modal(current.optString("tabLabel") + (current.optString("kind").equals("cancel") ? " · ANNULLERING" : ""), form, null, () -> {});
   }
 }

@@ -14,7 +14,7 @@ public final class PosScreen implements MainActivity.Screen {
   private final MainActivity a;
   private final Ui ui;
   private final LinearLayout root, menu, order, categories, actions, cart;
-  private final TextView heading, total, dayNotice, send, pay, cartText, leave;
+  private final TextView heading, total, dayNotice, send, pay, split, cartText, leave;
   private final Spinner tabs;
   private final ProductAdapter products;
   private final OrderAdapter lines;
@@ -140,7 +140,13 @@ public final class PosScreen implements MainActivity.Screen {
             });
     ui.full(actions, send);
     ui.gap(actions, 6);
-    ui.full(actions, pay);
+    split = ui.button("Dela nota", false, () -> {
+      if (a.tab() != null) a.forms.payment(a.tab(), 2);
+    });
+    LinearLayout paymentButtons = ui.row();
+    paymentButtons.addView(split, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
+    paymentButtons.addView(pay, new LinearLayout.LayoutParams(0, ui.dp(48), 1));
+    ui.full(actions, paymentButtons);
     cart = ui.row();
     cart.setBackgroundColor(Ui.PAPER);
     ui.pad(cart, 6);
@@ -243,6 +249,8 @@ public final class PosScreen implements MainActivity.Screen {
     ui.enable(send, a.controller.writable() && open);
     pay.setVisibility(open ? View.VISIBLE : View.GONE);
     ui.enable(pay, a.controller.writable() && open && count > 0 && draft == 0 && held == 0);
+    split.setVisibility(open ? View.VISIBLE : View.GONE);
+    ui.enable(split, a.controller.writable() && open && count > 0 && draft == 0 && held == 0);
     while (actions.getChildCount() > 3) actions.removeViewAt(3);
     if (held > 0 && open) {
       Set<String> courses = new LinkedHashSet<>();

@@ -2,6 +2,29 @@
 
 Serverbas: GitHub-commit `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8`. Android-kodens resultat nedan hör till denna separata native-gren och säger inget om webbklientens prestanda.
 
+## Version 1.1.1, 2026-10-17
+
+APK: `1.1.1-native-test`, versionCode 3, **234 947 byte**. SHA-256: `1ec1f61c0fcfbba1b8ba841af6e7e84360bc4541b3c4f478eff40fb359cc6c66`.
+
+Riktad bugggenomgång av samtidiga notändringar, delbetalning, kök/bar och inloggning:
+
+- Version 1.1.0 reproducerade ett fel i den faktiska installerade APK:n: en prisändring mellan bekräftad borttagning och serveranrop gav en versionskonflikt. Klienten ersatte då den gamla versionen och skickade borttagningen igen. **Två anrop**, raden makulerades trots att underlaget ändrats. Version 1.1.1 skickar **ett anrop**, behåller raden och visar det avvisade försöket. Förlorade svar återanvänder fortfarande originalets nyckel och innehåll. Efter en bekräftad skrivning hämtas ett aktuellt underlag på bakgrundstråden innan nästa skrivning aktiveras. [Jämförelse](docs/native-v111-conflict.json).
+- Tillval och köksmeddelanden finns i både bonglistan och detaljvyn. Makulerade rader filtreras bort även i detaljvyn; helt makulerade originalbongar döljs. Deras annulleringsbongar och orsaker finns kvar.
+- Bongdialogen erbjuder endast nästa servergodkända statussteg. Den kontrollerar att det visade underlaget inte har ändrats innan status skickas. Statusnamn som `queued` och `void` visas på svenska i arbetsvyerna.
+- Öppna dialoger stängs vid utgången session och vid byte till anslutningsskärmen. Provet öppnar en artikeldialog, låter testservern avsluta sessionen, kontrollerar att dialogen försvinner och loggar in igen.
+- Ett gränsfall där ett mycket stort kronorbelopp plus ören kunde överflöda heltalet rättades. För stora värden avvisas före sändning.
+- **Dela nota** öppnar betalningsdialogen med **Dela lika** valt. Slutprovet betalade 100,01 kr som 33,34 + 33,34 + 33,33 kr och kontrollerade tre betalningar, exakt totalsumma och avslutad nota.
+
+Verifiering av slutlig kod: **29 JVM-tester**, 0 fel; **Android Lint 0 fel, 23 varningar**; optimerad APK och osignerad release byggda; native-serverns TypeScript-kontroll och **2 regressionstester** passerade. Serverproven täcker även delning per gäst, rader och antal, dubbel anropsnyckel, för stort artikelantal, redan betald gäst samt gammal notversion utan ny betalning.
+
+`BugReviewTest` och befintliga `UnpaidTabsTest` kördes mot en separat server med enbart databas i minnet. Slutlig APK gav **OK (2 tests), 152,417 sekunder** i en separat Android 35-emulator, 720 × 1280 px / 320 dpi (360 dp bred), 2 virtuella processorkärnor och 1 536 MB gäst-RAM. Tidigare nottest kontrollerade dessutom obetalda notor, borttagning, minus, omstart, nummer/karta och väntande rätter. [Slutlig instrumenteringslogg](docs/native-v111-test-results.txt).
+
+Ett tidigare BlueStacks-prov av konflikt/kök/delning passerade i bred layout. Ett senare försök på smal BlueStacks avbröts därför att en annan app tog förgrunden; det räknas inte som ett godkänt prov. Därför användes den separata emulatorn för slutverifieringen. BlueStacks ordinarie skärmstorlek återställdes. Ingen appdata rensades och de befintliga native-demodatabaserna användes inte för provbetalningarna.
+
+Ingen ny FPS-mätning eller provning på fysisk handterminal ingår i denna buggfix. Automatisk skickning till köket är inte införd.
+
+Test-fixturen `server/review-fixture.ts` startas uttryckligen, binder endast `127.0.0.1:4202` och använder `:memory:`. Den ingår inte i den vanliga native-serverstarten. Bygg den separat med esbuild till `artifacts/native-server/review-fixture.mjs` med `--bundle --platform=node --format=esm --packages=external`, starta den med Node 24 och kör `se.restaurant.nativepos.smoke.BugReviewTest` med instrumenteringsargumentet `server` satt till testserverns adress. Ingen verklig restaurangdatabas får användas för dessa prov.
+
 ## Version 1.1, 2026-10-17
 
 Distribuerad APK: `1.1.0-native-test`, versionCode 2, **234 195 byte**. SHA-256: `3ccefedf9e4930b708d9ecfd94d089fe859e4cb501e50c85a7cbdd4b0948248d`.

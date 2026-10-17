@@ -1,0 +1,9 @@
+
+se.restaurant.nativepos.smoke.BugReviewTest:.
+se.restaurant.nativepos.smoke.UnpaidTabsTest:.
+
+Time: 152.417
+
+OK (2 tests)
+
+

@@ -379,26 +379,34 @@ public final class PosController {
   private void submit(CommandJournal.Pending attempt) throws Exception {
     Json.put(attempt.json, "rejected", false);
     journal.save(attempt);
-    JSONObject result;
-    try {
-      result = ApiClient.parse(api.request(attempt.path, attempt.body, attempt.method));
-    } catch (ApiClient.Failure e) {
-      if (e.code.equals("VERSION_CONFLICT") && attempt.path.matches("/tabs/[^/]+/commands")) {
-        JSONObject latest =
-            api.get(attempt.path.substring(0, attempt.path.length() - "/commands".length()));
-        Json.put(attempt.body, "version", latest.optInt("version"));
-        journal.save(attempt);
-        result = ApiClient.parse(api.request(attempt.path, attempt.body, attempt.method));
-      } else throw e;
-    }
+    // A conflict changes the bill the operator approved. Never replace the saved version
+    // and silently retry a removal, price change or send against that different bill.
+    // Lost responses still replay the exact original body and idempotency key.
+    JSONObject result = ApiClient.parse(api.request(attempt.path, attempt.body, attempt.method));
     journal.clear();
     pending = null;
+    Snapshot refreshed = null;
+    String readError = "";
+    try {
+      JSONObject raw = api.get("/bootstrap?scope=" + scope);
+      if (!raw.optString("mode").equals("training"))
+        throw new IllegalStateException("Native-testappen får endast använda träningsdata.");
+      refreshed = new Snapshot(raw, snapshot);
+    } catch (Exception e) {
+      // The write was acknowledged already. Never retry it because the subsequent read failed.
+      readError = "Ändringen är sparad. Uppdatera anslutningen innan nästa ändring.";
+    }
     JSONObject answer = result;
+    Snapshot latest = refreshed;
+    String warning = readError;
     main.post(
         () -> {
           busy = false;
-          error = "";
-          refresh();
+          if (latest != null) snapshot = latest;
+          online = latest != null && foreground;
+          error = warning;
+          // Do not enable the next write using the pre-command version of the bill.
+          if (latest == null) refresh();
           notifyUi();
           if (listener != null) listener.result(attempt.path, answer);
         });

@@ -70,7 +70,8 @@ public final class Money {
     try {
       String[] parts = normalized.split("\\.");
       long n = Math.multiplyExact(Long.parseLong(parts[0]), 100);
-      if (parts.length > 1) n += Long.parseLong(parts[1].length() == 1 ? parts[1] + "0" : parts[1]);
+      if (parts.length > 1)
+        n = Math.addExact(n, Long.parseLong(parts[1].length() == 1 ? parts[1] + "0" : parts[1]));
       return n <= 100000000 ? n : null;
     } catch (ArithmeticException | NumberFormatException e) {
       return null;

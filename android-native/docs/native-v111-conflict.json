@@ -1,0 +1,17 @@
+{
+  "scenario": "Server changes item price after confirmation and before removal reaches server",
+  "isolatedTrainingOnly": true,
+  "before": {
+    "version": "1.1.0-native-test",
+    "removalRequests": 2,
+    "lineStatus": "void",
+    "unitPriceOre": 10101
+  },
+  "after": {
+    "version": "1.1.1-native-test",
+    "removalRequests": 1,
+    "lineStatus": "draft",
+    "unitPriceOre": 10101,
+    "test": "BugReviewTest passed"
+  }
+}

@@ -4,6 +4,12 @@ Separat Android-app med vanliga Android-vyer och RecyclerView. Inget WebView, in
 
 **Träningsversion.** Betalningar, kontrollösning och utskrift använder fortfarande serverns testadaptrar. Denna version tar inte riktiga betalningar och är inte en godkänd kassaregisterprodukt.
 
+Version **1.1.1** rättar samtidiga ändringar på samma nota, köksbongarnas tillval/makuleringar och dialoger vid utgången inloggning. **Dela nota** finns bredvid **Ta betalt** och öppnar delningsvalet direkt. Där finns lika delar, delbelopp, per gäst, valda rader och antal per artikel. Ange hur många delar som återstår vid varje betalning. Automatisk skickning till kök/bar är ännu inte aktiverad; **Skicka till kök & bar** och **Slå ut väntande rätter** används fortfarande.
+
+Om en annan enhet ändrar notan mellan visning och bekräftelse avvisas den gamla ändringen. Kontrollera den uppdaterade notan, avsluta det avvisade försöket och gör vid behov ett nytt. Appen byter inte längre version i bakgrunden och upprepar en gammal ändring. Vid ett förlorat svar används fortfarande samma sparade nyckel och samma avsikt. Efter ett bekräftat anrop hämtas den nya notan innan nästa ändring aktiveras.
+
+Kök och bar visar tillval och köksmeddelanden i både listan och bongens detaljvy. Makulerade artikelrader visas inte som kvarvarande arbete; en helt makulerad originalbong döljs medan dess annulleringsbong finns kvar. Statusknappen följer nästa tillåtna steg. Annulleringsbongar visar också orsaken och har egna knapptexter för hantering.
+
 ## Separering
 
 - All Android-kod, resurser, Gradle-konfiguration och tester ligger i `android-native/`.

@@ -127,25 +127,14 @@ public final class WorkspaceScreen implements MainActivity.Screen {
     } else if (view.equals("kitchen") || view.equals("bar")) {
       for (JSONObject ticket : data.tickets)
         if (ticket.optString("station").equals(view)
-            && !ticket.optString("status").equals("served")) {
-          StringBuilder items = new StringBuilder();
-          for (JSONObject line : Json.list(ticket, "items"))
-            if (!line.optString("status").equals("void")) {
-              items
-                  .append(line.optInt("quantity"))
-                  .append(" × ")
-                  .append(line.optString("name"))
-                  .append("\n");
-              if (!line.optString("notes").isEmpty())
-                items.append(line.optString("notes")).append("\n");
-            }
+            && TicketPresentation.active(ticket)) {
           rows.add(
               row(
                   "ticket",
                   ticket,
                   ticket.optString("tabLabel")
                       + (ticket.optString("kind").equals("cancel") ? " · ANNULLERING" : ""),
-                  items.toString(),
+                  TicketPresentation.details(ticket),
                   Forms.status(ticket.optString("status")),
                   ticket.optString("kind").equals("cancel") ? Ui.DANGER : Ui.GREEN));
         }
@@ -162,7 +151,7 @@ public final class WorkspaceScreen implements MainActivity.Screen {
                 job.optString("printerName", "Förhandsvisning")
                     + " · "
                     + job.optString("createdAt"),
-                job.optString("status"),
+                Forms.status(job.optString("status")),
                 job.optString("status").equals("uncertain") ? Ui.DANGER : Ui.MUTED));
     } else if (view.equals("reports")) {
       JSONObject report = Json.child(data.raw, "report");
@@ -180,7 +169,7 @@ public final class WorkspaceScreen implements MainActivity.Screen {
                   "tab",
                   tab,
                   tab.optString("label"),
-                  tab.optString("status") + " · " + tab.optInt("guestCount") + " gäster",
+                  Forms.status(tab.optString("status")) + " · " + tab.optInt("guestCount") + " gäster",
                   Money.format(data.totals.getOrDefault(Json.id(tab), 0L)),
                   ui.accent));
       if (reportSection.equals("Betalningar"))
@@ -191,8 +180,8 @@ public final class WorkspaceScreen implements MainActivity.Screen {
                   payment,
                   (payment.optString("kind").equals("refund") ? "Retur" : "Betalning")
                       + " · "
-                      + payment.optString("method"),
-                  payment.optString("createdAt") + " · " + payment.optString("status"),
+                      + Forms.status(payment.optString("method")),
+                  payment.optString("createdAt") + " · " + Forms.status(payment.optString("status")),
                   Money.format(payment.optLong("amountOre")),
                   payment.optString("status").equals("approved") ? Ui.GREEN : Ui.WARNING));
       if (reportSection.equals("Kvitton"))
@@ -204,7 +193,7 @@ public final class WorkspaceScreen implements MainActivity.Screen {
                   "Övningskvitto #" + receipt.optInt("number"),
                   Json.child(receipt, "tab").optString("label")
                       + " · "
-                      + receipt.optString("fiscalStatus"),
+                      + Forms.status(receipt.optString("fiscalStatus")),
                   Money.format(Json.child(receipt, "payment").optLong("amountOre")),
                   Ui.INK));
       if (reportSection.equals("Dagar"))
@@ -214,7 +203,7 @@ public final class WorkspaceScreen implements MainActivity.Screen {
                   "day",
                   day,
                   day.optString("date"),
-                  day.optString("status"),
+                  Forms.status(day.optString("status")),
                   "Visa rapport",
                   ui.accent));
       if (reportSection.equals("Kassarapporter"))

@@ -117,6 +117,7 @@ public final class MainActivity extends Activity implements PosController.Listen
 
   @Override
   protected void onDestroy() {
+    dismiss();
     controller.detach(this);
     if (network != null) connectivity.unregisterNetworkCallback(network);
     frames.close();
@@ -160,10 +161,13 @@ public final class MainActivity extends Activity implements PosController.Listen
     if (isFinishing()) return;
     Snapshot data = controller.snapshot;
     if (forceSetup || controller.origin().isEmpty()) {
+      dismiss();
       if (!structure.equals("setup")) buildSetup();
       return;
     }
     if (data == null) {
+      // A stale order dialog must not survive logout/session expiry on top of the login screen.
+      dismiss();
       String key = "login:" + controller.staff.toString();
       if (!structure.equals(key)) buildLogin(key);
       if (message != null)
@@ -626,20 +630,24 @@ public final class MainActivity extends Activity implements PosController.Listen
   }
 
   public void confirm(String title, String message, Runnable action) {
-    new AlertDialog.Builder(this)
+    dismiss();
+    dialog = new AlertDialog.Builder(this)
         .setTitle(title)
         .setMessage(message)
         .setNegativeButton("Tillbaka", null)
         .setPositiveButton("Fortsätt", (d, w) -> safe(action))
-        .show();
+        .create();
+    dialog.show();
   }
 
   public void choose(String title, String[] labels, java.util.function.IntConsumer choice) {
-    new AlertDialog.Builder(this)
+    dismiss();
+    dialog = new AlertDialog.Builder(this)
         .setTitle(title)
         .setItems(labels, (d, i) -> safe(() -> choice.accept(i)))
         .setNegativeButton("Stäng", null)
-        .show();
+        .create();
+    dialog.show();
   }
 
   public void safe(Runnable action) {
