@@ -37,6 +37,7 @@ export type Session = {
   verified: boolean;
   enrolled: boolean;
   local: boolean;
+  mfaRequired?: boolean;
 };
 export async function session(): Promise<Session | null> {
   if (!cloud) {

@@ -14,10 +14,19 @@ async function login(page: Page) {
   await page.getByLabel("E-post", { exact: true }).fill(config.email);
   await page.getByLabel("Lösenord", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Logga in", exact: true }).click();
-  await expect(page.getByLabel("Sexsiffrig kod")).toBeVisible();
-  expect((await page.request.get("/api/meta")).status()).toBe(401);
-  await page.getByLabel("Sexsiffrig kod").fill(totp(config.secret));
-  await page.getByRole("button", { name: "Öppna Admin", exact: true }).click();
+  if (process.env.ADMIN_TEST_PASSWORD_ONLY === "1") {
+    await expect(page.getByLabel("Sexsiffrig kod")).toHaveCount(0);
+    await expect
+      .poll(async () => (await page.request.get("/api/auth/session")).json())
+      .toMatchObject({ verified: true, mfaRequired: false });
+  } else {
+    await expect(page.getByLabel("Sexsiffrig kod")).toBeVisible();
+    expect((await page.request.get("/api/meta")).status()).toBe(401);
+    await page.getByLabel("Sexsiffrig kod").fill(totp(config.secret));
+    await page
+      .getByRole("button", { name: "Öppna Admin", exact: true })
+      .click();
+  }
   await expect(
     page.getByRole("heading", { name: "Översikt", exact: true }),
   ).toBeVisible();
@@ -25,10 +34,17 @@ async function login(page: Page) {
     page.getByText("Försäljning efter returer", { exact: true }).first(),
   ).toBeVisible();
 }
-test("kräver egen inloggning och tvåsteg, stödjer filter, export och utloggning", async ({
+test("kräver inloggning enligt testets policy, stödjer filter, export och utloggning", async ({
   page,
 }) => {
   expect((await page.request.get("/api/meta")).status()).toBe(401);
+  expect(
+    (
+      await page.request.post("/api/auth/login", {
+        data: { email: "ansvarig@eleva.test", password: "incorrect-password" },
+      })
+    ).status(),
+  ).toBe(401);
   await login(page);
   await page.getByRole("button", { name: "Denna vecka", exact: true }).click();
   await expect(page.locator(".metric").first()).toContainText("kr");
@@ -121,6 +137,8 @@ test("visar fördröjning, låter konto fungera före synkning och rensar återk
   await expect(
     page.getByRole("heading", { name: "Din inloggning" }),
   ).toBeVisible();
+  if (process.env.ADMIN_TEST_PASSWORD_ONLY === "1")
+    await expect(page.getByText("Avstängd i lokalt test")).toBeVisible();
   await page.unroute("**/api/meta");
   await page.route("**/api/meta", (route) =>
     route.fulfill({ status: 403, json: { message: "Åtkomst återkallad." } }),

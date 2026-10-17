@@ -29,6 +29,8 @@ export default defineConfig({
     env: {
       ADMIN_LOCAL_DIR: directory,
       ADMIN_LOCAL_PORT: "5384",
+      ADMIN_LOCAL_REQUIRE_MFA:
+        process.env.ADMIN_TEST_PASSWORD_ONLY === "1" ? "false" : "true",
       APP_MODE: "training",
       PAYMENT_ADAPTER: "simulator",
       PRINT_ADAPTER: "preview",

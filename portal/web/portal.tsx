@@ -361,7 +361,9 @@ function Login({
           )}
           <div className="login-footer">
             <ShieldCheck size={15} />
-            Personlig inloggning · Tvåstegsverifiering
+            {local
+              ? "Personlig inloggning · Lokal testportal"
+              : "Personlig inloggning · Tvåstegsverifiering"}
           </div>
         </div>
       </div>
@@ -1088,10 +1090,14 @@ function Account({
           <div>
             <dt>Tvåstegsverifiering</dt>
             <dd>
-              <span className="badge success">
-                <Check size={13} />
-                Aktiv
-              </span>
+              {identity.local && identity.mfaRequired === false ? (
+                <span className="badge training">Avstängd i lokalt test</span>
+              ) : (
+                <span className="badge success">
+                  <Check size={13} />
+                  Aktiv
+                </span>
+              )}
             </dd>
           </div>
           <div>

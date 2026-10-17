@@ -8,6 +8,8 @@ Kräver Node 24 och `npm ci`. Bygg med `npm run admin:build`. Sätt `ADMIN_SOURC
 
 Kontot genereras i `%LOCALAPPDATA%/LagustosaPOS/eleva-admin/inloggning.txt`. Logga in med e-post och lösenord. Konfigurera tvåstegsverifieringen med QR-koden i en autentiseringsapp. För lokal verifiering på utvecklingsdatorn kan `Visa-Admin-kod.cmd` eller `npm run admin:code` visa aktuell testkod. Nyckeln gäller endast den lokala testportalen. Ingen e-post skickas av denna server.
 
+För endast den egna lokala testinstallationen kan `ADMIN_LOCAL_REQUIRE_MFA=false` sättas vid start. Valet sparas i installationens lokala kontofil och gäller även efter omstart. E-post och lösenord krävs fortfarande. Återaktivera med `ADMIN_LOCAL_REQUIRE_MFA=true`. Molnportalens Supabase-inloggning och krav på `aal2` påverkas inte.
+
 `ADMIN_LOCAL_DIR` och `ADMIN_LOCAL_PORT` skapar en separat lokal portal. En befintlig portal får inte automatiskt byta kassadatabas. Den lokala PostgreSQL-repliken kör samma migration, RLS-regler och mottagningstransaktion som molndatabasen. Den lokala inloggningen är en separat testimplementation; produktion använder Supabase Auth. Den lokala servern får inte publiceras eller portvidarebefordras.
 
 Utvecklingsgränssnitt: `npm run admin:dev` på 5193, med API-proxy till lokalservern på 5194. Byggda appen fungerar direkt på 5194.

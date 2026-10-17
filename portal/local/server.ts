@@ -33,6 +33,7 @@ type Config = {
   passwordHash: string;
   secret: string;
   enrolled: boolean;
+  requireMfa?: boolean;
 };
 let config: Config;
 if (existsSync(configFile))
@@ -56,8 +57,30 @@ else {
     { mode: 0o600 },
   );
 }
+// This setting belongs only to this loopback test server, never to Supabase Auth.
+if (process.env.ADMIN_LOCAL_REQUIRE_MFA !== undefined) {
+  config.requireMfa =
+    z.enum(["true", "false"]).parse(process.env.ADMIN_LOCAL_REQUIRE_MFA) ===
+    "true";
+  writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 });
+}
+const requireMfa = config.requireMfa !== false;
+const credentialsFile = path.join(directory, "inloggning.txt");
+if (existsSync(credentialsFile)) {
+  const text = readFileSync(credentialsFile, "utf8").replace(
+    /Tvåsteg(?:skod|sverifiering):[^\r\n]*/g,
+    requireMfa
+      ? "Tvåstegskod: kör npm run admin:code"
+      : "Tvåstegsverifiering: avstängd endast i denna lokala testportal",
+  );
+  writeFileSync(credentialsFile, text, { mode: 0o600 });
+}
 if (process.argv.includes("--code")) {
-  process.stdout.write(`Aktuell lokal testkod: ${totp(config.secret)}\n`);
+  process.stdout.write(
+    requireMfa
+      ? `Aktuell lokal testkod: ${totp(config.secret)}\n`
+      : "Tvåstegsverifieringen är avstängd i denna lokala testportal. Logga in med e-post och lösenord.\n",
+  );
   process.exit(0);
 }
 const port = Number(process.env.ADMIN_LOCAL_PORT ?? 5194);
@@ -109,14 +132,12 @@ app.addHook("onRequest", async (request, reply) => {
   }
 });
 app.setErrorHandler((error, _request, reply) => {
-  reply
-    .code(error instanceof z.ZodError ? 400 : 409)
-    .send({
-      message:
-        error instanceof z.ZodError
-          ? "Kontrollera uppgifterna."
-          : (error as Error).message,
-    });
+  reply.code(error instanceof z.ZodError ? 400 : 409).send({
+    message:
+      error instanceof z.ZodError
+        ? "Kontrollera uppgifterna."
+        : (error as Error).message,
+  });
 });
 app.post("/api/auth/login", async (request, reply) => {
   if (Date.now() < blockedUntil)
@@ -138,13 +159,18 @@ app.post("/api/auth/login", async (request, reply) => {
     return reply.code(401).send({ message: "Fel e-post eller lösenord." });
   }
   failures = 0;
+  sessions.delete(request.cookies.eleva_admin_local ?? "");
   const token = randomBytes(32).toString("base64url");
-  sessions.set(token, { stage: "password", expires: Date.now() + 600000 });
+  const lifetime = requireMfa ? 600 : 8 * 3600;
+  sessions.set(token, {
+    stage: requireMfa ? "password" : "verified",
+    expires: Date.now() + lifetime * 1000,
+  });
   reply.setCookie("eleva_admin_local", token, {
     path: "/",
     httpOnly: true,
     sameSite: "strict",
-    maxAge: 600,
+    maxAge: lifetime,
   });
   return { email: config.email, enrolled: config.enrolled };
 });
@@ -157,9 +183,16 @@ app.get("/api/auth/session", async (request, reply) => {
     verified: session.stage === "verified",
     enrolled: config.enrolled,
     local: true,
+    mfaRequired: requireMfa,
   };
 });
 app.get("/api/auth/enroll", async (request, reply) => {
+  if (!requireMfa)
+    return reply
+      .code(403)
+      .send({
+        message: "Tvåstegsverifieringen är avstängd i detta lokala test.",
+      });
   const session = sessions.get(request.cookies.eleva_admin_local ?? "");
   if (!session || session.expires < Date.now() || config.enrolled)
     return reply
@@ -169,6 +202,12 @@ app.get("/api/auth/enroll", async (request, reply) => {
   return { secret: config.secret, qr: await QRCode.toDataURL(uri) };
 });
 app.post("/api/auth/verify", async (request, reply) => {
+  if (!requireMfa)
+    return reply
+      .code(403)
+      .send({
+        message: "Logga in med e-post och lösenord i detta lokala test.",
+      });
   const token = request.cookies.eleva_admin_local ?? "",
     session = sessions.get(token);
   if (!session || session.expires < Date.now())
@@ -229,7 +268,11 @@ app.get("/api/:route", async (request, reply) => {
   if (!session || session.stage !== "verified" || session.expires < Date.now())
     return reply
       .code(401)
-      .send({ message: "Logga in med tvåstegsverifiering." });
+      .send({
+        message: requireMfa
+          ? "Logga in med tvåstegsverifiering."
+          : "Logga in med e-post och lösenord.",
+      });
   const current = await readReplica(db, config.installationId);
   if (!current)
     return reply
