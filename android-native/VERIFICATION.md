@@ -70,6 +70,8 @@ Samma distribuerade APK (SHA-256 ovan) provades separat i Android 35-emulatorn m
 
 Testdata sparades i en egen beständig träningsdatabas. Omstart av själva serverprocessen genomfördes inte i denna kontroll och räknas inte som verifierad. Detta var ett funktionstest; det ger inget nytt FPS-resultat.
 
+Samma APK och nottest godkändes även i **BlueStacks, Android 9**, den 2026-10-17: **OK (1 test)** på 34,305 sekunder. Där provades den breda huvudkasselayouten. Appen anslöts till samma separata träningsserver via `adb reverse tcp:4196 tcp:4196` och testargumentet `server=http://127.0.0.1:4196`. Native-appen och den tidigare hybridappen var installerade som separata paket. Android Studios emulator var stängd under BlueStacks-provet. Tiden är testets körtid, inte en FPS-mätning.
+
 Kör på en dedikerad emulator som anslutits till samma isolerade träningsserver. Anpassa enhetskoden till serverns testkod:
 
 ```sh
