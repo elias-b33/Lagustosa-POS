@@ -1,0 +1,72 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'se.restaurant.nativepos'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'se.restaurant.nativepos'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0-native'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildFeatures { buildConfig true }
+    buildTypes {
+        debug { applicationIdSuffix '.test'; versionNameSuffix '-test' }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        optimized {
+            initWith release
+            applicationIdSuffix '.test'
+            versionNameSuffix '-test'
+            signingConfig signingConfigs.debug
+            // R8/resource optimisation with local-network diagnostics for terminal trials.
+            debuggable true
+            matchingFallbacks = ['release']
+        }
+    }
+    sourceSets { optimized { res.srcDirs = ['src/debug/res'] } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    testOptions { unitTests.returnDefaultValues = true }
+}
+dependencies {
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+}
+
+// Bundle exact dependency versions and upstream license/notice files in the APK.
+def nativeNoticesDirectory = layout.buildDirectory.dir('generated/native-notices')
+android.sourceSets.main.assets.srcDir(nativeNoticesDirectory)
+def writeNativeNotices = tasks.register('writeNativeNotices') {
+    inputs.files(configurations.optimizedRuntimeClasspath)
+    inputs.file('src/main/assets/APACHE-2.0.txt')
+    outputs.dir(nativeNoticesDirectory)
+    doLast {
+        def artifacts = configurations.optimizedRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.sort { it.moduleVersion.id.toString() }
+        def output = nativeNoticesDirectory.get().file('THIRD_PARTY_NOTICES.txt').asFile
+        output.parentFile.mkdirs()
+        def text = new StringBuilder('Restaurangkassa Native — third-party components\n\n')
+        text.append('AndroidX: The Android Open Source Project. Kotlin and JetBrains annotations: JetBrains. Guava: Google.\n')
+        text.append('These dependencies are distributed under Apache License 2.0; see APACHE-2.0.txt and notices below.\n\n')
+        artifacts.each { text.append(it.moduleVersion.id).append('\n') }
+        artifacts.each { artifact ->
+            def archives = [artifact.file]
+            if(artifact.file.name.endsWith('.aar')) archives += zipTree(artifact.file).matching { include '**/classes.jar' }.files
+            archives.each { archive ->
+                zipTree(archive).matching { include '**/LICENSE*', '**/NOTICE*', '**/COPYING*' }.files.sort().each { notice ->
+                    if(notice.length() < 524288) text.append('\n\n--- ').append(artifact.moduleVersion.id).append(' / ').append(notice.name).append(' ---\n').append(notice.getText('UTF-8'))
+                }
+            }
+        }
+        output.setText(text.toString(), 'UTF-8')
+    }
+}
+tasks.named('preBuild').configure { dependsOn writeNativeNotices }

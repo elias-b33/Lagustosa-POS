@@ -1,0 +1,1 @@
+{"metric":"Android HWUI TOTAL_DURATION; first-draw frames excluded","samples":455,"droppedMetrics":0,"p50Ms":5.657066,"p95Ms":18.324484,"p99Ms":18.746496,"framesOver16_7ms":121,"framesOver33_3ms":0,"device":"Android SDK built for x86_64","androidApi":35,"physicalTerminalVerified":false,"articles":351,"visibleHolders":6,"createdHolders":14}

@@ -1,0 +1,20 @@
+plugins { id 'com.android.test' }
+android {
+    namespace 'se.restaurant.nativepos.smoke'
+    compileSdk 35
+    defaultConfig {
+        minSdk 26
+        targetSdk 35
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    targetProjectPath = ':app'
+    experimentalProperties['android.experimental.self-instrumenting'] = true
+    buildTypes { optimized { debuggable true; signingConfig signingConfigs.debug } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+androidComponents { beforeVariants(selector().all()) { it.enable = it.buildType == 'optimized' } }
+dependencies {
+    implementation 'androidx.test:runner:1.6.2'
+    implementation 'androidx.test.ext:junit:1.2.1'
+    implementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+}
