@@ -48,7 +48,7 @@ adb shell am instrument -w -r -e class se.restaurant.nativepos.NativeWorkflowTes
 
 adb install -r android-native/app/build/outputs/apk/optimized/app-optimized.apk
 adb install -r android-native/smoke/build/outputs/apk/optimized/smoke-optimized.apk
-adb shell am instrument -w -r se.restaurant.nativepos.smoke/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -r -e class se.restaurant.nativepos.smoke.OptimizedApkTest se.restaurant.nativepos.smoke/androidx.test.runner.AndroidJUnitRunner
 ```
 
 Kontrollera att resultatet faktiskt innehåller `OK (...)`; Androids instrumenteringskommando kan avslutas med processkod 0 även om ett test misslyckades.
@@ -57,6 +57,24 @@ Kontrollera att resultatet faktiskt innehåller `OK (...)`; Androids instrumente
 - Instrumentering i debug-appen provar riktig inloggning, nota, order, tappat svar efter servercommit, omstart av aktivitet, samma idempotensnyckel och exakt två artiklar, utslag och träningsbetalning. Stresstest: 300 extra artiklar, 40 notor med 25 rader vardera, scrollning och sökning; antalet skapade/synliga rader måste vara begränsat.
 - Den separata `smoke`-modulen provar den faktiska R8-APK:n utifrån via Android UI Automator. Den länkar inte mot appens interna klasser eller lägger in testbibliotek i appen. Den provar installation, anslutning, köpflöde, tappat svar, tvångsstängning av hela processen, återhämtning, betalning, scrollning och huvudkasselayout.
 - GitHub Actions bygger APK och osignerad release, kör JVM-tester/Lint och bygger Android-testpaketen. Emulatorflödena ovan körs lokalt; CI-jobbet påstår inte att det har kört dem.
+
+### Obetalda disknotor, verifierat 2026-10-17
+
+Samma distribuerade APK (SHA-256 ovan) provades separat i Android 35-emulatorn med 1 GB RAM och två processorkärnor. `UnpaidTabsTest` gav **OK (1 test)** på 51,509 sekunder. Ingen appkod eller APK ändrades för denna kontroll.
+
+- Två disknotor skapades via Android-gränssnittet med en Cola vardera. Byte till en ny/annan nota krävde ingen betalning.
+- En oskickad rad togs bort. Efter ett nytt tillägg och utskick togs även den skickade raden bort som **Ansvarig**.
+- Den andra notans artikel påverkades inte. Den första notan fylldes på igen och hämtades fram från **Bord**.
+- Hela appens process tvångsstängdes och startades igen. Båda notorna var fortfarande öppna, artikelraden gick att visa och servern innehöll noll betalningar.
+- Ett separat API-prov bekräftade att **Servering** får ta bort oskickade/väntande rader, nekas borttagning av en skickad rad, och att **Ansvarig** kan makulera den skickade raden med makuleringsbong.
+
+Testdata sparades i en egen beständig träningsdatabas. Omstart av själva serverprocessen genomfördes inte i denna kontroll och räknas inte som verifierad. Detta var ett funktionstest; det ger inget nytt FPS-resultat.
+
+Kör på en dedikerad emulator som anslutits till samma isolerade träningsserver. Anpassa enhetskoden till serverns testkod:
+
+```sh
+adb shell am instrument -w -r -e class se.restaurant.nativepos.smoke.UnpaidTabsTest -e server http://10.0.2.2:4196 -e deviceCode LAGUSTOSA-TEST se.restaurant.nativepos.smoke/androidx.test.runner.AndroidJUnitRunner
+```
 
 ## Terminalprov före pilot
 

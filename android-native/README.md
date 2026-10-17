@@ -19,6 +19,20 @@ Native inloggning och PIN-knappsats; handkassa och huvudkassa; meny, sökning oc
 
 Bord visas som en snabb lista. Köket hanterar hela bongens status. Webbversionens grafiska bordsplan och eventuella senare funktioner för stationsindelning/beredning per artikel är inte kopierade. Servern är fortfarande källa för moms, betalningsfördelning, journal och kontrollkoder. Alla administrativa funktioner och hårdvarukombinationer behöver restaurangens acceptanstest före pilot.
 
+## Obetalda notor och feltryck
+
+En nota och dess artikelrader sparas på kassaservern när respektive åtgärd bekräftas. Betalning är ett separat steg. **Skicka till kök & bar** skickar beställningen till beredning; det behövs inte för att spara en oskickad beställning.
+
+- På handkassa: välj **‹ Till menyn** från notan. Öppna en annan via **Välj nota** överst, **+ Ny nota** eller **Bord**. Disknotor finns efter borden i bordlistan.
+- På huvudkassa: menyn, valet av nota och **+ Ny nota** visas bredvid den aktuella notan.
+- Ta bort en artikel genom att trycka på raden i notan, välja **Ta bort artikel**, ange orsak och bekräfta. Det tar bort hela raden, inklusive dess antal.
+- **Servering** får ta bort oskickade och väntande rader. En redan skickad rad kräver **Kassa** eller **Ansvarig** och skapar en makuleringsbong. Betalda notor rättas med retur. En påbörjad eller godkänd delbetalning spärrar andra ändringar på den notan tills betalningsflödet är utrett/slutfört.
+- Avsluta en tom disknota via **Gäster · flytta · rabatt → Avsluta tom nota**.
+
+Obetalda notor finns kvar efter omstart när appen ansluter till samma serverdatabas. En ny, tom testdatabas innehåller inte den förra databasens notor. Nya ändringar kräver serverkontakt.
+
+Det separata APK-testet `se.restaurant.nativepos.smoke.UnpaidTabsTest` provar två öppna disknotor, byte utan betalning, borttagning före/efter utskick, återöppning via bordlistan och bevarande efter omstart av appen. Kör det enbart mot en isolerad träningsserver. Det lämnar två obetalda provnotor och rensar inte appdata. Instrumenteringsargumenten `server` och `deviceCode` kan anpassas; standard är Android-emulatorns `http://10.0.2.2:4196` och den äldre testkod som nämns nedan.
+
 ## Installera på Samsung eller emulator
 
 1. Bygg eller hämta `Restaurangkassa-native-test.apk`. GitHub Actions publicerar också `app-optimized.apk` i artefakten **restaurangkassa-native-test** för denna gren.
