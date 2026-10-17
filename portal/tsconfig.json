@@ -1,0 +1,1 @@
+{"extends":"../tsconfig.json","compilerOptions":{"allowImportingTsExtensions":true},"include":["web","shared","sync","local","scripts","vite.config.ts"],"exclude":["supabase"]}

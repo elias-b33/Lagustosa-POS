@@ -19,3 +19,6 @@ web/public/licenses/generated/
 *.pem
 *.key
 *.pfx
+portal/web/public/licenses/
+portal/supabase/.temp/
+portal/supabase/.branches/

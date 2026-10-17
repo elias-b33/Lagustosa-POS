@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24 <25" },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
     "build": "node scripts/generate-third-party-notices.mjs && tsc --noEmit && vite build && tsup server/index.ts --format esm --out-dir dist/server --platform node --target node24 --external better-sqlite3",
@@ -19,12 +21,22 @@
     "certs": "node scripts/create-certs.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
-    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1"
+    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
+    "admin:dev": "vite --config portal/vite.config.ts",
+    "admin:check": "tsc --noEmit -p portal/tsconfig.json",
+    "admin:build": "npm run admin:check && node portal/scripts/build.mjs",
+    "admin:local": "tsx portal/local/server.ts",
+    "admin:code": "tsx portal/local/server.ts --code",
+    "admin:sync": "tsx portal/sync/worker.ts",
+    "admin:build:cloud": "npm run admin:check && node portal/scripts/build.mjs --cloud",
+    "admin:provision": "tsx portal/scripts/provision.ts",
+    "test:admin": "playwright test --config playwright.admin.config.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
     "@fastify/static": "10.1.6",
     "@peculiar/x509": "2.1.0",
+    "@supabase/supabase-js": "^2.118.0",
     "better-sqlite3": "13.0.3",
     "dotenv": "^17.2.0",
     "fastify": "5.12.5",
@@ -34,15 +46,21 @@
     "reflect-metadata": "^0.2.2",
     "zod": "^4.3.0"
   },
-  "overrides": { "esbuild": "0.28.2" },
+  "overrides": {
+    "esbuild": "0.28.2"
+  },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@playwright/test": "1.64.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.0.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",
     "concurrently": "^9.2.0",
+    "qrcode": "^1.5.4",
+    "supabase": "^2.121.0",
     "tsup": "^8.5.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

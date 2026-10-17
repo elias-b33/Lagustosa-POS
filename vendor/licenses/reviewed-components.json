@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-10-13",
+  "reviewedAt": "2026-10-17",
   "scope": "Installed runtime package metadata and preserved license texts; supplemental build-helper notices; bundled font and separately shipped Node binary. This is not a complete legal clearance or copyright ownership certificate.",
   "packages": [
     {
@@ -1209,6 +1209,110 @@
           "sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
         }
       ]
+    },
+    {
+      "path": "node_modules/@supabase/auth-js",
+      "name": "@supabase/auth-js",
+      "version": "2.118.0",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/@supabase/functions-js",
+      "name": "@supabase/functions-js",
+      "version": "2.118.0",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/@supabase/phoenix",
+      "name": "@supabase/phoenix",
+      "version": "0.4.5",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE.md",
+          "sha256": "41a686069f0199ff369d7e5277d5267385cc54d9199f1efc960bacbe2e799255"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/@supabase/postgrest-js",
+      "name": "@supabase/postgrest-js",
+      "version": "2.118.0",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/@supabase/realtime-js",
+      "name": "@supabase/realtime-js",
+      "version": "2.118.0",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/@supabase/storage-js",
+      "name": "@supabase/storage-js",
+      "version": "2.118.0",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/@supabase/supabase-js",
+      "name": "@supabase/supabase-js",
+      "version": "2.118.0",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "334dd6820e2eaeab2064e7c59001b810566728a28a41a7c1dbf69bbee17d0936"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
+    },
+    {
+      "path": "node_modules/iceberg-js",
+      "name": "iceberg-js",
+      "version": "0.8.1",
+      "declaredLicense": "MIT",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "e6e972dba808fb9d80863fe90ca222a47710cb850f6e6e2af95cdc0d022f79bd"
+        }
+      ],
+      "reviewNote": "MIT notice reviewed for Eleva Admin; preserve complete copyright and permission notice in distributed builds."
     }
   ],
   "buildHelpers": [

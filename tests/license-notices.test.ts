@@ -61,7 +61,7 @@ afterEach(() => {
 describe('Release license notices', () => {
   it('preserves complete installed runtime notices including Lucide MIT portions and separate copyright notices', () => {
     const result = collectNotices(sourceRoot);
-    expect(result.manifest.runtimePackages).toHaveLength(99);
+    expect(result.manifest.runtimePackages).toHaveLength(107);
     expect(result.manifest.buildHelperNotices).toHaveLength(4);
     expect(result.notices).toContain(read(sourceRoot, 'node_modules/lucide-react/LICENSE').replace(/\r\n?/g, '\n').trimEnd());
     expect(result.notices).toContain(read(sourceRoot, 'node_modules/reflect-metadata/CopyrightNotice.txt').replace(/\r\n?/g, '\n').trimEnd());
