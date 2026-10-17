@@ -11,7 +11,7 @@ Separat Android-app med vanliga Android-vyer och RecyclerView. Inget WebView, in
 - Release-varianten har app-id `se.restaurant.nativepos`. Egen produktionssignering krävs senare.
 - Webbklient, server, befintligt Android-projekt och tidigare APK ändras inte av detta projekt eller dess byggskript.
 - Apparna använder samma server-API. Om två appar ansluts till samma server arbetar de med samma serverdata. Använd en separat träningsdatabas under provningen.
-- Grenen `codex/android-native` utgår från `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8c`. Ingenting behöver slås ihop med `main` för att bygga native-appen.
+- Grenen `codex/android-native` utgår från `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8`. Ingenting behöver slås ihop med `main` för att bygga native-appen.
 
 ## Det som finns
 

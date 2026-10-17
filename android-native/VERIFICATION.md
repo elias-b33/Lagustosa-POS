@@ -1,6 +1,6 @@
 # Verifiering av native-appen
 
-Serverbas: GitHub-commit `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8c`. Android-kodens resultat nedan hör till denna separata native-gren och säger inget om webbklientens prestanda.
+Serverbas: GitHub-commit `7061d4a1011e67ae85ad86d7e4ee2f31795da5a8`. Android-kodens resultat nedan hör till denna separata native-gren och säger inget om webbklientens prestanda.
 
 ## Utfall 2026-10-17
 
