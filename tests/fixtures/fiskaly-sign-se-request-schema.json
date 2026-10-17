@@ -1,0 +1,4452 @@
+{
+  "source": "https://workspace.fiskaly.com/specs/fiskaly.uapi.sign-se.2026-06-01.yaml",
+  "retrievedAt": "2026-10-17",
+  "sourceSha256": "f3265ec696ee9817e6f18bbfeeb4a5e411b48d703c065078189efb1d35ac0b0b",
+  "components": {
+    "schemas": {
+      "AbortDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/AbortProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AbortProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "AbortTransaction": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ABORT"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/AbortDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Address": {
+        "type": "object",
+        "required": [
+          "line",
+          "code",
+          "city",
+          "country"
+        ],
+        "properties": {
+          "line": {
+            "$ref": "#/components/schemas/AddressLine"
+          },
+          "code": {
+            "$ref": "#/components/schemas/AddressCode"
+          },
+          "city": {
+            "$ref": "#/components/schemas/AddressCity"
+          },
+          "country": {
+            "$ref": "#/components/schemas/AddressCountry"
+          },
+          "region": {
+            "$ref": "#/components/schemas/AddressRegion"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AddressCity": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AddressCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AddressCountry": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CountryCode2"
+          }
+        ]
+      },
+      "AddressInfix": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AddressLine": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/StreetNumberAddressLine"
+          }
+        ]
+      },
+      "AddressNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AddressPrefix": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AddressRegion": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString64"
+          }
+        ]
+      },
+      "AddressStreet": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AddressSuffix": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "AlphaNumerical20": {
+        "type": "string",
+        "pattern": "^( *[0-9A-Za-z.\\-_/] *)*$",
+        "minLength": 1,
+        "maxLength": 20
+      },
+      "AlphaNumerical28": {
+        "type": "string",
+        "pattern": "^( *[0-9A-Za-z.\\-_/] *)*$",
+        "minLength": 1,
+        "maxLength": 28
+      },
+      "AlphaNumerical32": {
+        "type": "string",
+        "pattern": "^( *[0-9A-Za-z.\\-_/] *)*$",
+        "minLength": 1,
+        "maxLength": 32
+      },
+      "ApiKeyString": {
+        "type": "string"
+      },
+      "ApiKeyToken": {
+        "type": "object",
+        "required": [
+          "type",
+          "key",
+          "secret"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "API_KEY"
+            ]
+          },
+          "key": {
+            "$ref": "#/components/schemas/ApiKeyString"
+          },
+          "secret": {
+            "$ref": "#/components/schemas/ApiSecretString"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ApiSecretString": {
+        "type": "string"
+      },
+      "BaseValue": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "BusinessRecipient": {
+        "type": "object",
+        "required": [
+          "type",
+          "name",
+          "address",
+          "identification"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "BUSINESS"
+            ]
+          },
+          "name": {
+            "$ref": "#/components/schemas/LegalName"
+          },
+          "address": {
+            "$ref": "#/components/schemas/LegalAddress"
+          },
+          "shipping": {
+            "$ref": "#/components/schemas/Shipping"
+          },
+          "buyer_id": {
+            "$ref": "#/components/schemas/BuyerIdentifier"
+          },
+          "company_id": {
+            "$ref": "#/components/schemas/CompanyIdentifier"
+          },
+          "identification": {
+            "$ref": "#/components/schemas/Identification"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/RecipientOrigin"
+          },
+          "invoicing": {
+            "$ref": "#/components/schemas/RecipientInvoicing"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BuyerIdentifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 30
+      },
+      "CancellationDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/CancellationProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancellationProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "CancellationReason": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "CancellationRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordReference"
+          }
+        ]
+      },
+      "CancellationTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "record"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CANCELLATION"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/CancellationRecord"
+          },
+          "details": {
+            "$ref": "#/components/schemas/CancellationDetails"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CancellationReason"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CardPayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "details",
+          "number",
+          "kind"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CARD"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          },
+          "number": {
+            "$ref": "#/components/schemas/PaymentCardNumber"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PaymentCardKind"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CashPayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CASH"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClosingIntention": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CLOSING"
+            ]
+          },
+          "period": {
+            "$ref": "#/components/schemas/ClosingPeriod"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClosingPeriod": {
+        "type": "string",
+        "enum": [
+          "DAILY"
+        ]
+      },
+      "CompanyIdentifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 20
+      },
+      "ConsumerRecipient": {
+        "type": "object",
+        "required": [
+          "type",
+          "name",
+          "address"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CONSUMER"
+            ]
+          },
+          "name": {
+            "$ref": "#/components/schemas/NaturalName"
+          },
+          "address": {
+            "$ref": "#/components/schemas/NaturalAddress"
+          },
+          "shipping": {
+            "$ref": "#/components/schemas/Shipping"
+          },
+          "identification": {
+            "$ref": "#/components/schemas/Identification"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/RecipientOrigin"
+          },
+          "invoicing": {
+            "$ref": "#/components/schemas/RecipientInvoicing"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Content": {
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ContentType"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ContentData"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContentData": {
+        "type": "string",
+        "format": "byte",
+        "maxLength": 65536
+      },
+      "ContentType": {
+        "type": "string",
+        "enum": [
+          "application/json",
+          "application/xml",
+          "application/pdf",
+          "application/zip"
+        ]
+      },
+      "CorrectionData": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ReceiptTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/InvoiceTransaction"
+          }
+        ]
+      },
+      "CorrectionDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/CorrectionProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CorrectionProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "CorrectionReason": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "CorrectionRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordReference"
+          }
+        ]
+      },
+      "CorrectionTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "record",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CORRECTION"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/CorrectionRecord"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CorrectionData"
+          },
+          "details": {
+            "$ref": "#/components/schemas/CorrectionDetails"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CorrectionReason"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CountryCode2": {
+        "allOf": [
+          {
+            "type": "string",
+            "enum": [
+              "AD",
+              "AE",
+              "AF",
+              "AG",
+              "AI",
+              "AL",
+              "AM",
+              "AO",
+              "AQ",
+              "AR",
+              "AS",
+              "AT",
+              "AU",
+              "AW",
+              "AX",
+              "AZ",
+              "BA",
+              "BB",
+              "BD",
+              "BE",
+              "BF",
+              "BG",
+              "BH",
+              "BQ",
+              "BI",
+              "BJ",
+              "BL",
+              "BM",
+              "BN",
+              "BO",
+              "BR",
+              "BS",
+              "BT",
+              "BV",
+              "BW",
+              "BY",
+              "BZ",
+              "CA",
+              "CC",
+              "CD",
+              "CF",
+              "CG",
+              "CH",
+              "CI",
+              "CK",
+              "CL",
+              "CM",
+              "CN",
+              "CO",
+              "CR",
+              "CU",
+              "CV",
+              "CW",
+              "CX",
+              "CY",
+              "CZ",
+              "DE",
+              "DJ",
+              "DK",
+              "DM",
+              "DO",
+              "DZ",
+              "EC",
+              "EE",
+              "EG",
+              "EH",
+              "ER",
+              "ES",
+              "ET",
+              "FI",
+              "FJ",
+              "FK",
+              "FM",
+              "FO",
+              "FR",
+              "GA",
+              "GB",
+              "GD",
+              "GE",
+              "GF",
+              "GG",
+              "GH",
+              "GI",
+              "GL",
+              "GM",
+              "GN",
+              "GP",
+              "GQ",
+              "GR",
+              "GS",
+              "GT",
+              "GU",
+              "GW",
+              "GY",
+              "HK",
+              "HM",
+              "HN",
+              "HR",
+              "HT",
+              "HU",
+              "ID",
+              "IE",
+              "IL",
+              "IM",
+              "IN",
+              "IO",
+              "IQ",
+              "IR",
+              "IS",
+              "IT",
+              "JE",
+              "JM",
+              "JO",
+              "JP",
+              "KE",
+              "KG",
+              "KH",
+              "KI",
+              "KM",
+              "KN",
+              "KP",
+              "KR",
+              "KW",
+              "KY",
+              "KZ",
+              "LA",
+              "LB",
+              "LC",
+              "LI",
+              "LK",
+              "LR",
+              "LS",
+              "LT",
+              "LU",
+              "LV",
+              "LY",
+              "MA",
+              "MC",
+              "MD",
+              "ME",
+              "MF",
+              "MG",
+              "MH",
+              "MK",
+              "ML",
+              "MM",
+              "MN",
+              "MO",
+              "MP",
+              "MQ",
+              "MR",
+              "MS",
+              "MT",
+              "MU",
+              "MV",
+              "MW",
+              "MX",
+              "MY",
+              "MZ",
+              "NA",
+              "NC",
+              "NE",
+              "NF",
+              "NG",
+              "NI",
+              "NL",
+              "NO",
+              "NP",
+              "NR",
+              "NU",
+              "NZ",
+              "OM",
+              "PA",
+              "PE",
+              "PF",
+              "PG",
+              "PH",
+              "PK",
+              "PL",
+              "PM",
+              "PN",
+              "PR",
+              "PS",
+              "PT",
+              "PW",
+              "PY",
+              "QA",
+              "RE",
+              "RO",
+              "RS",
+              "RU",
+              "RW",
+              "SA",
+              "SB",
+              "SC",
+              "SD",
+              "SE",
+              "SG",
+              "SH",
+              "SI",
+              "SJ",
+              "SK",
+              "SL",
+              "SM",
+              "SN",
+              "SO",
+              "SR",
+              "SS",
+              "ST",
+              "SV",
+              "SX",
+              "SY",
+              "SZ",
+              "TC",
+              "TD",
+              "TF",
+              "TG",
+              "TH",
+              "TJ",
+              "TK",
+              "TL",
+              "TM",
+              "TN",
+              "TO",
+              "TR",
+              "TT",
+              "TV",
+              "TW",
+              "TZ",
+              "UA",
+              "UG",
+              "UM",
+              "US",
+              "UY",
+              "UZ",
+              "VA",
+              "VC",
+              "VE",
+              "VG",
+              "VI",
+              "VN",
+              "VU",
+              "WF",
+              "WS",
+              "YE",
+              "YT",
+              "ZA",
+              "ZM",
+              "ZW"
+            ]
+          }
+        ]
+      },
+      "CreditTransferPaymentInstruction": {
+        "type": "object",
+        "required": [
+          "type",
+          "account",
+          "name",
+          "payment_service_provider"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CREDIT_TRANSFER"
+            ]
+          },
+          "account": {
+            "$ref": "#/components/schemas/InternationalBankAccountNumber"
+          },
+          "name": {
+            "$ref": "#/components/schemas/PaymentInstructionName"
+          },
+          "payment_service_provider": {
+            "$ref": "#/components/schemas/PaymentInstructionServiceProvider"
+          },
+          "text": {
+            "$ref": "#/components/schemas/PaymentInstructionText"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/PaymentInstructionProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreditorIdentifier": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SingleEuroPaymentsAreaCreditorIdentifier"
+          }
+        ]
+      },
+      "CurrencyFormatISO4217": {
+        "type": "string",
+        "enum": [
+          "CZK",
+          "EUR",
+          "SEK"
+        ]
+      },
+      "Customer": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ExternalCustomer"
+          },
+          {
+            "$ref": "#/components/schemas/InternalCustomer"
+          }
+        ]
+      },
+      "CustomerCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "DateFormatISO8601": {
+        "type": "string",
+        "pattern": "^[0-9]{4}-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$",
+        "minLength": 10,
+        "maxLength": 10
+      },
+      "DatetimeFormatRFC3339": {
+        "type": "string",
+        "format": "date-time",
+        "minLength": 25,
+        "maxLength": 25
+      },
+      "Decimal12p8": {
+        "type": "string",
+        "pattern": "^(-)?\\d{1,12}(\\.\\d{1,8})?$"
+      },
+      "DirectDebitPaymentInstruction": {
+        "type": "object",
+        "required": [
+          "type",
+          "mandate_reference",
+          "creditor_id",
+          "debited_account"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DIRECT_DEBIT"
+            ]
+          },
+          "mandate_reference": {
+            "$ref": "#/components/schemas/PaymentInstructionMandateReference"
+          },
+          "creditor_id": {
+            "$ref": "#/components/schemas/CreditorIdentifier"
+          },
+          "debited_account": {
+            "$ref": "#/components/schemas/InternationalBankAccountNumber"
+          },
+          "text": {
+            "$ref": "#/components/schemas/PaymentInstructionText"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/PaymentInstructionProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DiscountValue": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "Document": {
+        "type": "object",
+        "required": [
+          "number"
+        ],
+        "properties": {
+          "number": {
+            "$ref": "#/components/schemas/DocumentNumber"
+          },
+          "series": {
+            "$ref": "#/components/schemas/DocumentSeries"
+          },
+          "text": {
+            "$ref": "#/components/schemas/DocumentText"
+          },
+          "activity_code": {
+            "$ref": "#/components/schemas/DocumentActivityCode"
+          },
+          "issued_at": {
+            "$ref": "#/components/schemas/DocumentIssuingTimestamp"
+          },
+          "operation_date": {
+            "$ref": "#/components/schemas/DocumentOperationDate"
+          },
+          "payment_terms": {
+            "$ref": "#/components/schemas/DocumentPaymentTerms"
+          },
+          "references": {
+            "$ref": "#/components/schemas/DocumentReferences"
+          },
+          "offline": {
+            "$ref": "#/components/schemas/DocumentOffline"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentActivityCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString32"
+          }
+        ]
+      },
+      "DocumentIdentification": {
+        "type": "object",
+        "required": [
+          "type",
+          "number"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DOCUMENT"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/IdentificationNumber"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentIdentifier": {
+        "type": "string",
+        "pattern": "^[0-9A-Z_/\\-\\.]{1,20}$",
+        "minLength": 1,
+        "maxLength": 20
+      },
+      "DocumentIssuingTimestamp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DatetimeFormatRFC3339"
+          }
+        ]
+      },
+      "DocumentNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DocumentIdentifier"
+          }
+        ]
+      },
+      "DocumentOffline": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/DocumentOfflineReason"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/DocumentOfflineReference"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentOfflineReason": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "DocumentOfflineReference": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "DocumentOperationDate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DateFormatISO8601"
+          }
+        ]
+      },
+      "DocumentPaymentTerms": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString1024"
+          }
+        ]
+      },
+      "DocumentReferences": {
+        "type": "object",
+        "properties": {
+          "buyer": {
+            "$ref": "#/components/schemas/DocumentReferencesBuyer"
+          },
+          "project": {
+            "$ref": "#/components/schemas/DocumentReferencesProject"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/DocumentReferencesContract"
+          },
+          "purchase_order": {
+            "$ref": "#/components/schemas/DocumentReferencesPurchaseOrder"
+          },
+          "despatch_advice": {
+            "$ref": "#/components/schemas/DocumentReferencesDespatchAdvice"
+          },
+          "tender": {
+            "$ref": "#/components/schemas/DocumentReferencesTender"
+          },
+          "buyer_routing": {
+            "$ref": "#/components/schemas/DocumentReferencesBuyerRouting"
+          },
+          "preceding_document": {
+            "$ref": "#/components/schemas/DocumentReferencesPrecedingDocument"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentReferencesBuyer": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentReferencesBuyerRouting": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentReferencesContract": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentReferencesDespatchAdvice": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentReferencesPrecedingDocument": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "$ref": "#/components/schemas/DocumentReferencesPrecedingDocumentNumber"
+          },
+          "issued_at": {
+            "$ref": "#/components/schemas/DocumentReferencesPrecedingDocumentIssuedAt"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DocumentReferencesPrecedingDocumentIssuedAt": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DateFormatISO8601"
+          }
+        ]
+      },
+      "DocumentReferencesPrecedingDocumentNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DocumentIdentifier"
+          }
+        ]
+      },
+      "DocumentReferencesProject": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentReferencesPurchaseOrder": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentReferencesTender": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical32"
+          }
+        ]
+      },
+      "DocumentSeries": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DocumentIdentifier"
+          }
+        ]
+      },
+      "DocumentText": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "DraftReceiptDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/DraftReceiptProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DraftReceiptProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "DraftReceiptTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "document",
+          "entries",
+          "breakdown",
+          "totals"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DRAFT_RECEIPT"
+            ]
+          },
+          "document": {
+            "$ref": "#/components/schemas/ReceiptDocument"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/Entries"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/VatBreakdown"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "details": {
+            "$ref": "#/components/schemas/DraftReceiptDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DuplicateDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/DuplicateProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DuplicateIntention": {
+        "type": "object",
+        "required": [
+          "type",
+          "record",
+          "number",
+          "reason"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DUPLICATE"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/RecordReference"
+          },
+          "number": {
+            "$ref": "#/components/schemas/DuplicateNumber"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DuplicateReason"
+          },
+          "details": {
+            "$ref": "#/components/schemas/DuplicateDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DuplicateNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnsignedInteger4"
+          }
+        ]
+      },
+      "DuplicateProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "DuplicateReason": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "EmailAddress": {
+        "type": "string",
+        "format": "email",
+        "maxLength": 256
+      },
+      "EnrichmentDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/EnrichmentProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnrichmentProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "EnrichmentRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordReference"
+          }
+        ]
+      },
+      "EnrichmentTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "record",
+          "recipients",
+          "breakdown"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ENRICHMENT"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/EnrichmentRecord"
+          },
+          "recipients": {
+            "$ref": "#/components/schemas/Recipients"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/VatBreakdown"
+          },
+          "details": {
+            "$ref": "#/components/schemas/EnrichmentDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Entry"
+        },
+        "minItems": 1,
+        "maxItems": 1000
+      },
+      "Entry": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SaleEntry"
+          },
+          {
+            "$ref": "#/components/schemas/ReturnEntry"
+          },
+          {
+            "$ref": "#/components/schemas/VoucherEntry"
+          }
+        ]
+      },
+      "EntryConcept": {
+        "type": "string",
+        "enum": [
+          "GOOD",
+          "SERVICE"
+        ]
+      },
+      "EntryData": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ItemEntry"
+          },
+          {
+            "$ref": "#/components/schemas/GroupEntry"
+          }
+        ]
+      },
+      "EntryDetails": {
+        "type": "object",
+        "required": [
+          "concept"
+        ],
+        "properties": {
+          "concept": {
+            "$ref": "#/components/schemas/EntryConcept"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/EntryPurpose"
+          },
+          "regulatory": {
+            "$ref": "#/components/schemas/EntryRegulatory"
+          },
+          "label": {
+            "$ref": "#/components/schemas/EntryLabel"
+          },
+          "number": {
+            "$ref": "#/components/schemas/EntryNumber"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/EntryProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EntryLabel": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "EntryNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnsignedInteger4"
+          }
+        ]
+      },
+      "EntryProperties": {
+        "type": "object",
+        "maxProperties": 32,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "EntryPurpose": {
+        "type": "string",
+        "enum": [
+          "STANDARD",
+          "GIFT"
+        ],
+        "default": "STANDARD"
+      },
+      "EntryRegulatory": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "EntryText": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "EntryValue": {
+        "type": "object",
+        "required": [
+          "base"
+        ],
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/BaseValue"
+          },
+          "discount": {
+            "$ref": "#/components/schemas/DiscountValue"
+          },
+          "surcharge": {
+            "$ref": "#/components/schemas/SurchargeValue"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EntryVat": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/VatRateCategory"
+          },
+          {
+            "$ref": "#/components/schemas/VatExemptionCategory"
+          },
+          {
+            "$ref": "#/components/schemas/VatReverseChargeCategory"
+          }
+        ]
+      },
+      "EventCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString32"
+          }
+        ]
+      },
+      "EventDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/EventProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventIntention": {
+        "type": "object",
+        "required": [
+          "type",
+          "code",
+          "description"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "EVENT"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/EventCode"
+          },
+          "occurred_at": {
+            "$ref": "#/components/schemas/EventTimestamp"
+          },
+          "details": {
+            "$ref": "#/components/schemas/EventDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "EventTimestamp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DatetimeFormatRFC3339"
+          }
+        ]
+      },
+      "ExportDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ExportProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExportFilter": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ExportSystemRecordFilter"
+          }
+        ]
+      },
+      "ExportFilters": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ExportFilter"
+        },
+        "minItems": 1,
+        "maxItems": 1,
+        "uniqueItems": true,
+        "additionalProperties": false
+      },
+      "ExportIntention": {
+        "type": "object",
+        "required": [
+          "type",
+          "range"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPORT"
+            ]
+          },
+          "range": {
+            "$ref": "#/components/schemas/ExportRange"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/ExportFilters"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ExportDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExportProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "ExportRange": {
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "properties": {
+          "start": {
+            "$ref": "#/components/schemas/JournalSigningTimestamp"
+          },
+          "end": {
+            "$ref": "#/components/schemas/JournalSigningTimestamp"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExportSystemRecordFilter": {
+        "type": "object",
+        "required": [
+          "type",
+          "value"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SYSTEM_RECORD"
+            ]
+          },
+          "value": {
+            "$ref": "#/components/schemas/SystemRecordType"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExternalCustomer": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXTERNAL"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/CustomerCode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FiscalLocation": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FiscalLocationFrance"
+          },
+          {
+            "$ref": "#/components/schemas/FiscalLocationPortugal"
+          },
+          {
+            "$ref": "#/components/schemas/FiscalLocationGeneric"
+          }
+        ]
+      },
+      "FiscalLocationCountryCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CountryCode2"
+          }
+        ]
+      },
+      "FiscalLocationFrance": {
+        "type": "object",
+        "required": [
+          "country"
+        ],
+        "properties": {
+          "country": {
+            "type": "string",
+            "enum": [
+              "FR"
+            ]
+          },
+          "region": {
+            "$ref": "#/components/schemas/FiscalLocationRegionCodeFrance"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FiscalLocationGeneric": {
+        "type": "object",
+        "required": [
+          "country"
+        ],
+        "properties": {
+          "country": {
+            "$ref": "#/components/schemas/FiscalLocationCountryCode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FiscalLocationPortugal": {
+        "type": "object",
+        "required": [
+          "country"
+        ],
+        "properties": {
+          "country": {
+            "type": "string",
+            "enum": [
+              "PT"
+            ]
+          },
+          "region": {
+            "$ref": "#/components/schemas/FiscalLocationRegionCodePortugal"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FiscalLocationRegionCodeFrance": {
+        "type": "string",
+        "enum": [
+          "CORSICA",
+          "GUADELOUPE",
+          "MARTINIQUE",
+          "REUNION"
+        ]
+      },
+      "FiscalLocationRegionCodePortugal": {
+        "type": "string",
+        "enum": [
+          "AZORES",
+          "MADEIRA"
+        ]
+      },
+      "GlobalTradeItemNumber12Product": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GTIN-12"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductGlobalTradeItemNumber12"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GlobalTradeItemNumber13Product": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GTIN-13"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductGlobalTradeItemNumber13"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GlobalTradeItemNumber14Product": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GTIN-14"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductGlobalTradeItemNumber14"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GlobalTradeItemNumber8Product": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GTIN-8"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductGlobalTradeItemNumber8"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GroupEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "text",
+          "unit",
+          "value",
+          "vat",
+          "items"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "GROUP"
+            ]
+          },
+          "text": {
+            "$ref": "#/components/schemas/EntryText"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "value": {
+            "$ref": "#/components/schemas/GroupEntryValue"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/GroupEntryVat"
+          },
+          "items": {
+            "$ref": "#/components/schemas/GroupEntryItems"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GroupEntryItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ItemEntry"
+          }
+        ]
+      },
+      "GroupEntryItems": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GroupEntryItem"
+        },
+        "minItems": 1,
+        "maxItems": 10
+      },
+      "GroupEntryValue": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EntryValue"
+          }
+        ]
+      },
+      "GroupEntryVat": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EntryVat"
+          }
+        ]
+      },
+      "Identification": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/VatIdentification"
+          },
+          {
+            "$ref": "#/components/schemas/TaxIdentification"
+          },
+          {
+            "$ref": "#/components/schemas/PassportIdentification"
+          },
+          {
+            "$ref": "#/components/schemas/DocumentIdentification"
+          },
+          {
+            "$ref": "#/components/schemas/OtherIdentification"
+          }
+        ]
+      },
+      "IdentificationNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical28"
+          }
+        ]
+      },
+      "IntentionOperation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TransactionIntention"
+          },
+          {
+            "$ref": "#/components/schemas/EventIntention"
+          },
+          {
+            "$ref": "#/components/schemas/OpeningIntention"
+          },
+          {
+            "$ref": "#/components/schemas/ClosingIntention"
+          },
+          {
+            "$ref": "#/components/schemas/ExportIntention"
+          },
+          {
+            "$ref": "#/components/schemas/DuplicateIntention"
+          },
+          {
+            "$ref": "#/components/schemas/ReplayIntention"
+          },
+          {
+            "$ref": "#/components/schemas/UploadIntention"
+          }
+        ]
+      },
+      "IntentionRecord": {
+        "type": "object",
+        "required": [
+          "type",
+          "system",
+          "operation"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "INTENTION"
+            ]
+          },
+          "system": {
+            "$ref": "#/components/schemas/RecordSystem"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/IntentionOperation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InternalCustomer": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "INTERNAL"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/CustomerCode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InternationalBankAccountNumber": {
+        "type": "string",
+        "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]{2,30}$",
+        "minLength": 15,
+        "maxLength": 34
+      },
+      "InvoiceDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/InvoiceProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvoiceProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "InvoiceTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "document",
+          "entries",
+          "recipients",
+          "payments",
+          "breakdown",
+          "totals"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "INVOICE"
+            ]
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/Entries"
+          },
+          "recipients": {
+            "$ref": "#/components/schemas/Recipients"
+          },
+          "payments": {
+            "$ref": "#/components/schemas/Payments"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/VatBreakdown"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          },
+          "details": {
+            "$ref": "#/components/schemas/InvoiceDetails"
+          },
+          "seller": {
+            "$ref": "#/components/schemas/Seller"
+          },
+          "tax_representative": {
+            "$ref": "#/components/schemas/TaxRepresentative"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ItemEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "text",
+          "unit",
+          "value",
+          "vat"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ITEM"
+            ]
+          },
+          "text": {
+            "$ref": "#/components/schemas/EntryText"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "value": {
+            "$ref": "#/components/schemas/EntryValue"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/EntryVat"
+          },
+          "product": {
+            "$ref": "#/components/schemas/Product"
+          }
+        },
+        "additionalProperties": false
+      },
+      "JournalSigningTimestamp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DatetimeFormatRFC3339"
+          }
+        ]
+      },
+      "LegalAddress": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Address"
+          }
+        ]
+      },
+      "LegalName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "ManufacturerPartNumberProduct": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "MPN"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductManufacturerPartNumber"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MaskedCardNumberFormatISO7812": {
+        "type": "string",
+        "pattern": "^([*0-9]{4,19})$",
+        "minLength": 4,
+        "maxLength": 19
+      },
+      "Metadata": {
+        "allOf": [
+          {
+            "type": "object",
+            "maxProperties": 20,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        ]
+      },
+      "NaturalAddress": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Address"
+          }
+        ]
+      },
+      "NaturalName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PersonName"
+          }
+        ]
+      },
+      "Numerical12": {
+        "type": "string",
+        "pattern": "^\\d{12}$"
+      },
+      "Numerical13": {
+        "type": "string",
+        "pattern": "^\\d{13}$"
+      },
+      "Numerical14": {
+        "type": "string",
+        "pattern": "^\\d{14}$"
+      },
+      "Numerical8": {
+        "type": "string",
+        "pattern": "^\\d{8}$"
+      },
+      "OnlinePayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "details",
+          "name"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ONLINE"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          },
+          "name": {
+            "$ref": "#/components/schemas/PaymentName"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OpeningIntention": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "OPENING"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "OtherIdentification": {
+        "type": "object",
+        "required": [
+          "type",
+          "number"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "OTHER"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/IdentificationNumber"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OtherPayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "OTHER"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          },
+          "name": {
+            "$ref": "#/components/schemas/PaymentName"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OtherProduct": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "OTHER"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductNumber"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProductCode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutstandingPayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "details",
+          "concept"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "OUTSTANDING"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          },
+          "concept": {
+            "$ref": "#/components/schemas/OutstandingPaymentConcept"
+          },
+          "instruction": {
+            "$ref": "#/components/schemas/PaymentInstruction"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutstandingPaymentConcept": {
+        "type": "string",
+        "enum": [
+          "GOOD",
+          "SERVICE",
+          "INVOICE"
+        ]
+      },
+      "PassportIdentification": {
+        "type": "object",
+        "required": [
+          "type",
+          "number"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PASSPORT"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/IdentificationNumber"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Payment": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CashPayment"
+          },
+          {
+            "$ref": "#/components/schemas/CardPayment"
+          },
+          {
+            "$ref": "#/components/schemas/OnlinePayment"
+          },
+          {
+            "$ref": "#/components/schemas/OtherPayment"
+          },
+          {
+            "$ref": "#/components/schemas/OutstandingPayment"
+          },
+          {
+            "$ref": "#/components/schemas/VoucherPayment"
+          }
+        ]
+      },
+      "PaymentAmount": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "PaymentCardKind": {
+        "type": "string",
+        "enum": [
+          "CREDIT",
+          "DEBIT",
+          "PREPAID",
+          "GIFT",
+          "TICKET"
+        ]
+      },
+      "PaymentCardNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MaskedCardNumberFormatISO7812"
+          }
+        ]
+      },
+      "PaymentChannel": {
+        "type": "string",
+        "enum": [
+          "CONTACT",
+          "REMOTE"
+        ]
+      },
+      "PaymentCurrency": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CurrencyFormatISO4217"
+          }
+        ]
+      },
+      "PaymentDate": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/DateFormatISO8601"
+          }
+        ]
+      },
+      "PaymentDetails": {
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/PaymentAmount"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/PaymentCurrency"
+          },
+          "date": {
+            "$ref": "#/components/schemas/PaymentDate"
+          },
+          "discount": {
+            "$ref": "#/components/schemas/PaymentDiscount"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/PaymentChannel"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/PaymentProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PaymentDiscount": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "PaymentInstruction": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreditTransferPaymentInstruction"
+          },
+          {
+            "$ref": "#/components/schemas/DirectDebitPaymentInstruction"
+          },
+          {
+            "$ref": "#/components/schemas/UnknownPaymentInstruction"
+          }
+        ]
+      },
+      "PaymentInstructionMandateReference": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PaymentInstructionName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PaymentInstructionProperties": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PaymentInstructionServiceProvider": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PaymentInstructionText": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PaymentName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PaymentProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "Payments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Payment"
+        },
+        "minItems": 1,
+        "maxItems": 10
+      },
+      "PeppolIdentifierAnnotation": {
+        "type": "string",
+        "pattern": "^[0-9]{4}:[a-zA-Z0-9._/, -]{1,59}$",
+        "minLength": 6,
+        "maxLength": 64
+      },
+      "PersonForename": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PersonGender": {
+        "type": "string",
+        "enum": [
+          "DIVERSE",
+          "FEMALE",
+          "MALE"
+        ]
+      },
+      "PersonLabel": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PersonName": {
+        "type": "object",
+        "required": [
+          "gender",
+          "forename",
+          "surname"
+        ],
+        "properties": {
+          "gender": {
+            "$ref": "#/components/schemas/PersonGender"
+          },
+          "prefix": {
+            "$ref": "#/components/schemas/PersonNamePrefix"
+          },
+          "forename": {
+            "$ref": "#/components/schemas/PersonForename"
+          },
+          "infix": {
+            "$ref": "#/components/schemas/PersonNameInfix"
+          },
+          "surname": {
+            "$ref": "#/components/schemas/PersonSurname"
+          },
+          "suffix": {
+            "$ref": "#/components/schemas/PersonNameSuffix"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PersonNameInfix": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PersonNamePrefix": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PersonNameSuffix": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PersonRecordCreator": {
+        "type": "object",
+        "required": [
+          "type",
+          "label"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERSON"
+            ]
+          },
+          "label": {
+            "$ref": "#/components/schemas/PersonLabel"
+          },
+          "name": {
+            "$ref": "#/components/schemas/PersonName"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PersonSurname": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "PhoneNumberFormatE164": {
+        "type": "string",
+        "pattern": "^\\+[1-9](\\s?\\d){1,14}$",
+        "maxLength": 32
+      },
+      "PlainString1024": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "PlainString128": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "PlainString256": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "PlainString32": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      },
+      "PlainString64": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "ProFormaInvoiceDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ProFormaInvoiceProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProFormaInvoiceProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "ProFormaInvoiceTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "document",
+          "entries",
+          "breakdown",
+          "totals",
+          "recipients"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PRO_FORMA_INVOICE"
+            ]
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/Entries"
+          },
+          "recipients": {
+            "$ref": "#/components/schemas/Recipients"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/VatBreakdown"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProFormaInvoiceDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Product": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GlobalTradeItemNumber8Product"
+          },
+          {
+            "$ref": "#/components/schemas/GlobalTradeItemNumber12Product"
+          },
+          {
+            "$ref": "#/components/schemas/GlobalTradeItemNumber13Product"
+          },
+          {
+            "$ref": "#/components/schemas/GlobalTradeItemNumber14Product"
+          },
+          {
+            "$ref": "#/components/schemas/ManufacturerPartNumberProduct"
+          },
+          {
+            "$ref": "#/components/schemas/StockKeepingUnitProduct"
+          },
+          {
+            "$ref": "#/components/schemas/OtherProduct"
+          }
+        ]
+      },
+      "ProductBatch": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "ProductBrand": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "ProductCode": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AlphaNumerical20"
+          }
+        ]
+      },
+      "ProductDateOfEntry": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DateFormatISO8601"
+          }
+        ]
+      },
+      "ProductDateOfProduction": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DateFormatISO8601"
+          }
+        ]
+      },
+      "ProductDetails": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/ProductName"
+          },
+          "brand": {
+            "$ref": "#/components/schemas/ProductBrand"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ProductModel"
+          },
+          "serial": {
+            "$ref": "#/components/schemas/ProductSerial"
+          },
+          "label": {
+            "$ref": "#/components/schemas/ProductLabel"
+          },
+          "batch": {
+            "$ref": "#/components/schemas/ProductBatch"
+          },
+          "date_of_entry": {
+            "$ref": "#/components/schemas/ProductDateOfEntry"
+          },
+          "date_of_production": {
+            "$ref": "#/components/schemas/ProductDateOfProduction"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProductGlobalTradeItemNumber12": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Numerical12"
+          }
+        ]
+      },
+      "ProductGlobalTradeItemNumber13": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Numerical13"
+          }
+        ]
+      },
+      "ProductGlobalTradeItemNumber14": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Numerical14"
+          }
+        ]
+      },
+      "ProductGlobalTradeItemNumber8": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Numerical8"
+          }
+        ]
+      },
+      "ProductLabel": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "ProductManufacturerPartNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "ProductModel": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "ProductName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "ProductNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "ProductSerial": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "ProductStockKeepingUnitNumber": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9]+([A-Za-z0-9-_/.+:;]+)*$",
+        "minLength": 8,
+        "maxLength": 12
+      },
+      "ProofOfPaymentDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ProofOfPaymentProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProofOfPaymentProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "ProofOfPaymentRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordReference"
+          }
+        ]
+      },
+      "ProofOfPaymentTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "record",
+          "payments"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PROOF_OF_PAYMENT"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/ProofOfPaymentRecord"
+          },
+          "payments": {
+            "$ref": "#/components/schemas/Payments"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProofOfPaymentDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReceiptDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/ReceiptProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReceiptDocument": {
+        "type": "object",
+        "required": [
+          "number"
+        ],
+        "properties": {
+          "number": {
+            "$ref": "#/components/schemas/DocumentNumber"
+          },
+          "series": {
+            "$ref": "#/components/schemas/DocumentSeries"
+          },
+          "text": {
+            "$ref": "#/components/schemas/DocumentText"
+          },
+          "activity_code": {
+            "$ref": "#/components/schemas/DocumentActivityCode"
+          },
+          "issued_at": {
+            "$ref": "#/components/schemas/DocumentIssuingTimestamp"
+          },
+          "operation_date": {
+            "$ref": "#/components/schemas/DocumentOperationDate"
+          },
+          "payment_terms": {
+            "$ref": "#/components/schemas/DocumentPaymentTerms"
+          },
+          "references": {
+            "$ref": "#/components/schemas/DocumentReferences"
+          },
+          "offline": {
+            "$ref": "#/components/schemas/DocumentOffline"
+          },
+          "simplified_invoice": {
+            "$ref": "#/components/schemas/SimplifiedInvoiceOption"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReceiptProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "ReceiptTransaction": {
+        "type": "object",
+        "required": [
+          "type",
+          "document",
+          "entries",
+          "breakdown",
+          "totals",
+          "payments"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "RECEIPT"
+            ]
+          },
+          "document": {
+            "$ref": "#/components/schemas/ReceiptDocument"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/Entries"
+          },
+          "breakdown": {
+            "$ref": "#/components/schemas/VatBreakdown"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "payments": {
+            "$ref": "#/components/schemas/Payments"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ReceiptDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Recipient": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ConsumerRecipient"
+          },
+          {
+            "$ref": "#/components/schemas/BusinessRecipient"
+          }
+        ]
+      },
+      "RecipientInvoicing": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RecipientInvoicingPeppol"
+          },
+          {
+            "$ref": "#/components/schemas/RecipientInvoicingEmail"
+          },
+          {
+            "$ref": "#/components/schemas/RecipientInvoicingSDI"
+          }
+        ]
+      },
+      "RecipientInvoicingEmail": {
+        "type": "object",
+        "required": [
+          "type",
+          "email"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "EMAIL"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "format": {
+            "$ref": "#/components/schemas/RecipientInvoicingFormat"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecipientInvoicingFormat": {
+        "type": "string",
+        "enum": [
+          "ZUGFERD_V2",
+          "XRECHNUNG_V3"
+        ],
+        "default": "ZUGFERD_V2"
+      },
+      "RecipientInvoicingPeppol": {
+        "type": "object",
+        "required": [
+          "type",
+          "identifier"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PEPPOL"
+            ]
+          },
+          "identifier": {
+            "$ref": "#/components/schemas/PeppolIdentifierAnnotation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecipientInvoicingSDI": {
+        "type": "object",
+        "required": [
+          "type",
+          "destination_code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SDI"
+            ]
+          },
+          "destination_code": {
+            "$ref": "#/components/schemas/SdiDestinationCode"
+          },
+          "pec": {
+            "$ref": "#/components/schemas/EmailAddress"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecipientOrigin": {
+        "type": "string",
+        "enum": [
+          "NATIONAL",
+          "INTERNATIONAL"
+        ],
+        "default": "NATIONAL"
+      },
+      "Recipients": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Recipient"
+        },
+        "minItems": 1,
+        "maxItems": 100
+      },
+      "RecordConnection": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RecordIdentifier"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordCreateContent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/IntentionRecord"
+          },
+          {
+            "$ref": "#/components/schemas/TransactionRecord"
+          }
+        ]
+      },
+      "RecordCreateRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/RecordCreateContent"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordCreator": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PersonRecordCreator"
+          }
+        ]
+      },
+      "RecordCreators": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RecordCreator"
+        },
+        "minItems": 1,
+        "maxItems": 1
+      },
+      "RecordIdentifier": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UniversallyUniqueIdentifierV7"
+          }
+        ]
+      },
+      "RecordOffset": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnsignedInteger15"
+          }
+        ]
+      },
+      "RecordReference": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RecordIdentifier"
+          },
+          "offset": {
+            "$ref": "#/components/schemas/RecordOffset"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordSystem": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/SystemIdentifier"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordTrainingOption": {
+        "type": "boolean"
+      },
+      "ReplayContent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ReplayIntentionContent"
+          },
+          {
+            "$ref": "#/components/schemas/ReplayTransactionContent"
+          }
+        ]
+      },
+      "ReplayIntention": {
+        "type": "object",
+        "required": [
+          "type",
+          "recorded_at",
+          "seed",
+          "record",
+          "content"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "REPLAY"
+            ]
+          },
+          "recorded_at": {
+            "$ref": "#/components/schemas/ReplayRecordedTimestamp"
+          },
+          "seed": {
+            "$ref": "#/components/schemas/ReplaySeed"
+          },
+          "record": {
+            "$ref": "#/components/schemas/ReplayRecord"
+          },
+          "content": {
+            "$ref": "#/components/schemas/ReplayContent"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplayIntentionContent": {
+        "type": "object",
+        "required": [
+          "type",
+          "system",
+          "operation"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "INTENTION"
+            ]
+          },
+          "system": {
+            "$ref": "#/components/schemas/RecordSystem"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/ReplayIntentionOperation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplayIntentionOperation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TransactionIntention"
+          },
+          {
+            "$ref": "#/components/schemas/EventIntention"
+          },
+          {
+            "$ref": "#/components/schemas/ExportIntention"
+          },
+          {
+            "$ref": "#/components/schemas/DuplicateIntention"
+          }
+        ]
+      },
+      "ReplayRecord": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordConnection"
+          }
+        ]
+      },
+      "ReplayRecordedTimestamp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DatetimeFormatRFC3339"
+          }
+        ]
+      },
+      "ReplaySeed": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString64"
+          }
+        ]
+      },
+      "ReplayTransactionContent": {
+        "type": "object",
+        "required": [
+          "type",
+          "record",
+          "operation"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TRANSACTION"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/RecordReference"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/TransactionOperation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReturnEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "data",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "RETURN"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntryData"
+          },
+          "details": {
+            "$ref": "#/components/schemas/EntryDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SEPACreditorIdentifier": {
+        "type": "string",
+        "pattern": "^[A-Z]{2}[0-9]{2}[A-Z0-9]{3}[0-9][A-Z0-9]{1,28}$",
+        "minLength": 9,
+        "maxLength": 35
+      },
+      "SaleEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "data",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SALE"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntryData"
+          },
+          "details": {
+            "$ref": "#/components/schemas/EntryDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SdiDestinationCode": {
+        "type": "string",
+        "pattern": "^[A-Z0-9]{7}$",
+        "minLength": 7,
+        "maxLength": 7
+      },
+      "Seller": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/SellerName"
+          },
+          "phone": {
+            "$ref": "#/components/schemas/SellerPhone"
+          },
+          "email": {
+            "$ref": "#/components/schemas/SellerEmail"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SellerEmail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EmailAddress"
+          }
+        ]
+      },
+      "SellerName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "SellerPhone": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PhoneNumberFormatE164"
+          }
+        ]
+      },
+      "Shipping": {
+        "type": "object",
+        "required": [
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "date": {
+            "$ref": "#/components/schemas/ShippingDate"
+          },
+          "name": {
+            "$ref": "#/components/schemas/ShippingName"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ShippingAddress": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Address"
+          }
+        ]
+      },
+      "ShippingDate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DateFormatISO8601"
+          }
+        ]
+      },
+      "ShippingName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "SimplifiedInvoiceOption": {
+        "type": "boolean",
+        "default": false
+      },
+      "SingleEuroPaymentsAreaCreditorIdentifier": {
+        "type": "object",
+        "required": [
+          "type",
+          "identifier"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SEPA"
+            ]
+          },
+          "identifier": {
+            "$ref": "#/components/schemas/SEPACreditorIdentifier"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StockKeepingUnitProduct": {
+        "type": "object",
+        "required": [
+          "type",
+          "number",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "SKU"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ProductStockKeepingUnitNumber"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ProductDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StreetNumberAddressLine": {
+        "type": "object",
+        "required": [
+          "type",
+          "street",
+          "number"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "STREET_NUMBER"
+            ]
+          },
+          "prefix": {
+            "$ref": "#/components/schemas/AddressPrefix"
+          },
+          "street": {
+            "$ref": "#/components/schemas/AddressStreet"
+          },
+          "infix": {
+            "$ref": "#/components/schemas/AddressInfix"
+          },
+          "number": {
+            "$ref": "#/components/schemas/AddressNumber"
+          },
+          "suffix": {
+            "$ref": "#/components/schemas/AddressSuffix"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SurchargeValue": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "SystemIdentifier": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UniversallyUniqueIdentifierV7"
+          }
+        ]
+      },
+      "SystemRecordType": {
+        "type": "string",
+        "enum": [
+          "INTENTION::TRANSACTION",
+          "INTENTION::EVENT",
+          "INTENTION::EXPORT",
+          "INTENTION::DUPLICATE",
+          "INTENTION::OPENING",
+          "INTENTION::CLOSING",
+          "INTENTION::UPLOAD",
+          "TRANSACTION::RECEIPT",
+          "TRANSACTION::ABORT",
+          "TRANSACTION::CANCELLATION",
+          "TRANSACTION::CORRECTION",
+          "TRANSACTION::DRAFT_RECEIPT",
+          "TRANSACTION::ENRICHMENT",
+          "TRANSACTION::INVOICE",
+          "TRANSACTION::PROOF_OF_PAYMENT",
+          "TRANSACTION::PRO_FORMA_INVOICE",
+          "CLOSING::DAILY",
+          "CLOSING::MONTHLY",
+          "CLOSING::YEARLY",
+          "EXPORT::RECORDS",
+          "E_INVOICE::TRANSMISSION",
+          "E_INVOICE::RECEPTION",
+          "UPLOAD::PEPPOL_PROOF_OF_OWNERSHIP"
+        ]
+      },
+      "SystemVatExemptionCode": {
+        "type": "string",
+        "enum": [
+          "NOT_SUBJECT",
+          "NOT_TAXABLE",
+          "CAUSE_1",
+          "CAUSE_2",
+          "CAUSE_3",
+          "CAUSE_4",
+          "CAUSE_5",
+          "CAUSE_6",
+          "CAUSE_7",
+          "CAUSE_8",
+          "CAUSE_9",
+          "CAUSE_10",
+          "CAUSE_11",
+          "CAUSE_12",
+          "CAUSE_13",
+          "CAUSE_14",
+          "CAUSE_15",
+          "CAUSE_16",
+          "CAUSE_17",
+          "CAUSE_18",
+          "CAUSE_19",
+          "CAUSE_20",
+          "CAUSE_21",
+          "CAUSE_22",
+          "CAUSE_23",
+          "CAUSE_24",
+          "CAUSE_25",
+          "CAUSE_26",
+          "CAUSE_27",
+          "CAUSE_28",
+          "CAUSE_29",
+          "CAUSE_30",
+          "CAUSE_31"
+        ]
+      },
+      "SystemVatRateCode": {
+        "type": "string",
+        "enum": [
+          "STANDARD",
+          "REDUCED_1",
+          "REDUCED_2",
+          "REDUCED_3",
+          "REDUCED_4",
+          "REDUCED_5",
+          "REDUCED_6",
+          "REDUCED_7",
+          "REDUCED_8",
+          "REDUCED_9",
+          "REDUCED_10",
+          "REDUCED_11"
+        ]
+      },
+      "SystemVatRatePercentage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnsignedDecimal3p2"
+          }
+        ]
+      },
+      "TaxIdentification": {
+        "type": "object",
+        "required": [
+          "type",
+          "number"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TAX"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/IdentificationNumber"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaxRepresentative": {
+        "type": "object",
+        "required": [
+          "name",
+          "vat_number",
+          "country"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/TaxRepresentativeName"
+          },
+          "vat_number": {
+            "$ref": "#/components/schemas/TaxRepresentativeVatNumber"
+          },
+          "country": {
+            "$ref": "#/components/schemas/TaxRepresentativeCountry"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TaxRepresentativeCountry": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CountryCode2"
+          }
+        ]
+      },
+      "TaxRepresentativeName": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString256"
+          }
+        ]
+      },
+      "TaxRepresentativeVatNumber": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaxpayerVatNumber"
+          }
+        ]
+      },
+      "TaxpayerVatNumber": {
+        "type": "string",
+        "pattern": "^([A-Za-z0-9-]{1,20})$",
+        "minLength": 1,
+        "maxLength": 20
+      },
+      "TokenCreateContent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ApiKeyToken"
+          }
+        ]
+      },
+      "TokenCreateRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/TokenCreateContent"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Totals": {
+        "type": "object",
+        "required": [
+          "vat"
+        ],
+        "properties": {
+          "vat": {
+            "$ref": "#/components/schemas/TotalsVat"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TotalsVat": {
+        "type": "object",
+        "required": [
+          "amount",
+          "exclusive",
+          "inclusive"
+        ],
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/VatAmount"
+          },
+          "exclusive": {
+            "$ref": "#/components/schemas/VatExclusive"
+          },
+          "inclusive": {
+            "$ref": "#/components/schemas/VatInclusive"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransactionDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/TransactionProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransactionIntention": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TRANSACTION"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/TransactionDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TransactionOperation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AbortTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/ReceiptTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/DraftReceiptTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/InvoiceTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/ProFormaInvoiceTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/EnrichmentTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/CorrectionTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/CancellationTransaction"
+          },
+          {
+            "$ref": "#/components/schemas/ProofOfPaymentTransaction"
+          }
+        ]
+      },
+      "TransactionProperties": {
+        "type": "object",
+        "maxProperties": 16,
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "TransactionRecord": {
+        "type": "object",
+        "required": [
+          "type",
+          "record",
+          "operation"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TRANSACTION"
+            ]
+          },
+          "record": {
+            "$ref": "#/components/schemas/RecordReference"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/TransactionOperation"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Unit": {
+        "type": "object",
+        "required": [
+          "quantity",
+          "price"
+        ],
+        "properties": {
+          "quantity": {
+            "$ref": "#/components/schemas/UnitQuantity"
+          },
+          "measure": {
+            "$ref": "#/components/schemas/UnitMeasure"
+          },
+          "factor": {
+            "$ref": "#/components/schemas/UnitFactor"
+          },
+          "price": {
+            "$ref": "#/components/schemas/UnitPrice"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitFactor": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "UnitMeasure": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString32"
+          }
+        ]
+      },
+      "UnitPrice": {
+        "type": "object",
+        "required": [
+          "inclusive",
+          "exclusive"
+        ],
+        "properties": {
+          "inclusive": {
+            "$ref": "#/components/schemas/UnitPriceInclusive"
+          },
+          "exclusive": {
+            "$ref": "#/components/schemas/UnitPriceExclusive"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitPriceExclusive": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "UnitPriceInclusive": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "UnitQuantity": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "UniversallyUniqueIdentifierV7": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^[0-9a-f]{8}-?[0-9a-f]{4}-?7[0-9a-f]{3}-?[0-9a-f]{4}-?[0-9a-f]{12}$",
+        "x-go-type": "uuid.UUID",
+        "x-go-type-import": {
+          "name": "uuid",
+          "path": "github.com/google/uuid"
+        }
+      },
+      "UnknownPaymentInstruction": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN"
+            ]
+          },
+          "text": {
+            "$ref": "#/components/schemas/PaymentInstructionText"
+          },
+          "properties": {
+            "$ref": "#/components/schemas/PaymentInstructionProperties"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnsignedDecimal3p2": {
+        "type": "string",
+        "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+      },
+      "UnsignedInteger15": {
+        "type": "string",
+        "pattern": "^(\\d{1,15})$"
+      },
+      "UnsignedInteger4": {
+        "type": "string",
+        "pattern": "^(\\d{1,4})$"
+      },
+      "UploadContent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Content"
+          }
+        ]
+      },
+      "UploadDetails": {
+        "type": "object",
+        "required": [
+          "creators"
+        ],
+        "properties": {
+          "creators": {
+            "$ref": "#/components/schemas/RecordCreators"
+          },
+          "training": {
+            "$ref": "#/components/schemas/RecordTrainingOption"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UploadIntention": {
+        "type": "object",
+        "required": [
+          "type",
+          "content",
+          "purpose"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "UPLOAD"
+            ]
+          },
+          "content": {
+            "$ref": "#/components/schemas/UploadContent"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/UploadPurpose"
+          },
+          "details": {
+            "$ref": "#/components/schemas/UploadDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UploadPurpose": {
+        "type": "string",
+        "enum": [
+          "PEPPOL_PROOF_OF_OWNERSHIP"
+        ]
+      },
+      "VatAmount": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "VatBreakdown": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VatBreakdownEntry"
+        },
+        "minItems": 1,
+        "maxItems": 100
+      },
+      "VatBreakdownEntry": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/VatBreakdownRateEntry"
+          },
+          {
+            "$ref": "#/components/schemas/VatBreakdownExemptionEntry"
+          },
+          {
+            "$ref": "#/components/schemas/VatBreakdownReverseChargeEntry"
+          }
+        ]
+      },
+      "VatBreakdownExemptionEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "code",
+          "exclusive"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT_EXEMPTION"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/SystemVatExemptionCode"
+          },
+          "exclusive": {
+            "$ref": "#/components/schemas/VatExclusive"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatBreakdownRateEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "code",
+          "percentage",
+          "amount",
+          "exclusive",
+          "inclusive"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT_RATE"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/SystemVatRateCode"
+          },
+          "percentage": {
+            "$ref": "#/components/schemas/SystemVatRatePercentage"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/VatAmount"
+          },
+          "exclusive": {
+            "$ref": "#/components/schemas/VatExclusive"
+          },
+          "inclusive": {
+            "$ref": "#/components/schemas/VatInclusive"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatBreakdownReverseChargeEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "exclusive"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT_REVERSE_CHARGE"
+            ]
+          },
+          "exclusive": {
+            "$ref": "#/components/schemas/VatExclusive"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatExclusive": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "VatExemptionCategory": {
+        "type": "object",
+        "required": [
+          "type",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT_EXEMPTION"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/SystemVatExemptionCode"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/VatExemptionReason"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatExemptionReason": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlainString128"
+          }
+        ]
+      },
+      "VatIdentification": {
+        "type": "object",
+        "required": [
+          "type",
+          "number"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/TaxpayerVatNumber"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatInclusive": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "VatRateCategory": {
+        "type": "object",
+        "required": [
+          "type",
+          "code",
+          "percentage",
+          "amount",
+          "exclusive",
+          "inclusive"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT_RATE"
+            ]
+          },
+          "code": {
+            "$ref": "#/components/schemas/SystemVatRateCode"
+          },
+          "percentage": {
+            "$ref": "#/components/schemas/SystemVatRatePercentage"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/VatAmount"
+          },
+          "exclusive": {
+            "$ref": "#/components/schemas/VatExclusive"
+          },
+          "inclusive": {
+            "$ref": "#/components/schemas/VatInclusive"
+          },
+          "fiscal_location": {
+            "$ref": "#/components/schemas/FiscalLocation"
+          },
+          "regime": {
+            "$ref": "#/components/schemas/VatRegime"
+          },
+          "regime_base": {
+            "$ref": "#/components/schemas/VatRegimeBase"
+          },
+          "surcharge": {
+            "$ref": "#/components/schemas/VatSurcharge"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatRegime": {
+        "type": "string"
+      },
+      "VatRegimeBase": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "VatReverseChargeCategory": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VAT_REVERSE_CHARGE"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatSurcharge": {
+        "type": "object",
+        "required": [
+          "rate",
+          "amount"
+        ],
+        "properties": {
+          "rate": {
+            "$ref": "#/components/schemas/VatSurchargeRate"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/VatSurchargeAmount"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatSurchargeAmount": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Decimal12p8"
+          }
+        ]
+      },
+      "VatSurchargeRate": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UnsignedDecimal3p2"
+          }
+        ]
+      },
+      "VoucherEntry": {
+        "type": "object",
+        "required": [
+          "type",
+          "data",
+          "details"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VOUCHER"
+            ]
+          },
+          "data": {
+            "$ref": "#/components/schemas/EntryData"
+          },
+          "details": {
+            "$ref": "#/components/schemas/EntryDetails"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VoucherPayment": {
+        "type": "object",
+        "required": [
+          "type",
+          "details",
+          "number",
+          "kind"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "VOUCHER"
+            ]
+          },
+          "details": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          },
+          "number": {
+            "$ref": "#/components/schemas/PaymentCardNumber"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VoucherPaymentKind"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VoucherPaymentKind": {
+        "type": "string",
+        "enum": [
+          "SINGLE",
+          "MULTIPLE"
+        ]
+      }
+    }
+  }
+}

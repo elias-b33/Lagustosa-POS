@@ -26,13 +26,15 @@ export function JournalExport({ data }: { data: Bootstrap }) {
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {coverage && <>
-      <p className="muted">{coverage.mappedEntryIds.length} händelser kan återges i XML. {coverage.excludedOperational.length} tekniska händelser bevaras i JSON. {coverage.legacy.length} poster har äldre identitetsunderlag.</p>
+      <p className="muted">{coverage.mappedEntryIds.length} händelser kan återges i standard-XML. {coverage.excludedOperational.length} tekniska händelser bevaras i träningsunderlaget. {coverage.legacy.length} poster har äldre identitetsunderlag.</p>
       {coverage.unsupportedRegulatory.length > 0 && <div className="notice warning"><div><strong>XML-exporten behöver kompletterat underlag</strong><p>{coverage.unsupportedRegulatory.length} händelser saknar en verifierbar XML-mappning. JSON bevarar journalen och orsakerna.</p><details><summary>Visa vad som saknas</summary><ul>{coverage.unsupportedRegulatory.slice(0, 20).map(issue => <li key={`${issue.entryId}:${issue.code}`}>#{issue.entryId}: {issue.reason}</li>)}</ul></details></div></div>}
       <p className="muted">Kontrollen avser exportens datainnehåll. Träningsversionen är inte tillverkardeklarerad för skarp drift.</p>
     </>}
     <div className="action-row compact">
-      {coverage?.canExportXml ? <a className="button secondary" href={`/api/v1/journal.xml?${query}`}>Hämta journal XML</a> : <button className="button secondary" disabled>XML kräver komplett underlag</button>}
+      {coverage?.canExportXml ? <a className="button secondary" title="XML enligt Skatteverkets schema" href={`/api/v1/journal.xml?${query}`}>Hämta journal XML</a> : <button className="button secondary" disabled>Standard-XML kräver komplett underlag</button>}
+      {data.actor.staff.role === 'admin' && <a className="button secondary" href={`/api/v1/journal-training.xml?${query}`}>Träningsunderlag XML · med kopior</a>}
       {data.actor.staff.role === 'admin' && <a className="button secondary" href={`/api/v1/journal.json?${query}`}>Hämta journalunderlag JSON</a>}
     </div>
+    {data.actor.staff.role === 'admin' && <p className="muted">Träningsunderlag XML innehåller även kvittokopior och deras originalreferenser i Elevas eget format. Det ersätter inte Skatteverkets standardexport.</p>}
   </article>;
 }

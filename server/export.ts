@@ -202,6 +202,7 @@ function eventScope(entry: AuditEntry, context?: Settings): JournalScope {
   return context ? { kind: 'legacy', registerId: context.registerId, source: 'historical-settings' } : { kind: 'unknown', registerId: null, source: 'unknown' };
 }
 const operationalActions = new Set(['terminal.status', 'menu.catalog_imported', 'menu.save', 'settings.save', 'staff.save', 'device.save', 'table.save', 'printer.saved', 'backup.created', 'print.routing_migrated', 'print.routed', 'print.started', 'print.print', 'print.resolve', 'print.recovered_uncertain', 'ticket.create', 'ticket.status', 'ticket.line_cancelled', 'ticket.table_moved', 'tab.send', 'tab.fire', 'tab.move', 'tab.guests', 'payment.start', 'payment.status', 'refund.start', 'payment.recovered_unknown', 'fiscal.confirmed', 'fiscal.unknown', 'fiscal.verify', 'fiscal.recovered_unknown', 'report.z_read', 'journal.export', 'journal.export_json']);
+operationalActions.add('journal.export_training_xml');
 function containsAccountingValue(value: unknown): boolean {
   if (typeof value === 'number') return value !== 0;
   if (!value || typeof value !== 'object') return false;
@@ -352,7 +353,8 @@ export function exportJournalJson(store: Store, user: string, at: string, from?:
   demand(!journal.some(entry => containsCredential(entry.details)), 'Journalunderlaget innehåller autentiseringsuppgifter. Exporten är spärrad tills datainnehållet har utretts.', 409, 'JOURNAL_CREDENTIAL_DATA');
   const originalIds = new Set(journal.flatMap(entry => {
     const details = entry.details as JournalDetails;
-    return [details.receiptId, details.receipt?.originalReceiptId].filter((id): id is string => !!id);
+    const oldCopySource = entry.action === 'print.reprint' && details.kind === 'guest' ? (entry.details as { sourceId?: string }).sourceId : undefined;
+    return [details.receiptId ?? oldCopySource, details.receipt?.originalReceiptId].filter((id): id is string => !!id);
   }));
   const referencedReceipts = all.filter(entry => entry.action === 'receipt.create' && originalIds.has(entry.entityId)).map(entry => ({ entryId: entry.id, receipt: (entry.details as JournalDetails).receipt }));
   demand(!containsCredential(referencedReceipts), 'Journalunderlaget innehåller autentiseringsuppgifter.', 409, 'JOURNAL_CREDENTIAL_DATA');

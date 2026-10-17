@@ -300,6 +300,8 @@ React/TypeScript/Vite, Fastify/Node 24 och SQLite (`better-sqlite3`, WAL, FULL s
 
 Adaptergränssnitten för betalning, kontrollenhet och skrivare finns i `server/adapters.ts`. Riktiga drivrutiner ska implementeras och provas mot valda modeller/leverantörer. Swish-verifieringen i denna version är ett testval, inte en bankintegration. Journal-XML är en träningsimplementation; produktionskrav och verifiering mot Skatteverkets schema ingår i arbetet inför riktig drift.
 
+Ansvarig kan nu exportera hela [träningsjournalen som XML, inklusive kvittokopior](server/TRAINING-XML.md). Detta är ett uttryckligt Eleva-format. Standard-XML spärras fortfarande när riktiga kontrolluppgifter saknas; historiken ändras inte för att passera schemat. [Förberedelsen för fiskaly SIGN SE TEST](server/fiskaly-test/README.md) innehåller kontraktstestad serverklient, separata kassakopplingar och beständig anropskö. Den är ännu inte ansluten till betalningsflödet eller verifierad mot fiskalys TEST-miljö.
+
 Före kunddrift återstår aktuell meny och bordsplan, betalningsleverantör, fysiska skrivare och certifierad kontrollenhet, dokumenterade tester och tillverkardeklaration samt registrering av installationen. Qpay kan fortsätta hantera kundförsäljning under provdriften.
 
 Momsreglernas exempel följer Skatteverkets uppgifter om [6 % livsmedelsmoms för hämtmat från 1 april 2026 till 31 december 2027, och 12 % restaurangmoms](https://www.skatteverket.se/omoss/pressochmedia/nyheter/2026/nyheter/livsmedelsmomsensankstill6procent.5.70685bee19c85dd5dd0a3f.html). Läs också [informationen för tillverkare och leverantörer](https://www.skatteverket.se/foretag/drivaforetag/kassaregister/fortillverkareochleverantorer.4.6efe6285127ab4f1d2580006050.html).

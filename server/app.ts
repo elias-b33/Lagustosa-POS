@@ -11,6 +11,7 @@ import { KassaService } from './service';
 import type { Actor, BusinessDay, PrinterProfile } from '../shared/types';
 import * as schema from './validation';
 import { exportCsv, exportXml, exportJournalJson, journalExportCoverage, validJournalDate } from './export';
+import { exportTrainingJournalXml } from './training-journal-xml';
 import type { PaymentAdapter, PrintAdapter } from './adapters';
 import { SoftpaySandboxAdapter } from './softpay-adapter';
 import { readSoftpaySandboxConfig } from './softpay-config';
@@ -185,6 +186,15 @@ export async function createApp(options: AppOptions) {
     const xml = exportXml(store, identity.staff.name, service.timestamp(), query.from, query.to, query.registerId, service.registerFor(identity).id);
     reply.type('application/xml; charset=utf-8').header('Content-Disposition', 'attachment; filename="lagustosa-journal-test.xml"');
     service.log(identity, 'journal.export', 'journal', { from: query.from, to: query.to, selectedRegisterId: query.registerId ?? null });
+    return xml;
+  });
+  app.get('/api/v1/journal-training.xml', async (request, reply) => {
+    const identity = actor(request);
+    service.require(identity, ['admin']);
+    const query = journalQuery.parse(request.query);
+    const xml = exportTrainingJournalXml(store, identity.staff.name, service.timestamp(), query.from, query.to, query.registerId, service.registerFor(identity).id);
+    reply.type('application/xml; charset=utf-8').header('Content-Disposition', 'attachment; filename="eleva-training-journal.xml"');
+    service.log(identity, 'journal.export_training_xml', 'journal', { from: query.from, to: query.to, selectedRegisterId: query.registerId ?? null });
     return xml;
   });
   app.get('/api/v1/journal.json', async (request, reply) => {
